@@ -1,5 +1,5 @@
 import Params from 'main/Params'
-import { round } from 'utils/mathUtils'
+import { isLandscapeOrientation, readVisibleViewport } from 'utils/viewportUtils'
 
 const rotationHandlers: Array<(event?: any) => void> = []
 
@@ -12,14 +12,13 @@ export const mergeObject = (state: Record<string, any>, props: Record<string, an
 }
 
 export const handleGlobalResize = (event: any = false) => {
-  Params.set('width', round(window?.visualViewport?.width || window.innerWidth, 0))
-  Params.set('height', round(window?.visualViewport?.height || window.innerHeight, 0))
+  const viewport = readVisibleViewport()
+  Params.set('width', viewport.width)
+  Params.set('height', viewport.height)
 
   removeGlobalStatus('drawith__LANDSCAPE')
   removeGlobalStatus('drawith__PORTRAIT')
-  addGlobalStatus(
-    window.innerWidth > window.innerHeight ? 'drawith__LANDSCAPE' : 'drawith__PORTRAIT'
-  )
+  addGlobalStatus(isLandscapeOrientation() ? 'drawith__LANDSCAPE' : 'drawith__PORTRAIT')
   document.documentElement.style.setProperty('--100vw', `${Params.width}px`)
   document.documentElement.style.setProperty('--100vh', `${Params.height}px`)
 
@@ -75,7 +74,7 @@ export const getRealScreenWidth = (): number => {
   } else {
     const screenLongSide = Math.max(screen.width, screen.height)
     const screenShortSide = Math.min(screen.width, screen.height)
-    if (window.innerWidth > window.innerHeight) {
+    if (isLandscapeOrientation()) {
       return Math.trunc(screenLongSide * Params.pixelRatio)
     } else {
       return Math.trunc(screenShortSide * Params.pixelRatio)
@@ -89,7 +88,7 @@ export const getRealScreenHeight = (): number => {
   } else {
     const screenLongSide = Math.max(screen.width, screen.height)
     const screenShortSide = Math.min(screen.width, screen.height)
-    if (window.innerHeight >= window.innerWidth) {
+    if (!isLandscapeOrientation()) {
       return Math.trunc(screenLongSide * Params.pixelRatio)
     } else {
       return Math.trunc(screenShortSide * Params.pixelRatio)

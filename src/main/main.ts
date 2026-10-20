@@ -7,7 +7,8 @@ import { round } from 'utils/mathUtils'
 import * as Messages from 'modules/Messages'
 import * as Coworking from 'modules/Coworking'
 import { initLocalDb } from 'utils/localDbUtils'
-import { delay, securizeAsyncFn, debounce } from 'utils/jsUtils'
+import { securizeAsyncFn, debounce } from 'utils/jsUtils'
+import { fractionalViewportScaleApplied, readVisibleViewport } from 'utils/viewportUtils'
 import { init as initCoworking } from 'modules/Coworking'
 import { init as initImageUtils } from 'utils/imageUtils'
 import { init as initHeader } from 'components/Header'
@@ -134,27 +135,51 @@ const addEnviromentGlobalStatus = () => {
   }
 }
 
+const waitForStableViewport = async () => {
+  let lastW = -1
+  let lastH = -1
+  let stableFrames = 0
+  const start = performance.now()
+  while (performance.now() - start < 400) {
+    await new Promise<void>((resolve) => {
+      requestAnimationFrame(() => resolve())
+    })
+    const { width, height } = readVisibleViewport()
+    if (width > 0 && height > 0 && width === lastW && height === lastH) {
+      stableFrames += 1
+      if (stableFrames >= 2) return
+    } else {
+      stableFrames = 0
+    }
+    lastW = width
+    lastH = height
+  }
+}
+
 const setViewport = async () => {
   const currentTag = document.getElementById('metaViewport')
   if (currentTag && currentTag.parentNode) {
     currentTag.parentNode.removeChild(currentTag)
   }
 
-  const attributes: string[] = []
-  attributes.push('initial-scale=' + Params.viewportScale)
-  attributes.push('minimum-scale=' + Params.viewportScale)
-  attributes.push('maximum-scale=' + Params.viewportScale)
-  attributes.push('user-scalable=no')
-  attributes.push('viewport-fit=cover')
-  attributes.push('shrink-to-fit=no')
-
   const viewport = document.createElement('meta')
   viewport.setAttribute('name', 'viewport')
   viewport.setAttribute('id', 'metaViewport')
-  viewport.setAttribute('content', attributes.join(', '))
+  viewport.setAttribute(
+    'content',
+    [
+      'width=device-width',
+      `initial-scale=${Params.viewportScale}`,
+      `minimum-scale=${Params.viewportScale}`,
+      `maximum-scale=${Params.viewportScale}`,
+      'user-scalable=no',
+      'viewport-fit=cover',
+      'shrink-to-fit=no',
+    ].join(', ')
+  )
 
   document.head.appendChild(viewport)
-  await delay(16)
+  await waitForStableViewport()
 }
 
 const getRealPxScale = () => {
@@ -163,25 +188,32 @@ const getRealPxScale = () => {
 }
 
 const initViewportTryPixelPerfect = async () => {
-  if (Params.isDesktop) {
+  window.visualViewport?.addEventListener('resize', () => {
+    handleGlobalResize()
+  })
+
+  if (Params.isDesktop || Params.pixelRatio <= 1) {
     Params.set('viewportScale', 1)
     Params.set('pxScale', Params.pixelRatio)
     await setViewport()
   } else {
+    const widthBefore = readVisibleViewport().width
     Params.set('viewportScale', 1 / Params.pixelRatio)
     await setViewport()
+    const widthAfter = readVisibleViewport().width
 
-    Params.set('pxScale', getRealPxScale())
-
-    if (Params.pxScale / Params.pixelRatio !== Params.viewportScale) {
+    if (!fractionalViewportScaleApplied(widthBefore, widthAfter, Params.viewportScale)) {
       Params.set('viewportScale', 1)
       Params.set('pxScale', Params.pixelRatio)
       await setViewport()
+    } else {
+      Params.set('pxScale', getRealPxScale())
     }
   }
 
-  Params.set('width', round(window?.visualViewport?.width || window.innerWidth, 0))
-  Params.set('height', round(window?.visualViewport?.height || window.innerHeight, 0))
+  const viewport = readVisibleViewport()
+  Params.set('width', viewport.width)
+  Params.set('height', viewport.height)
 }
 
 const openFolder = (e: Event) => {
