@@ -1,0 +1,10 @@
+if ! pnpm run ci; then
+  echo ""
+  echo "================================================================================"
+  echo "✖ PRE-COMMIT BLOCKED: 'pnpm run ci' failed (typecheck, lint/prettier, or knip)."
+  echo "  Please fix the errors reported above before committing."
+  echo "  Tip: run 'pnpm run lint:fix' to auto-fix formatting/lint issues, then re-run 'pnpm run ci'."
+  echo "================================================================================"
+  echo ""
+  exit 1
+fi
