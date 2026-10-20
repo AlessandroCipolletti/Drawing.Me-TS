@@ -1,0 +1,6 @@
+node_modules
+dist
+public
+src/static
+*.tpl
+pnpm-lock.yaml
