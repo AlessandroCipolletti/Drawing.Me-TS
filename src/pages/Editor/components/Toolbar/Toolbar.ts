@@ -1,20 +1,22 @@
-import tplToolbar from './toolbar.tpl?raw'
 import './toolbar.css'
 
 import Params from 'main/Params'
-import * as Editor from 'pages/Editor'
+import { editorFacade } from 'pages/Editor/editorFacade'
+import { CurrentToolProps } from 'pages/Editor/editorTypes'
+import { toolDefaultProps } from 'pages/Editor/config'
 import * as Tools from 'pages/Editor/components/Tools'
 import * as Layers from 'pages/Editor/components/Layers'
 import { cleanRefs } from 'utils/moduleUtils'
 import { deepCopy } from 'utils/jsUtils'
 import {
   preventDefault,
-  loadTemplate,
   disableElements,
   enableElements,
   getEventCoordX,
   createDom,
 } from 'utils/domUtils'
+import { mount } from 'ui/mount'
+import { ToolbarView, ToolbarRefs } from './ToolbarView'
 import { addHorizontalDragSliderHandler } from 'utils/uiUtils'
 import {
   round,
@@ -22,9 +24,13 @@ import {
   logarithmicValueToPerc,
   getNumberInBetween,
 } from 'utils/mathUtils'
-import { cursorButtonTouchStart, getToolPreviewTouchEvents } from './toolbarUtils'
+import {
+  cursorButtonTouchStart,
+  getToolPreviewTouchEvents,
+  PreviewTouchSample,
+} from './toolbarUtils'
 import { fadeOutElements } from 'utils/animationsUtils'
-import { getNewContextForCanvas, drawMultipleSteps, ExtendedCanvasContext } from 'utils/canvasUtils'
+import { getNewContextForCanvas, drawMultipleSteps } from 'utils/canvasUtils'
 import { getStepsDataFromTouchEvents } from 'pages/Editor/editorUtils'
 import { timing, spacing } from 'main/Theme'
 
@@ -34,42 +40,38 @@ const config = {
   slidersWaitingTime: 0, // Fix legacy bug: coalesce preview via requestAnimationFrame instead of 40ms timeout
 }
 
-let state: Record<string, any> = {}
-let previewRafPending = false
+interface ToolbarState {
+  paramsTimeout: ReturnType<typeof setTimeout> | false
+  sizePerc: number
+  sizeValue: number
+  alphaPerc: number
+  alphaValue: number
+  currentParamsProp: '' | 'size' | 'alpha'
+  currentToolProps: CurrentToolProps
+  toolPreviewCanvasSize: number
+  toolPreviewTouchEvents: PreviewTouchSample[] | false
+}
 
-const initialState = {
-  paramsTimeout: false as ReturnType<typeof setTimeout> | false,
+const initialState: ToolbarState = {
+  paramsTimeout: false,
   sizePerc: 0,
   sizeValue: 0,
   alphaPerc: 0,
   alphaValue: 0,
   currentParamsProp: '',
-  currentToolProps: {} as Record<string, any>,
+  currentToolProps: {
+    ...toolDefaultProps,
+    color: '',
+    randomColor: true,
+  },
   toolPreviewCanvasSize: 0,
-  toolPreviewTouchEvents: false as any,
+  toolPreviewTouchEvents: false,
 }
 
-const refs: {
-  container: HTMLElement | null
-  params: HTMLElement | null
-  leftSide: HTMLElement | null
-  centerSide: HTMLElement | null
-  rightSide: HTMLElement | null
-  backButton: HTMLElement | null
-  saveCopyButton: HTMLElement | null
-  goFullscreenButton: HTMLElement | null
-  slider: HTMLElement | null
-  sliderLabel: HTMLElement | null
-  sliderCursor: HTMLElement | null
-  sizeButton: HTMLElement | null
-  alphaButton: HTMLElement | null
-  sizeLabel: HTMLElement | null
-  alphaLabel: HTMLElement | null
-  toolPreview: HTMLElement | null
-  toolPreviewPopup: HTMLElement | null
-  toolPreviewCanvas: HTMLCanvasElement | null
-  toolPreviewContext: ExtendedCanvasContext | null
-} = {
+let state: ToolbarState = deepCopy(initialState)
+let previewRafPending = false
+
+const refs: ToolbarRefs = {
   container: null,
   params: null,
   leftSide: null,
@@ -119,7 +121,7 @@ export const closeParams = () => {
 const updateToolPreview = () => {
   previewRafPending = false
   if (!refs.toolPreviewContext || !state.currentToolProps) return
-  const toolsProps = {
+  const toolsProps: CurrentToolProps = {
     ...state.currentToolProps,
     alpha: state.alphaValue,
     size: state.sizeValue,
@@ -233,7 +235,7 @@ const onAlphaSingleTap = () => {
   }
 }
 
-const onSizeTouchStart = (e: any) => {
+const onSizeTouchStart = (e: Event) => {
   preventDefault(e)
   if (!refs.sizeButton?.classList.contains('disabled')) {
     Layers.closeResizeModeIfNeeded()
@@ -247,7 +249,7 @@ const onSizeTouchStart = (e: any) => {
   }
 }
 
-const onAlphaTouchStart = (e: any) => {
+const onAlphaTouchStart = (e: Event) => {
   preventDefault(e)
   if (!refs.alphaButton?.classList.contains('disabled')) {
     Layers.closeResizeModeIfNeeded()
@@ -269,7 +271,7 @@ const toggleSizeAndAlpha = (enabled: boolean) => {
   }
 }
 
-export const setTool = (toolProps: any) => {
+export const setTool = (toolProps: CurrentToolProps) => {
   toggleSizeAndAlpha(Boolean(toolProps.hasSizeAndAlpha))
   state.sizeValue = toolProps.size
   state.sizePerc = getNumberInBetween(
@@ -320,25 +322,7 @@ export const addOptionButtonsGroup = (
 }
 
 const initDom = async (container: HTMLElement) => {
-  const dom = (await loadTemplate(tplToolbar, {}, container)) as HTMLElement[]
-  refs.container = dom[0]
-  refs.params = dom[1]
-  refs.toolPreview = dom[2]
-  refs.leftSide = refs.container.querySelector('.editor-toolbar__left')
-  refs.centerSide = refs.container.querySelector('.editor-toolbar__center')
-  refs.rightSide = refs.container.querySelector('.editor-toolbar__right')
-  refs.toolPreviewPopup = refs.toolPreview.querySelector('.editor-toolbar__tool-preview-popup')
-  refs.toolPreviewCanvas = refs.toolPreview.querySelector('canvas')
-  refs.backButton = refs.container.querySelector('.editor__back')
-  refs.saveCopyButton = refs.container.querySelector('.editor__save-copy')
-  refs.goFullscreenButton = refs.container.querySelector('.editor__go-fullscreen')
-  refs.sizeButton = refs.container.querySelector('.editor-toolbar__size')
-  refs.alphaButton = refs.container.querySelector('.editor-toolbar__alpha')
-  refs.slider = refs.params.querySelector('.editor-toolbar__slider')
-  refs.sliderLabel = refs.slider?.querySelector('span') || null
-  refs.sliderCursor = refs.slider?.querySelector('div') || null
-  refs.sizeLabel = refs.container.querySelector('.editor-toolbar__size span')
-  refs.alphaLabel = refs.container.querySelector('.editor-toolbar__alpha span')
+  mount(container, ToolbarView({ refs }))
 
   if (refs.toolPreviewPopup && refs.toolPreviewCanvas) {
     refs.toolPreviewPopup.style.width = `${state.toolPreviewCanvasSize}px`
@@ -365,13 +349,13 @@ const initDom = async (container: HTMLElement) => {
   if (Params.isPhone) {
     refs.saveCopyButton?.remove()
   } else {
-    refs.saveCopyButton?.addEventListener(Params.eventStart, Editor.saveCopy)
+    refs.saveCopyButton?.addEventListener(Params.eventStart, editorFacade.saveCopy)
     disableSaveCopy()
   }
   refs.sizeButton?.addEventListener(Params.eventStart, onSizeTouchStart)
   refs.alphaButton?.addEventListener(Params.eventStart, onAlphaTouchStart)
-  refs.backButton?.addEventListener(Params.eventStart, Editor.saveAndGoToFolder)
-  refs.goFullscreenButton?.addEventListener(Params.eventStart, Editor.toggleFullscreen)
+  refs.backButton?.addEventListener(Params.eventStart, editorFacade.saveAndGoToFolder)
+  refs.goFullscreenButton?.addEventListener(Params.eventStart, editorFacade.toggleFullscreen)
 }
 
 export const init = async (container: HTMLElement) => {
@@ -385,7 +369,7 @@ export const init = async (container: HTMLElement) => {
 }
 
 export const remove = async () => {
-  state = {}
+  state = deepCopy(initialState)
   previewRafPending = false
   cleanRefs(refs)
 }

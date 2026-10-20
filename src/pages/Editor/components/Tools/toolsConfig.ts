@@ -1,5 +1,5 @@
 import Params from 'main/Params'
-import { toolDefaultProps, ToolConfigProps } from 'pages/Editor/config'
+import { toolDefaultProps, ToolConfigProps, ToolCustomPropsMap } from 'pages/Editor/config'
 import { round, logarithmicPercToValue } from 'utils/mathUtils'
 
 import {
@@ -15,7 +15,7 @@ const getCustomTool = (
   versions: Array<{
     name: string
     props: Partial<ToolConfigProps>
-    customProps?: Record<string, any>
+    customProps?: ToolCustomPropsMap
   }> = []
 ): ToolConfigProps => {
   const tool: ToolConfigProps = {

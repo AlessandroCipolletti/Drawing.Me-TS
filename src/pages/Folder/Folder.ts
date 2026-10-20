@@ -1,6 +1,3 @@
-import tplPage from './tpl/folder.tpl?raw'
-import tplContent from './tpl/folderContent.tpl?raw'
-import tplSharePopup from './tpl/folderSharePopup.tpl?raw'
 import './tpl/folder.css'
 import './tpl/folderContent.css'
 import './tpl/folderSharePopup.css'
@@ -12,7 +9,6 @@ import {
   removeSpinnerOverlayFrom,
   addSpinnerOverlayTo,
   setSpinner,
-  loadTemplate,
   preventDefault,
   enableElements,
   disableElements,
@@ -22,35 +18,41 @@ import { addGlobalStatus, removeGlobalStatus, cleanRefs } from 'utils/moduleUtil
 import { shareImageWithBase64 } from 'utils/imageUtils'
 import { deepCopy, copyTextToClipboard } from 'utils/jsUtils'
 import { addListScrollClickAndPressHandlers } from 'utils/uiUtils'
-
-import { goToPage } from 'modules/Router'
+import { mount } from 'ui/mount'
+import { goToPage } from 'app/navigation'
+import { onCoworkingEvent } from 'app/coworkingBus'
 import * as Coworking from 'modules/Coworking'
+import {
+  FolderView,
+  FolderDrawingsListView,
+  FolderSharePopupView,
+  FolderRefs,
+  FolderLabels,
+} from './FolderView'
 
 const config = {
-  updateDrawingsLoadingDelay: 1000, // ms
+  updateDrawingsLoadingDelay: 1000,
 }
-let state: Record<string, any> = {}
-const initialState = {
-  checkDrawingsInterval: false as any,
-  loadingDrawingsIds: [] as number[],
+
+interface FolderState {
+  checkDrawingsInterval: ReturnType<typeof setInterval> | false
+  loadingDrawingsIds: number[]
+  selectionMode: boolean
+  coworkingPopupOpened: boolean
+  sendCheckboxChecked: boolean
+}
+
+const initialState: FolderState = {
+  checkDrawingsInterval: false,
+  loadingDrawingsIds: [],
   selectionMode: false,
   coworkingPopupOpened: false,
   sendCheckboxChecked: false,
 }
-const refs: {
-  container: HTMLElement | null
-  drawingsContainer: HTMLElement | null
-  selectButton: HTMLElement | null
-  doneButton: HTMLElement | null
-  exportButton: HTMLElement | null
-  deleteButton: HTMLElement | null
-  sendButton: HTMLElement | null
-  topnav: HTMLElement | null
-  coworkingPopup: HTMLElement | null
-  coworkingId: HTMLElement | null
-  copyCoworkingUrlButton: HTMLElement | null
-  copiedCoworkingLabel: HTMLElement | null
-} = {
+
+let state: FolderState = deepCopy(initialState)
+
+const refs: FolderRefs = {
   container: null,
   drawingsContainer: null,
   selectButton: null,
@@ -63,8 +65,13 @@ const refs: {
   coworkingId: null,
   copyCoworkingUrlButton: null,
   copiedCoworkingLabel: null,
+  coworkingCopyIcon: null,
+  newDrawingButton: null,
+  newCoworkingButton: null,
+  newContainer: null,
 }
-const labels = {
+
+const labels: FolderLabels = {
   select: 'Select',
   done: 'Done',
   offline: 'OFFLINE',
@@ -85,6 +92,8 @@ const labels = {
 }
 
 let toolsButtons: HTMLElement[] = []
+let unsubscribeCoworkingPopup: (() => void) | null = null
+let unsubscribeDrawingsLoading: (() => void) | null = null
 
 const createNewDrawing = (e: Event) => {
   preventDefault(e)
@@ -128,7 +137,7 @@ const onCloseCoworkingPopup = () => {
   state.coworkingPopupOpened = false
 }
 
-export const closeCoworkingPopup = () => {
+const closeCoworkingPopup = () => {
   if (state.coworkingPopupOpened && refs.coworkingPopup) {
     onCloseCoworkingPopup()
     Messages.panel(refs.coworkingPopup)
@@ -233,17 +242,16 @@ const exportButtonClick = async () => {
   const bitmaps = selectedDrawings.filter(Boolean).map((d) => d.bitmap)
   const drawings = await Promise.all(
     bitmaps.map(async (drawing) => ({
-      w: await shareImageWithBase64(drawing, true), // white bg
-      t: await shareImageWithBase64(drawing, false), // transparent bg
+      w: await shareImageWithBase64(drawing, true),
+      t: await shareImageWithBase64(drawing, false),
     }))
   )
-  const dom = await loadTemplate(tplSharePopup, {
+  const popupContent = FolderSharePopupView({
     drawings,
     subtitleLabel: drawings.length === 1 ? labels.tapAndHoldOneImage : labels.tapAndHoldImages,
     withoutBackgroundLabel: labels.withoutBackground,
     withBackgroundLabel: labels.withWhiteBackground,
   })
-  const popupContent = Array.isArray(dom) ? dom[0] : dom
   popupContent.addEventListener('gesturestart', preventDefault)
 
   setSpinner(false)
@@ -304,9 +312,9 @@ const applySavingSpinnerState = (drawing: any) => {
   drawingDom.classList.toggle('folder__drawing-saving', isSaving)
 }
 
-export const updateDrawingsLoading = async () => {
+const updateDrawingsLoading = async () => {
   if (!state.loadingDrawingsIds || state.loadingDrawingsIds.length === 0) {
-    clearInterval(state.checkDrawingsInterval)
+    if (state.checkDrawingsInterval) clearInterval(state.checkDrawingsInterval)
     return
   }
   const drawings = ((await LocalDB.getSomeDrawings(state.loadingDrawingsIds)) || []) as any[]
@@ -319,7 +327,7 @@ export const updateDrawingsLoading = async () => {
   state.loadingDrawingsIds = drawings
     .filter((d: any) => d && LocalDB.drawingIsSaving(d))
     .map((d: any) => d.localDbId)
-  if (state.loadingDrawingsIds.length === 0) {
+  if (state.loadingDrawingsIds.length === 0 && state.checkDrawingsInterval) {
     clearInterval(state.checkDrawingsInterval)
   }
 }
@@ -329,13 +337,10 @@ export const refreshContent = async () => {
   const drawings: any[] = (await LocalDB.getAllLocalDrawings()) || []
   const currentScroll = refs.drawingsContainer.scrollTop
   refs.drawingsContainer.innerHTML = ''
-  await loadTemplate(tplContent, { drawings }, refs.drawingsContainer)
+  mount(refs.drawingsContainer, FolderDrawingsListView({ drawings }))
   refs.drawingsContainer.scrollTop = currentScroll
   refs.topnav.classList.toggle('displayNone', !drawings.length)
 
-  // Fix legacy two-phase spinner flicker:
-  // Apply the card spinner synchronously right after rendering `tplContent` using
-  // the `drawings` we already loaded, so there is zero frame gap when Folder opens!
   state.loadingDrawingsIds = drawings.filter(LocalDB.drawingIsSaving).map((d) => d.localDbId)
   if (state.loadingDrawingsIds.length > 0) {
     for (const drawing of drawings) {
@@ -343,7 +348,7 @@ export const refreshContent = async () => {
         applySavingSpinnerState(drawing)
       }
     }
-    clearInterval(state.checkDrawingsInterval)
+    if (state.checkDrawingsInterval) clearInterval(state.checkDrawingsInterval)
     state.checkDrawingsInterval = setInterval(
       updateDrawingsLoading,
       config.updateDrawingsLoadingDelay
@@ -352,49 +357,32 @@ export const refreshContent = async () => {
 }
 
 const initDom = async () => {
-  const dom = await loadTemplate(
-    tplPage,
-    {
-      labels,
-    },
-    Params.pagesContainer
-  )
-  const container = (Array.isArray(dom) ? dom[0] : dom) as HTMLElement
-  refs.container = container
-  refs.selectButton = container.querySelector('.folder__topbar-button-select')
-  refs.doneButton = container.querySelector('.folder__topbar-button-done')
-  refs.exportButton = container.querySelector('.folder__topbar-button-export')
-  refs.deleteButton = container.querySelector('.folder__topbar-button-delete')
-  refs.topnav = container.querySelector('.folder__topbar')
-  refs.drawingsContainer = container.querySelector('.folder__drawings-container')
-  refs.coworkingPopup = container.querySelector('.folder__coworking-popup')
-  refs.coworkingId = refs.coworkingPopup!.querySelector('.folder__coworking-popup-id')
-  refs.copyCoworkingUrlButton = refs.coworkingPopup!.querySelector('.folder__coworking-popup-copy')
-  refs.copiedCoworkingLabel = refs.coworkingPopup!.querySelector('.folder__coworking-popup-copied')
-  refs.topnav!.addEventListener(Params.eventStart, onTopnavTouchStart, true)
-  refs.coworkingId!.addEventListener(Params.eventStart, shareCoworkingUrl)
-  refs.copyCoworkingUrlButton!.addEventListener(Params.eventStart, shareCoworkingUrl)
-  refs
-    .coworkingPopup!.querySelector('.folder__coworking-copy-icon')!
-    .addEventListener(Params.eventStart, shareCoworkingUrl)
-  refs.coworkingPopup!.addEventListener(Params.eventStart, preventDefault)
-  container
-    .querySelector('.folder__drawing-new-drawing')!
-    .addEventListener(Params.eventStart, createNewDrawing)
-  container
-    .querySelector('.folder__drawing-new-coworking')!
-    .addEventListener(Params.eventStart, openCoworkingPopup)
-  container
-    .querySelector('.folder__new-container')!
-    .addEventListener(Params.eventStart, preventDefault)
-  refs.coworkingPopup!.remove()
-  addListScrollClickAndPressHandlers(refs.drawingsContainer!, onDrawingClick, onDrawingLongPress)
-  toolsButtons.push(refs.exportButton!, refs.deleteButton!)
+  mount(Params.pagesContainer, FolderView({ labels, refs }))
+
+  refs.topnav?.addEventListener(Params.eventStart, onTopnavTouchStart, true)
+  refs.coworkingId?.addEventListener(Params.eventStart, shareCoworkingUrl)
+  refs.copyCoworkingUrlButton?.addEventListener(Params.eventStart, shareCoworkingUrl)
+  refs.coworkingCopyIcon?.addEventListener(Params.eventStart, shareCoworkingUrl)
+  refs.coworkingPopup?.addEventListener(Params.eventStart, preventDefault)
+  refs.newDrawingButton?.addEventListener(Params.eventStart, createNewDrawing)
+  refs.newCoworkingButton?.addEventListener(Params.eventStart, openCoworkingPopup)
+  refs.newContainer?.addEventListener(Params.eventStart, preventDefault)
+  refs.coworkingPopup?.remove()
+  if (refs.drawingsContainer) {
+    addListScrollClickAndPressHandlers(refs.drawingsContainer, onDrawingClick, onDrawingLongPress)
+  }
+  if (refs.exportButton && refs.deleteButton) {
+    toolsButtons.push(refs.exportButton, refs.deleteButton)
+  }
 }
 
 export const open = async () => {
   state = deepCopy(initialState)
   await initDom()
+  unsubscribeCoworkingPopup = onCoworkingEvent('closeFolderPopup', closeCoworkingPopup)
+  unsubscribeDrawingsLoading = onCoworkingEvent('updateFolderDrawingsLoading', () => {
+    void updateDrawingsLoading()
+  })
   setSpinner(true)
   await refreshContent()
   setSpinner(false)
@@ -404,11 +392,15 @@ export const open = async () => {
 }
 
 export const close = async () => {
+  unsubscribeCoworkingPopup?.()
+  unsubscribeCoworkingPopup = null
+  unsubscribeDrawingsLoading?.()
+  unsubscribeDrawingsLoading = null
   if (refs.container) await fadeOutElements(refs.container)
   removeGlobalStatus('drawith__FOLDER-OPEN')
   closeCoworkingPopup()
-  clearInterval(state.checkDrawingsInterval)
+  if (state.checkDrawingsInterval) clearInterval(state.checkDrawingsInterval)
   toolsButtons = []
-  state = {}
+  state = deepCopy(initialState)
   cleanRefs(refs)
 }

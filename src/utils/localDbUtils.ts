@@ -1,7 +1,7 @@
 import Dexie, { Table } from 'dexie'
 import Params from 'main/Params'
 import { securizeAsyncFn } from 'utils/jsUtils'
-import { mergeUnchangedLayers } from '../pages/Editor/components/Layers/Layers'
+import { mergeUnchangedLayers } from 'pages/Editor/components/Layers/layersUtils'
 import * as GPS from 'pages/Dashboard/modules/GPS'
 
 const DEFAULT_LOCAL_DB_ERROR_MSG = 'Db Error: refresh the page.'

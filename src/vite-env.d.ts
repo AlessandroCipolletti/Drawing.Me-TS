@@ -1,15 +1,5 @@
 /// <reference types="vite/client" />
 
-declare module '*.tpl?raw' {
-  const content: string
-  export default content
-}
-
-declare module '*.tpl' {
-  const content: string
-  export default content
-}
-
 declare module '*.png' {
   const src: string
   export default src

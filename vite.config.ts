@@ -16,7 +16,13 @@ export default defineConfig({
       pages: path.resolve(__dirname, 'src/pages'),
       utils: path.resolve(__dirname, 'src/utils'),
       static: path.resolve(__dirname, 'src/static'),
+      ui: path.resolve(__dirname, 'src/ui'),
+      app: path.resolve(__dirname, 'src/app'),
     },
+  },
+  esbuild: {
+    jsxFactory: 'h',
+    jsxFragment: 'Fragment',
   },
   server: {
     port: 5173,

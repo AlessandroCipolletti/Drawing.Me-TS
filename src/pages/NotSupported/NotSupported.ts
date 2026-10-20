@@ -1,4 +1,3 @@
-import tplPage from './notSupported.tpl?raw'
 import './notSupported.css'
 import imageUrl from 'static/img/sadness.png'
 
@@ -18,7 +17,8 @@ import {
 import { addGlobalStatus } from 'utils/moduleUtils'
 import { config } from './config'
 import Params from 'main/Params'
-import { loadTemplate } from 'utils/domUtils'
+import { mount } from 'ui/mount'
+import { NotSupportedView } from './NotSupportedView'
 
 const labels = {
   sorry: "We're sorry",
@@ -62,15 +62,7 @@ const getSubTitle = () => {
 export const open = async () => {
   const title = getTitle()
   const subTitle = getSubTitle()
-  await loadTemplate(
-    tplPage,
-    {
-      title,
-      subTitle,
-      imageUrl,
-    },
-    Params.pagesContainer
-  )
+  mount(Params.pagesContainer, NotSupportedView({ title, subTitle, imageUrl }))
   addGlobalStatus('drawith__NOT_SUPPORTED')
 }
 

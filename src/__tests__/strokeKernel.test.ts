@@ -6,6 +6,12 @@ import {
   updateCurrentTouchData,
   initCanvasOffset,
 } from 'pages/Editor/editorUtils'
+import {
+  getAltitudeFactorFromAngle,
+  getStepAlpha,
+  getStepRotation,
+  getStepSize,
+} from 'pages/Editor/editorStepMath'
 import { handleTouchEventsWithGestures } from 'utils/pointerEventsUtils/touchEventsUtils'
 import { handleDesktopEventsWithGesture } from 'utils/pointerEventsUtils/desktopEventsUtils'
 import { spacing, init as initTheme } from 'main/Theme'
@@ -758,5 +764,45 @@ describe('Unified Numeric Stroke Kernel (Local & PeerJS Coworking)', () => {
       ;(globalThis as any).document = origDoc
       ;(globalThis as any).getComputedStyle = origGetComputedStyle
     }
+  })
+
+  it('computes pure step math (size, alpha, altitude factor, rotation wraparound) deterministically', () => {
+    expect(getAltitudeFactorFromAngle(Math.PI / 2, 0.7)).toBe(0)
+    expect(getAltitudeFactorFromAngle(0, 1)).toBe(1)
+
+    const tool = {
+      size: 20,
+      sizeForceFactor: 0.5,
+      sizeSpeedFactor: 0.25,
+      sizeAltitudeFactor: 0.5,
+      alpha: 0.5,
+      minAlpha: 0.1,
+      maxAlpha: 0.9,
+      alphaForceFactor: 0.2,
+      alphaSpeedFactor: 0.1,
+      alphaAltitudeFactor: -0.1,
+      degradeAlphaBySize: false,
+      handleStylusRotation: true,
+      handlePathRotation: true,
+    }
+    const touch = {
+      type: 'move',
+      touchType: TOUCH_TYPE_STYLUS,
+      x: 10,
+      y: 20,
+      midX: 10,
+      midY: 20,
+      force: 0.5,
+      speedFactor: 0.4,
+      altitudeFactor: 0.2,
+      azimuthAngle: Math.PI / 4,
+      pathRotation: Math.PI / 4,
+      stepLength: 10,
+      canHandleStylusRotation: true,
+    }
+    const size = getStepSize(tool, touch)
+    expect(size).toBe(29)
+    expect(getStepAlpha(tool, touch, size)).toBeCloseTo(0.62, 3)
+    expect(getStepRotation(tool, touch, { rotation: 0 })).toBeCloseTo(Math.PI / 2, 3)
   })
 })

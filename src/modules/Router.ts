@@ -19,10 +19,12 @@ import * as Coworking from 'modules/Coworking'
 import * as Editor from 'pages/Editor'
 import * as Folder from 'pages/Folder'
 import * as Info from 'pages/Info'
+import { PageModule, registerNavigator } from 'app/navigation'
+import { notifyMenuRouteChanged } from 'app/shellState'
 
 const DEFAULT_ERROR_MSG = 'Routing error: refresh the page.'
 
-const PAGES: Record<string, any> = {
+const PAGES: Record<string, PageModule> = {
   editor: Editor,
   folder: Folder,
   dashboard: Dashboard,
@@ -35,7 +37,7 @@ const DEFAULT_PAGE = 'folder'
 let currentRoute = ''
 let routingQueue: Promise<any> = Promise.resolve()
 
-export const getCurrentPage = () => currentRoute
+const getCurrentPage = () => currentRoute
 
 const decryptInitialPathUrl = (path: string, search: string): string => {
   const queryParams = new URLSearchParams(search)
@@ -56,18 +58,7 @@ const decryptInitialPathUrl = (path: string, search: string): string => {
   return url
 }
 
-const selectMenuItem = (route: string) => {
-  document.querySelector('.drawith__menu-item.selected')?.classList.remove('selected')
-  if (route === 'folder') {
-    document.querySelector('.drawith__menu-item-folder')?.classList.add('selected')
-  } else if (route === 'dashboard') {
-    document.querySelector('.drawith__menu-item-dashboard')?.classList.add('selected')
-  } else if (route === 'info') {
-    document.querySelector('.drawith__menu-item-about')?.classList.add('selected')
-  }
-}
-
-export const goToPage = securizeAsyncFn(
+const goToPage = securizeAsyncFn(
   async (path = '', forceOrOptions: any = false) => {
     const force = typeof forceOrOptions === 'boolean' ? forceOrOptions : false
     const cleanPath = path.trim().replace(/^\?/, '')
@@ -103,22 +94,24 @@ export const goToPage = securizeAsyncFn(
     const runTransition = async () => {
       const previousRoute = currentRoute
       currentRoute = page
-      selectMenuItem(page)
+      notifyMenuRouteChanged(page)
 
       if (previousRoute !== page || force) {
         if (previousRoute && PAGES[previousRoute]?.close) {
-          await PAGES[previousRoute].close()
+          await PAGES[previousRoute].close!()
         }
 
         if (method === 'open') {
-          await module.open(...params)
+          const openFn = module.open as ((...args: any[]) => Promise<void> | void) | undefined
+          await openFn?.(...params)
         } else if (module.open) {
           await module.open()
         }
       }
 
       if (method && method !== 'open' && typeof module[method] === 'function') {
-        await module[method](...params)
+        const actionFn = module[method] as (...args: any[]) => Promise<void> | void
+        await actionFn(...params)
       }
     }
 
@@ -129,20 +122,14 @@ export const goToPage = securizeAsyncFn(
   'goToPage'
 )
 
+registerNavigator(goToPage, getCurrentPage)
+
 export const openCurrentUrlPage = async () => {
   const ROOT_URL = '/workspace/drawithme'
   const pathname = document.location.pathname.toLowerCase().replace(ROOT_URL, '')
   const nextPage = decryptInitialPathUrl(pathname, document.location.search)
   await goToPage(nextPage, nextPage !== `/${DEFAULT_PAGE}`)
 }
-
-export const openPageNotSupported = async () => await goToPage('/notsupported')
-
-export const openPageDashboard = async () => await goToPage('/dashboard')
-
-export const openPageAboutUs = async () => await goToPage('/info/aboutUs')
-
-export const openPageFolder = async () => await goToPage('/folder')
 
 const parseMobileDeviceDetectOSVersion = (version: string) =>
   String(version || '')

@@ -1,3 +1,15 @@
+export type ToolCustomPropsMap = {
+  size?: number
+  alpha?: number
+  [key: string]: unknown
+}
+
+export interface ToolVersionDefinition {
+  name: string
+  props: Partial<ToolConfigProps> & { image?: HTMLImageElement }
+  customProps: ToolCustomPropsMap
+}
+
 export interface ToolConfigProps {
   name: string
   size: number
@@ -30,12 +42,8 @@ export interface ToolConfigProps {
   stepsToAdaptLine: number
   stepsToUpdateCoworking: number
   hasSizeAndAlpha: boolean
-  customProps: Record<string, any>
-  versions?: Array<{
-    name: string
-    props: Partial<ToolConfigProps> & { image?: HTMLImageElement }
-    customProps?: Record<string, any>
-  }>
+  customProps: ToolCustomPropsMap
+  versions: ToolVersionDefinition[]
 }
 
 export const toolDefaultProps: ToolConfigProps = {
@@ -74,4 +82,25 @@ export const toolDefaultProps: ToolConfigProps = {
   hasSizeAndAlpha: true,
 
   customProps: {},
+  versions: [],
+}
+
+export const editorDefaultConfig = {
+  draftTimeInterval: 30_000,
+  draftStepsInterval: 50,
+  stepsRequiredToMakeACopy: 10,
+  maxSpeedFactorLength: 150,
+  defaultForceTouch: 0.1,
+  defaultAltitudeAngle: Math.PI / 3,
+  initialForceTouchBugValue: 0.07999999999999999,
+  maxSupportedStylusAltitudeFactor: 0.844,
+  defaultToolParams: { ...toolDefaultProps },
+  maxScale: 5.0,
+  minScale: 0.3,
+  maxCanvasSize: 4096,
+  canvasScaleWithGoodPerformance: 1,
+  minAltitudeFactorToHandleRotation: 0.3,
+  resizeRotationStep: 2.5,
+  resizeRotationInterval: 45,
+  draftInfoDuration: 3_000,
 }

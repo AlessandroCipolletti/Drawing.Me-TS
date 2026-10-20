@@ -1,12 +1,13 @@
-import tplPage from './info.tpl?raw'
 import './info.css'
 
 import Params from 'main/Params'
 import { cleanRefs } from 'utils/moduleUtils'
-import { loadTemplate, preventDefault } from 'utils/domUtils'
+import { preventDefault } from 'utils/domUtils'
 import { fadeInElements, fadeOutElements } from 'utils/animationsUtils'
-import { openPageAboutUs } from 'modules/Router'
+import { openPageAboutUs } from 'app/navigation'
 import { deselectAllTabs, selectOneTab } from 'utils/uiUtils'
+import { mount, createListenerScope, ListenerScope } from 'ui/mount'
+import { InfoView } from './InfoView'
 
 const refs: {
   container: HTMLElement | null
@@ -20,22 +21,27 @@ const labels = {
   aboutUs: 'About us',
 }
 
+let scope: ListenerScope | null = null
+
 const initDom = async () => {
-  const dom = await loadTemplate(
-    tplPage,
-    {
+  scope?.dispose()
+  scope = createListenerScope()
+
+  let aboutTabEl: HTMLElement | null = null
+  const container = mount(
+    Params.pagesContainer,
+    InfoView({
       labels,
       version: Params.appVersion,
-    },
-    Params.pagesContainer
+      onAboutTabRef: (el) => {
+        aboutTabEl = el
+      },
+    })
   )
-  const container = (Array.isArray(dom) ? dom[0] : dom) as HTMLElement
   refs.container = container
 
-  container.addEventListener('gesturestart', preventDefault)
-  container
-    .querySelector('.tabs-header div[data-tab-id="about-us"]')
-    ?.addEventListener(Params.eventStart, openPageAboutUs)
+  scope.on(container, 'gesturestart', preventDefault)
+  scope.on(aboutTabEl, Params.eventStart, openPageAboutUs)
 }
 
 export const aboutUs = () => {
@@ -51,6 +57,8 @@ export const open = async () => {
 }
 
 export const close = async () => {
+  scope?.dispose()
+  scope = null
   if (refs.container) await fadeOutElements(refs.container)
   cleanRefs(refs)
 }

@@ -478,4 +478,13 @@ export const handleTouchEventsWithGestures = (
   if (supportsPointerEvents && Params.supportTouch) {
     target.addEventListener('touchstart', preventDefault, { passive: false })
   }
+
+  return () => {
+    reset()
+    detachDocumentListeners()
+    target.removeEventListener(startEventName, handleTouchStart)
+    if (supportsPointerEvents && Params.supportTouch) {
+      target.removeEventListener('touchstart', preventDefault)
+    }
+  }
 }

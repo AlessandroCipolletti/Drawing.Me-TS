@@ -1,4 +1,3 @@
-import tplApp from './main.tpl?raw'
 import './main.css'
 
 import Params from 'main/Params'
@@ -11,60 +10,51 @@ import { initLocalDb } from 'utils/localDbUtils'
 import { delay, securizeAsyncFn, debounce } from 'utils/jsUtils'
 import { init as initCoworking } from 'modules/Coworking'
 import { init as initImageUtils } from 'utils/imageUtils'
-import { init as initHeader, menuButtonAnimations } from 'components/Header'
+import { init as initHeader } from 'components/Header'
 import initDomUtils, {
-  loadTemplate,
   preventDefault,
   setSpinner,
   preventMoveDefaultIfNeeded,
 } from 'utils/domUtils'
+import { isSupportedOs, openCurrentUrlPage } from 'modules/Router'
 import {
   openPageNotSupported,
-  isSupportedOs,
   openPageFolder,
   openPageDashboard,
   openPageAboutUs,
-  openCurrentUrlPage,
-} from 'modules/Router'
+} from 'app/navigation'
+import { closeMainMenu, registerMenuRouteSubscriber } from 'app/shellState'
 import {
   getRealScreenWidth,
-  getRealScreenHeight,
   cleanEventsForNextRefresh,
   mergeObject,
   handleGlobalResize,
   addGlobalStatus,
-  removeGlobalStatus,
 } from 'utils/moduleUtils'
+import { mount } from 'ui/mount'
+import { AppShellView, AppShellRefs } from './AppShellView'
 
 const AppState = {
   NAME: 'Drawith.Me',
   VERSION: '2.6.0',
   DEBUG: true,
 }
-const state = {
-  menuIsOpen: false,
-}
-const refs: {
-  mainContainer: HTMLElement | null
-  pagesContainer: HTMLElement | null
-} = {
+
+const refs: AppShellRefs = {
   mainContainer: null,
   pagesContainer: null,
+  menuPlaceholder: null,
+  menuItemFolder: null,
+  menuItemDashboard: null,
+  menuItemAbout: null,
+  menuPagesClear: null,
 }
+
 const labels = {
   folderPageLabel: 'My drawings',
   dashboardPageLabel: 'World GPS sheet',
   aboutUs: 'About Drawith.Me',
   genericError: 'Generic Error',
-  preventRefresh: 'Changes may not be saved',
-}
-
-export const addPreventPageRefresh = () => {
-  window.onbeforeunload = () => labels.preventRefresh
-}
-
-export const removePreventPageRefresh = () => {
-  window.onbeforeunload = null
 }
 
 const attachRotationHandler = () => {
@@ -91,35 +81,6 @@ const attachRotationHandler = () => {
     })
   } else {
     ;(window as Window).addEventListener('resize', handleRotation, false)
-  }
-}
-
-export const openMainMenu = (e?: Event) => {
-  if (e) {
-    preventDefault(e)
-  }
-  state.menuIsOpen = true
-  addGlobalStatus('drawith__MENU-OPEN')
-  refs.pagesContainer?.addEventListener(Params.eventStart, closeMainMenu)
-  menuButtonAnimations.open()
-}
-
-export const closeMainMenu = (e?: Event) => {
-  if (e) {
-    preventDefault(e)
-  }
-  state.menuIsOpen = false
-  removeGlobalStatus('drawith__MENU-OPEN')
-  refs.pagesContainer?.removeEventListener(Params.eventStart, closeMainMenu)
-  menuButtonAnimations.close()
-}
-
-export const toggleMainMenu = (e: Event) => {
-  preventDefault(e)
-  if (state.menuIsOpen) {
-    closeMainMenu()
-  } else {
-    openMainMenu()
   }
 }
 
@@ -196,8 +157,6 @@ const setViewport = async () => {
   await delay(16)
 }
 
-export const getRealScreenMaxSize = () => Math.max(getRealScreenWidth(), getRealScreenHeight())
-
 const getRealPxScale = () => {
   const w = getRealScreenWidth()
   return round(w / window.innerWidth, 2)
@@ -244,27 +203,20 @@ const openAboutUs = (e: Event) => {
 }
 
 const initDom = async () => {
-  const dom = await loadTemplate(tplApp, {
-    labels,
-  })
-  const mainContainer = (Array.isArray(dom) ? dom[0] : dom) as HTMLElement
+  const mainContainer = mount(document.body, AppShellView({ labels, refs }))
   refs.mainContainer = mainContainer
-  refs.pagesContainer = mainContainer.querySelector('.drawith__pages-container')
-  mainContainer
-    .querySelector('.drawith__menu-pages-placeholder')
-    ?.addEventListener(Params.eventStart, preventDefault)
-  mainContainer
-    .querySelector('.drawith__menu-item-folder')
-    ?.addEventListener(Params.eventStart, openFolder)
-  mainContainer
-    .querySelector('.drawith__menu-item-dashboard')
-    ?.addEventListener(Params.eventStart, openDashboard)
-  mainContainer
-    .querySelector('.drawith__menu-item-about')
-    ?.addEventListener(Params.eventStart, openAboutUs)
-  mainContainer
-    .querySelector('.drawith__menu-pages-clear')
-    ?.addEventListener(Params.eventStart, preventDefault)
+
+  refs.menuPlaceholder?.addEventListener(Params.eventStart, preventDefault)
+  refs.menuItemFolder?.addEventListener(Params.eventStart, openFolder)
+  refs.menuItemDashboard?.addEventListener(Params.eventStart, openDashboard)
+  refs.menuItemAbout?.addEventListener(Params.eventStart, openAboutUs)
+  refs.menuPagesClear?.addEventListener(Params.eventStart, preventDefault)
+
+  registerMenuRouteSubscriber((route) => {
+    refs.menuItemFolder?.classList.toggle('selected', route === 'folder')
+    refs.menuItemDashboard?.classList.toggle('selected', route === 'dashboard')
+    refs.menuItemAbout?.classList.toggle('selected', route === 'info')
+  })
 
   if (Params.ipad && refs.pagesContainer) {
     refs.pagesContainer.addEventListener(
@@ -276,7 +228,6 @@ const initDom = async () => {
     )
   }
 
-  document.body.appendChild(mainContainer)
   Params.set('mainContainer', mainContainer)
   Params.set('pagesContainer', refs.pagesContainer)
   attachRotationHandler()

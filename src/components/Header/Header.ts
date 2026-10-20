@@ -1,13 +1,14 @@
-import tplHeader from './header.tpl?raw'
 import './header.css'
 
 import Params from 'main/Params'
-import { toggleMainMenu } from 'main/main'
-import { preventDefault, loadTemplate } from 'utils/domUtils'
+import { toggleMainMenu, registerMenuButtonAnimations } from 'app/shellState'
+import { preventDefault } from 'utils/domUtils'
 import { fadeInElements, fadeOutElements } from 'utils/animationsUtils'
 import { initBurgerButton } from './burgerButton'
 import { addRotationHandler } from 'utils/moduleUtils'
 import { spacing } from 'main/Theme'
+import { mount } from 'ui/mount'
+import { HeaderView } from './HeaderView'
 
 const state: {
   rightButtons: HTMLElement[]
@@ -68,22 +69,17 @@ export const show = () => {
   if (refs.container) fadeInElements([refs.container])
 }
 
-export let menuButtonAnimations: ReturnType<typeof initBurgerButton>
-
 const initDom = async () => {
-  const dom = await loadTemplate(tplHeader, {}, Params.pagesContainer)
-  const container = (Array.isArray(dom) ? dom[0] : dom) as HTMLElement
+  const container = mount(Params.pagesContainer, HeaderView({ refs }))
   refs.container = container
-  refs.menuButton = container.querySelector('.menu-button')
   if (refs.menuButton) {
     refs.menuButton.remove()
     addHeaderButton(refs.menuButton, 'left')
     refs.menuButton.utils = initBurgerButton(refs.menuButton)
-    menuButtonAnimations = refs.menuButton.utils
+    registerMenuButtonAnimations(refs.menuButton.utils)
     refs.menuButton.addEventListener(Params.eventStart, toggleMainMenu)
   }
 
-  refs.refreshIcon = container.querySelector('.header__refresh-icon')
   if (refs.refreshIcon) {
     refs.refreshIcon.remove()
     addHeaderButton(refs.refreshIcon, 'left')

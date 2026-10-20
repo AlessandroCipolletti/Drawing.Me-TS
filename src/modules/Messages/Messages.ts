@@ -1,24 +1,27 @@
-import tpl from './messages.tpl?raw'
 import './messages.css'
 
 import Params from 'main/Params'
 import { addGlobalStatus, removeGlobalStatus } from 'utils/moduleUtils'
-import { preventDefault, loadTemplate, redrawDomElement } from 'utils/domUtils'
+import { preventDefault, redrawDomElement } from 'utils/domUtils'
 import { fadeInElements, fadeOutElements } from 'utils/animationsUtils'
 import { delay, debounce } from 'utils/jsUtils'
+import { mount } from 'ui/mount'
+import { MessagesView, MessagesRefs } from './MessagesView'
 
 const config = {
   defaultCloseDelay: 3500,
 }
 
-const state: {
+interface MessagesState {
   messageIsVisible: boolean
   panelIsVisible: boolean
   currentIsMandatory: boolean
   currentPanelOnClose: (() => void) | false
   currentConfirmCallback: (() => void) | null
   currentCancelCallback: (() => void) | null
-} = {
+}
+
+const state: MessagesState = {
   messageIsVisible: false,
   panelIsVisible: false,
   currentIsMandatory: false,
@@ -27,19 +30,7 @@ const state: {
   currentCancelCallback: null,
 }
 
-const refs: {
-  messageDom: HTMLElement | null
-  messageText: HTMLElement | null
-  overlay: HTMLElement | null
-  confirmButton: HTMLElement | null
-  cancelButton: HTMLElement | null
-  panel: HTMLElement | null
-  updateDom: HTMLElement | null
-  currentPanelcontent: HTMLElement | null
-  icon: HTMLElement | null
-  inputText: HTMLInputElement | null
-  multipleChoice: HTMLElement | null
-} = {
+const refs: MessagesRefs = {
   messageDom: null,
   messageText: null,
   overlay: null,
@@ -50,7 +41,6 @@ const refs: {
   currentPanelcontent: null,
   icon: null,
   inputText: null,
-  multipleChoice: null,
 }
 
 const labels = {
@@ -296,25 +286,7 @@ const onPanelClose = () => {
 const allMessageTypes = { alert, info, success, error, confirm, input, panel, warning }
 
 const initDom = async () => {
-  await loadTemplate(
-    tpl,
-    {
-      labels,
-    },
-    Params.pagesContainer
-  )
-
-  refs.overlay = document.querySelector('.messages__overlay')
-  refs.messageDom = document.querySelector('.messages__container')
-  refs.messageText = refs.messageDom?.querySelector('.messages__text') || null
-  refs.confirmButton = refs.messageDom?.querySelector('.messages__button-ok') || null
-  refs.cancelButton = refs.messageDom?.querySelector('.messages__button-cancel') || null
-  refs.panel = document.querySelector('.messages__panel')
-  refs.updateDom = document.querySelector('.messages__update')
-  refs.icon = document.querySelector('.messages__icon')
-  refs.inputText = document.querySelector('.messages__container-text-input')
-  refs.multipleChoice = document.querySelector('.messages__multiple-choice')
-  refs.multipleChoice?.remove()
+  mount(Params.pagesContainer, MessagesView({ labels, refs }))
 
   refs.messageDom?.addEventListener(Params.eventStart, onMessageTouchStart)
   refs.confirmButton?.addEventListener(Params.eventStart, onConfirmButtonClick)

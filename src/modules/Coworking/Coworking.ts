@@ -1,12 +1,12 @@
 import { v4 as uuidv4 } from 'uuid'
 import Params from 'main/Params'
 import PeerSocket from 'modules/PeerSocket'
-import { goToPage, openPageFolder, getCurrentPage } from 'modules/Router'
+import { goToPage, openPageFolder, getCurrentPage } from 'app/navigation'
+import { emitCoworkingEvent } from 'app/coworkingBus'
 import * as Messages from 'modules/Messages'
 import { delay } from 'utils/jsUtils'
 import { drawCoworkingMultipleStepsData, getCanvasPxSizes } from 'pages/Editor'
 import * as Layers from 'pages/Editor/components/Layers'
-import { closeCoworkingPopup } from 'pages/Folder'
 import { editorEvents, SOCKET_CONNECTED_STATUS } from './constants'
 import { addGlobalStatus, removeGlobalStatus } from 'utils/moduleUtils'
 import { StrokeSample } from 'utils/canvasUtils'
@@ -380,7 +380,7 @@ const handlePeerClientOffline = (duringCoworkingSession: boolean) => {
     Messages.error(labels.networkError)
   }
   if (getCurrentPage() === 'folder') {
-    closeCoworkingPopup()
+    emitCoworkingEvent('closeFolderPopup', undefined)
   }
 }
 

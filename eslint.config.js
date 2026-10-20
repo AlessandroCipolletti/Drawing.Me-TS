@@ -11,7 +11,7 @@ export default tseslint.config(
   ...tseslint.configs.recommended,
   eslintPluginPrettierRecommended,
   {
-    files: ['**/*.{ts,js}'],
+    files: ['**/*.{ts,tsx,js}'],
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: 'module',
@@ -27,11 +27,17 @@ export default tseslint.config(
         'error',
         {
           argsIgnorePattern: '^_',
-          varsIgnorePattern: '^_',
+          varsIgnorePattern: '^(_|h$|Fragment$)',
           caughtErrorsIgnorePattern: '^_',
         },
       ],
       'no-console': 'off',
+    },
+  },
+  {
+    files: ['src/**/*.tsx', 'src/app/**/*.ts', 'src/ui/mount.ts', 'src/pages/Editor/**/*.ts'],
+    rules: {
+      '@typescript-eslint/no-explicit-any': 'error',
     },
   }
 )

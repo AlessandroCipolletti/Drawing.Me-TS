@@ -6,11 +6,20 @@ import { TOUCH_TYPE_STYLUS } from 'main/constants'
 
 const MIX_PX_TO_DRAG = 5
 
+export interface PreviewTouchSample {
+  touches: Array<{ clientX: number; clientY: number }>
+  type: string
+  touchType: string
+  force: number
+  azimuthAngle: number
+  altitudeAngle: number
+}
+
 export const cursorButtonTouchStart = (
   currentValue: number,
   startCoordX: number,
   onDrag: (newValue: number, inProgress: boolean) => void,
-  onTap: (e?: any) => void,
+  onTap: (e?: Event) => void,
   waitingTime = 0
 ) => {
   let dragEnabled = true
@@ -34,7 +43,7 @@ export const cursorButtonTouchStart = (
     }
   }
 
-  const onTouchMove = (e: any) => {
+  const onTouchMove = (e: Event) => {
     preventDefault(e)
     const moveCoordX = getEventCoordX(e)
     const deltaCoordX = moveCoordX - startCoordX
@@ -46,7 +55,7 @@ export const cursorButtonTouchStart = (
     }
   }
 
-  const onTouchEnd = (e: any) => {
+  const onTouchEnd = (e: Event) => {
     preventDefault(e)
     if (!dragged) {
       onTap(e)
@@ -61,8 +70,8 @@ export const cursorButtonTouchStart = (
   document.addEventListener(Params.eventEnd, onTouchEnd)
 }
 
-export const getToolPreviewTouchEvents = (canvasSize: number) => {
-  const events = [
+export const getToolPreviewTouchEvents = (canvasSize: number): PreviewTouchSample[] => {
+  const events: PreviewTouchSample[] = [
     {
       touches: [
         {

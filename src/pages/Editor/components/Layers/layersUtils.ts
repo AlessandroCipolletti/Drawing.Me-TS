@@ -2,12 +2,31 @@ import { round } from 'utils/mathUtils'
 
 export type MagnetismEntry = [number, number | false]
 
+interface MagnetismLayerSlice {
+  id: string
+  minX: number
+  minY: number
+  maxX: number
+  maxY: number
+  active: boolean
+  opacity: number
+}
+
+interface MagnetismStateSlice {
+  currentSelectedLayerId: string | false
+  canvases: {
+    width: number
+    height: number
+  }
+  layers: Record<string, MagnetismLayerSlice>
+}
+
 export const getMagnetismCoordXForLayer = (
-  state: any,
-  layerId = state.currentSelectedLayerId,
+  state: MagnetismStateSlice,
+  layerId: string | false = state.currentSelectedLayerId,
   hasRotation = false
 ): MagnetismEntry[] => {
-  const layer = state.layers[layerId]
+  const layer = state.layers[layerId || '']
   const layerWidth = layer.maxX - layer.minX
   const coords: MagnetismEntry[] = [[round(state.canvases.width / 2, 1), state.canvases.width / 2]]
   if (!hasRotation) {
@@ -17,7 +36,7 @@ export const getMagnetismCoordXForLayer = (
     coords.push([round(state.canvases.width / 2 - layerWidth / 2, 1), state.canvases.width / 2])
   }
 
-  Object.values(state.layers).forEach((l: any) => {
+  Object.values(state.layers).forEach((l) => {
     if (l.id !== layerId && Number.isFinite(l.minX) && l.active && l.opacity > 0) {
       const lCenterX = round((l.minX + l.maxX) / 2, 1)
       coords.push([lCenterX, lCenterX])
@@ -38,11 +57,11 @@ export const getMagnetismCoordXForLayer = (
 }
 
 export const getMagnetismCoordYForLayer = (
-  state: any,
-  layerId = state.currentSelectedLayerId,
+  state: MagnetismStateSlice,
+  layerId: string | false = state.currentSelectedLayerId,
   hasRotation = false
 ): MagnetismEntry[] => {
-  const layer = state.layers[layerId]
+  const layer = state.layers[layerId || '']
   const layerHeight = layer.maxY - layer.minY
   const coords: MagnetismEntry[] = [
     [round(state.canvases.height / 2, 1), state.canvases.height / 2],
@@ -54,7 +73,7 @@ export const getMagnetismCoordYForLayer = (
     coords.push([round(state.canvases.height / 2 - layerHeight / 2, 1), state.canvases.height / 2])
   }
 
-  Object.values(state.layers).forEach((l: any) => {
+  Object.values(state.layers).forEach((l) => {
     if (l.id !== layerId && Number.isFinite(l.minY) && l.active && l.opacity > 0) {
       const lCenterY = round((l.minY + l.maxY) / 2, 1)
       coords.push([lCenterY, lCenterY])
@@ -75,14 +94,14 @@ export const getMagnetismCoordYForLayer = (
 }
 
 export const getMagnetismCoordLeftForLayer = (
-  state: any,
-  layerId = state.currentSelectedLayerId
+  state: MagnetismStateSlice,
+  layerId: string | false = state.currentSelectedLayerId
 ): MagnetismEntry[] => {
   const coords: MagnetismEntry[] = [
     [0, false],
     [round(state.canvases.width / 2, 1), state.canvases.width / 2],
   ]
-  Object.values(state.layers).forEach((l: any) => {
+  Object.values(state.layers).forEach((l) => {
     if (l.id !== layerId && Number.isFinite(l.minX) && l.active && l.opacity > 0) {
       if (l.minX > 1) {
         coords.push([l.minX, l.minX])
@@ -97,14 +116,14 @@ export const getMagnetismCoordLeftForLayer = (
 }
 
 export const getMagnetismCoordRightForLayer = (
-  state: any,
-  layerId = state.currentSelectedLayerId
+  state: MagnetismStateSlice,
+  layerId: string | false = state.currentSelectedLayerId
 ): MagnetismEntry[] => {
   const coords: MagnetismEntry[] = [
     [state.canvases.width, false],
     [round(state.canvases.width / 2, 1), state.canvases.width / 2],
   ]
-  Object.values(state.layers).forEach((l: any) => {
+  Object.values(state.layers).forEach((l) => {
     if (l.id !== layerId && Number.isFinite(l.minX) && l.active && l.opacity > 0) {
       if (l.minX > 1) {
         coords.push([l.minX - 1, l.minX])
@@ -119,14 +138,14 @@ export const getMagnetismCoordRightForLayer = (
 }
 
 export const getMagnetismCoordTopForLayer = (
-  state: any,
-  layerId = state.currentSelectedLayerId
+  state: MagnetismStateSlice,
+  layerId: string | false = state.currentSelectedLayerId
 ): MagnetismEntry[] => {
   const coords: MagnetismEntry[] = [
     [0, false],
     [round(state.canvases.height / 2, 1), state.canvases.height / 2],
   ]
-  Object.values(state.layers).forEach((l: any) => {
+  Object.values(state.layers).forEach((l) => {
     if (l.id !== layerId && Number.isFinite(l.minY) && l.active && l.opacity > 0) {
       if (l.minY > 1) {
         coords.push([l.minY, l.minY])
@@ -141,14 +160,14 @@ export const getMagnetismCoordTopForLayer = (
 }
 
 export const getMagnetismCoordBottomForLayer = (
-  state: any,
-  layerId = state.currentSelectedLayerId
+  state: MagnetismStateSlice,
+  layerId: string | false = state.currentSelectedLayerId
 ): MagnetismEntry[] => {
   const coords: MagnetismEntry[] = [
     [state.canvases.height, false],
     [round(state.canvases.height / 2, 1), state.canvases.height / 2],
   ]
-  Object.values(state.layers).forEach((l: any) => {
+  Object.values(state.layers).forEach((l) => {
     if (l.id !== layerId && Number.isFinite(l.minY) && l.active && l.opacity > 0) {
       if (l.minY > 1) {
         coords.push([l.minY - 1, l.minY])
@@ -160,4 +179,22 @@ export const getMagnetismCoordBottomForLayer = (
   })
 
   return coords
+}
+
+export interface ExportedLayerItem {
+  id: string
+  base64?: string
+  [key: string]: unknown
+}
+
+export const mergeUnchangedLayers = (
+  exportedLayers: ExportedLayerItem[],
+  previousLayers: ExportedLayerItem[] = []
+): ExportedLayerItem[] => {
+  return exportedLayers.map((layer) => {
+    if (!layer.base64) {
+      layer.base64 = previousLayers.find((pl) => pl.id === layer.id)?.base64
+    }
+    return layer
+  })
 }

@@ -2,7 +2,6 @@ import Params from 'main/Params'
 import { config, currentCanvasHasZoom } from 'pages/Editor'
 import {
   round,
-  getNumberInBetween,
   getOriginalCoordsFromScaleRotation,
   getDistanceBetweenThreePoints,
   getAngleRadBetweenTwoPoints,
@@ -19,150 +18,199 @@ import {
 } from 'utils/canvasUtils'
 import * as Ruler from './components/Ruler'
 import * as Layers from './components/Layers'
+import { LayersMagnetismCoords } from './components/Layers/layersState'
 import { spacing } from 'main/Theme'
 import { TOUCH_TYPE_STYLUS } from 'main/constants'
 import { getOneToolVersionCompleteProps } from 'pages/Editor/components/Tools'
+import { ToolCustomPropsMap, toolDefaultProps } from './config'
+import { CurrentToolProps, EditorState, PointerTouchEvent, ResizeModeState } from './editorTypes'
+import {
+  getAltitudeFactorFromAngle,
+  getStepData,
+  StepLastState,
+  StepToolParams,
+  StepTouchData,
+} from './editorStepMath'
+
+export { getStepData }
+
+let currentCoworkingToolName = ''
+let currentCoworkingToolVersion: number | string | false | undefined = -1
+let currentCoworkingToolProps: CurrentToolProps = {
+  ...toolDefaultProps,
+  color: '',
+  randomColor: false,
+}
 
 export const initEditorUtils = (_width?: number, _height?: number) => {}
 
-export const cleanEditorUtils = () => {}
-
-export const drawMultipleCoworkingSteps = (() => {
-  let currentCoworkingToolName = ''
-  let currentCoworkingToolVersion: any = -1
-  let currentCoworkingToolProps: any = {}
-
-  return async (
-    layerId: string,
-    steps: StrokeSample[],
-    tool: any,
-    fns: {
-      start?: (ctx: ExtendedCanvasContext, step: StrokeSample, toolProps: any) => boolean
-      move?: (ctx: ExtendedCanvasContext, step: StrokeSample, toolProps: any) => boolean
-      end?: (ctx: ExtendedCanvasContext, step: StrokeSample, toolProps: any) => boolean
-      bucket: (layerId: string, x: number, y: number, color: string) => Promise<void>
-    }
-  ) => {
-    const destinationContext = Layers.getLayerContext(layerId)
-    if (!destinationContext) {
-      return
-    }
-
-    if (currentCoworkingToolName !== tool.name || currentCoworkingToolVersion !== tool.version) {
-      currentCoworkingToolName = tool.name
-      currentCoworkingToolVersion = tool.version
-      currentCoworkingToolProps = getOneToolVersionCompleteProps(tool.name, tool.version, {
-        color: tool.color,
-        globalCompositeOperation: tool.globalCompositeOperation,
-        frameImageName: tool.frameImageName,
-        ...tool.customProps,
-      })
-    } else {
-      currentCoworkingToolProps = {
-        ...currentCoworkingToolProps,
-        color: tool.color,
-        globalCompositeOperation: tool.globalCompositeOperation,
-        frameImageName: tool.frameImageName,
-        ...tool.customProps,
-      }
-    }
-
-    if (currentCoworkingToolProps.frameImageName) {
-      setImageShapeIfNeeded(
-        destinationContext,
-        currentCoworkingToolProps.frameImageFile,
-        currentCoworkingToolProps.frameImageName,
-        currentCoworkingToolProps.color
-      )
-    }
-
-    if (currentCoworkingToolProps.name === 'bucket') {
-      await fns.bucket(layerId, steps[0].x, steps[0].y, currentCoworkingToolProps.color)
-    } else {
-      for (const step of steps) {
-        drawStrokeSample(destinationContext, step, currentCoworkingToolProps, true)
-      }
-      destinationContext.globalAlpha = 1
-      destinationContext.globalCompositeOperation = 'source-over'
-    }
+export const cleanEditorUtils = () => {
+  currentCoworkingToolName = ''
+  currentCoworkingToolVersion = -1
+  currentCoworkingToolProps = {
+    ...toolDefaultProps,
+    color: '',
+    randomColor: false,
   }
-})()
-
-function getAltitudeFactorFromAngle(angle: number, maxFactor: number): number {
-  return getNumberInBetween(0, 1, (1 - angle / (Math.PI / 2)) / maxFactor)
 }
 
-const getTouchEventData = (touchEvent: any, lastStep: any, offsetX = 0, offsetY = 0) => {
-  const data: Record<string, any> = {}
+export interface CoworkingToolDescriptor {
+  name: string
+  version?: number | string | false
+  color: string | false
+  globalCompositeOperation?: GlobalCompositeOperation
+  frameImageName?: string | false
+  customProps?: ToolCustomPropsMap
+}
 
-  data.type = touchEvent.type
-  data.x = getEventCoordX(touchEvent, offsetX)
-  data.y = getEventCoordY(touchEvent, offsetY)
-  if (touchEvent.type === Params.eventStart || touchEvent.type === 'start') {
-    data.midX = data.x
-    data.midY = data.y
-    data.stepLength = 0
-    data.speedFactor = 0
+export const drawMultipleCoworkingSteps = async (
+  layerId: string,
+  steps: StrokeSample[],
+  tool: CoworkingToolDescriptor,
+  fns: {
+    start?: (ctx: ExtendedCanvasContext, step: StrokeSample, toolProps: CurrentToolProps) => boolean
+    move?: (ctx: ExtendedCanvasContext, step: StrokeSample, toolProps: CurrentToolProps) => boolean
+    end?: (ctx: ExtendedCanvasContext, step: StrokeSample, toolProps: CurrentToolProps) => boolean
+    bucket: (layerId: string, x: number, y: number, color: string) => Promise<void>
+  }
+) => {
+  const destinationContext = Layers.getLayerContext(layerId)
+  if (!destinationContext) {
+    return
+  }
+
+  if (currentCoworkingToolName !== tool.name || currentCoworkingToolVersion !== tool.version) {
+    currentCoworkingToolName = tool.name
+    currentCoworkingToolVersion = tool.version
+    const resolvedVersion =
+      typeof tool.version === 'number' || typeof tool.version === 'string'
+        ? Number(tool.version)
+        : false
+    currentCoworkingToolProps = {
+      ...getOneToolVersionCompleteProps(tool.name, resolvedVersion, {
+        color: tool.color || '',
+        globalCompositeOperation: tool.globalCompositeOperation,
+        frameImageName: tool.frameImageName,
+        ...tool.customProps,
+      }),
+      color: tool.color || '',
+      randomColor: false,
+    }
   } else {
-    data.midX = round((lastStep.x + data.x) / 2, 1)
-    data.midY = round((lastStep.y + data.y) / 2, 1)
-    data.stepLength = getDistanceBetweenThreePoints(
-      lastStep.midX,
-      lastStep.midY,
-      lastStep.x,
-      lastStep.y,
-      data.midX,
-      data.midY,
-      1
-    )
-    if (touchEvent.type === Params.eventEnd || touchEvent.type === 'end') {
-      data.speedFactor = lastStep.speedFactor / 2
-    } else {
-      data.speedFactor =
-        Math.min(config.maxSpeedFactorLength, data.stepLength) / config.maxSpeedFactorLength
+    currentCoworkingToolProps = {
+      ...currentCoworkingToolProps,
+      color: tool.color || '',
+      globalCompositeOperation: tool.globalCompositeOperation,
+      frameImageName: tool.frameImageName ?? currentCoworkingToolProps.frameImageName,
+      ...tool.customProps,
     }
   }
 
-  if (touchEvent.touchType === TOUCH_TYPE_STYLUS) {
-    if (touchEvent.force === config.initialForceTouchBugValue) {
-      data.force = touchEvent.force / 4
+  if (currentCoworkingToolProps.frameImageName && currentCoworkingToolProps.frameImageFile) {
+    setImageShapeIfNeeded(
+      destinationContext,
+      currentCoworkingToolProps.frameImageFile as HTMLImageElement,
+      currentCoworkingToolProps.frameImageName,
+      currentCoworkingToolProps.color
+    )
+  }
+
+  if (currentCoworkingToolProps.name === 'bucket') {
+    await fns.bucket(layerId, steps[0].x, steps[0].y, currentCoworkingToolProps.color)
+  } else {
+    for (const step of steps) {
+      drawStrokeSample(destinationContext, step, currentCoworkingToolProps, true)
+    }
+    destinationContext.globalAlpha = 1
+    destinationContext.globalCompositeOperation = 'source-over'
+  }
+}
+
+const getTouchEventData = (
+  touchEvent: PointerTouchEvent,
+  lastStep: StepLastState,
+  offsetX = 0,
+  offsetY = 0
+): StepTouchData => {
+  const x = getEventCoordX(touchEvent, offsetX)
+  const y = getEventCoordY(touchEvent, offsetY)
+  let midX: number
+  let midY: number
+  let stepLength: number
+  let speedFactor: number
+
+  if (touchEvent.type === Params.eventStart || touchEvent.type === 'start') {
+    midX = x
+    midY = y
+    stepLength = 0
+    speedFactor = 0
+  } else {
+    const prevX = lastStep.x ?? x
+    const prevY = lastStep.y ?? y
+    const prevMidX = lastStep.midX ?? x
+    const prevMidY = lastStep.midY ?? y
+    midX = round((prevX + x) / 2, 1)
+    midY = round((prevY + y) / 2, 1)
+    stepLength = getDistanceBetweenThreePoints(prevMidX, prevMidY, prevX, prevY, midX, midY, 1)
+    if (touchEvent.type === Params.eventEnd || touchEvent.type === 'end') {
+      speedFactor = (lastStep.speedFactor || 0) / 2
     } else {
-      data.force = Math.max(round((touchEvent.force - 0.1) * 1.11, 3), 0.001)
+      speedFactor = Math.min(config.maxSpeedFactorLength, stepLength) / config.maxSpeedFactorLength
+    }
+  }
+
+  let force: number
+  if (touchEvent.touchType === TOUCH_TYPE_STYLUS) {
+    const rawForce = touchEvent.force || 0
+    if (rawForce === config.initialForceTouchBugValue) {
+      force = rawForce / 4
+    } else {
+      force = Math.max(round((rawForce - 0.1) * 1.11, 3), 0.001)
     }
   } else if (touchEvent.type === Params.eventStart || touchEvent.type === 'start') {
-    data.force = config.defaultForceTouch
+    force = config.defaultForceTouch
   } else if (touchEvent.type === Params.eventEnd || touchEvent.type === 'end') {
-    data.force = config.initialForceTouchBugValue / 4
+    force = config.initialForceTouchBugValue / 4
   } else {
-    data.force = config.defaultForceTouch
+    force = config.defaultForceTouch
   }
 
-  data.azimuthAngle = touchEvent.azimuthAngle || 0
-  if (touchEvent.type === Params.eventStart || touchEvent.type === 'start') {
-    data.pathRotation = 0
-  } else {
-    data.pathRotation = getAngleRadBetweenTwoPoints(lastStep.x, lastStep.y, data.x, data.y)
-  }
+  const azimuthAngle = touchEvent.azimuthAngle || 0
+  const pathRotation =
+    touchEvent.type === Params.eventStart || touchEvent.type === 'start'
+      ? 0
+      : getAngleRadBetweenTwoPoints(lastStep.x ?? x, lastStep.y ?? y, x, y)
 
-  data.altitudeAngle = touchEvent.altitudeAngle || config.defaultAltitudeAngle
-  data.altitudeFactor = getAltitudeFactorFromAngle(
-    data.altitudeAngle,
+  const altitudeAngle = touchEvent.altitudeAngle || config.defaultAltitudeAngle
+  const altitudeFactor = getAltitudeFactorFromAngle(
+    altitudeAngle,
     config.maxSupportedStylusAltitudeFactor
   )
-  data.canHandleStylusRotation =
-    Boolean(data.canHandleStylusRotation) &&
-    data.altitudeFactor > config.minAltitudeFactorToHandleRotation
+  const canHandleStylusRotation = false
 
-  return data
+  return {
+    type: touchEvent.type,
+    x,
+    y,
+    midX,
+    midY,
+    stepLength,
+    speedFactor,
+    force,
+    azimuthAngle,
+    pathRotation,
+    altitudeFactor,
+    canHandleStylusRotation,
+  }
 }
 
 export const getStepsDataFromTouchEvents = (
-  touchEvents: any[],
-  tool: any,
+  touchEvents: PointerTouchEvent[],
+  tool: StepToolParams,
   offsetX = 0,
   offsetY = 0
 ): StrokeSample[] => {
-  const lastStep: Record<string, any> = {}
+  const lastStep: StepLastState = {}
   const stepsData: StrokeSample[] = []
 
   for (const touchEvent of touchEvents) {
@@ -183,7 +231,7 @@ export const getStepsDataFromTouchEvents = (
   return stepsData
 }
 
-export const updateLastStepData = (state: any, stepData: StrokeSample) => {
+export const updateLastStepData = (state: EditorState, stepData: StrokeSample) => {
   state.lastStep.x = stepData.x
   state.lastStep.y = stepData.y
   state.lastStep.midX = stepData.midX
@@ -194,8 +242,8 @@ export const updateLastStepData = (state: any, stepData: StrokeSample) => {
 }
 
 export const updateCurrentTouchData = (
-  state: any,
-  touchEvent: any,
+  state: EditorState,
+  touchEvent: PointerTouchEvent | undefined,
   eventType: string,
   x: number | false = false,
   y: number | false = false
@@ -254,6 +302,11 @@ export const updateCurrentTouchData = (
   currentTouch.x = round(currentTouch.x * Params.pxScale, 1)
   currentTouch.y = round(currentTouch.y * Params.pxScale, 1)
 
+  const prevX = state.lastStep.x ?? currentTouch.x
+  const prevY = state.lastStep.y ?? currentTouch.y
+  const prevMidX = state.lastStep.midX ?? currentTouch.x
+  const prevMidY = state.lastStep.midY ?? currentTouch.y
+
   if (eventType === Params.eventStart) {
     currentTouch.startDragX = currentTouch.eventX
     currentTouch.startDragY = currentTouch.eventY
@@ -279,13 +332,13 @@ export const updateCurrentTouchData = (
         convertAngleDegToRad(state.canvas.rotation)
       )
     }
-    currentTouch.midX = round((state.lastStep.x + currentTouch.x) / 2, 1)
-    currentTouch.midY = round((state.lastStep.y + currentTouch.y) / 2, 1)
+    currentTouch.midX = round((prevX + currentTouch.x) / 2, 1)
+    currentTouch.midY = round((prevY + currentTouch.y) / 2, 1)
     currentTouch.stepLength = getDistanceBetweenThreePoints(
-      state.lastStep.midX,
-      state.lastStep.midY,
-      state.lastStep.x,
-      state.lastStep.y,
+      prevMidX,
+      prevMidY,
+      prevX,
+      prevY,
       currentTouch.midX,
       currentTouch.midY,
       1
@@ -299,10 +352,11 @@ export const updateCurrentTouchData = (
   }
 
   if (touchEvent?.touchType === TOUCH_TYPE_STYLUS) {
-    if (touchEvent.force === config.initialForceTouchBugValue) {
-      currentTouch.force = touchEvent.force / 4
+    const rawForce = touchEvent.force || 0
+    if (rawForce === config.initialForceTouchBugValue) {
+      currentTouch.force = rawForce / 4
     } else {
-      currentTouch.force = Math.max(round((touchEvent.force - 0.1) * 1.11, 3), 0.001)
+      currentTouch.force = Math.max(round((rawForce - 0.1) * 1.11, 3), 0.001)
     }
   } else if (eventType === Params.eventStart) {
     currentTouch.force = config.defaultForceTouch
@@ -315,8 +369,8 @@ export const updateCurrentTouchData = (
     currentTouch.pathRotation = 0
   } else {
     currentTouch.pathRotation = getAngleRadBetweenTwoPoints(
-      state.lastStep.x,
-      state.lastStep.y,
+      prevX,
+      prevY,
       currentTouch.x,
       currentTouch.y
     )
@@ -334,136 +388,7 @@ export const updateCurrentTouchData = (
   }
 }
 
-export const getStepData = (toolProps: any, touchData: any, lastStep: any): StrokeSample => {
-  let type: 'start' | 'move' | 'end'
-  let size: number
-  let alpha: number
-  let rotation: number
-
-  if (touchData.type === Params.eventMove || touchData.type === 'move') {
-    ;[type, size, alpha, rotation] = getStepMoveLineData(toolProps, touchData, lastStep)
-  } else if (touchData.type === Params.eventStart || touchData.type === 'start') {
-    ;[type, size, alpha, rotation] = getStepStartLineData(toolProps, touchData)
-  } else {
-    ;[type, size, alpha, rotation] = getStepEndLineData(toolProps, touchData, lastStep)
-  }
-
-  return {
-    type,
-    x: touchData.x,
-    y: touchData.y,
-    midX: touchData.midX,
-    midY: touchData.midY,
-    size,
-    alpha,
-    rotation,
-    oldSize: lastStep.size,
-    oldAlpha: lastStep.alpha,
-    oldRotation: lastStep.rotation,
-    oldMidX: lastStep.midX,
-    oldMidY: lastStep.midY,
-    oldX: lastStep.x,
-    oldY: lastStep.y,
-    stepLength: touchData.stepLength,
-  }
-}
-
-const getStepStartLineData = (
-  toolProps: any,
-  touchData: any
-): ['start', number, number, number] => {
-  const size = getStepSize(toolProps, touchData)
-  return [
-    'start',
-    size,
-    getStepAlpha(toolProps, touchData, size),
-    toolProps.handleStylusRotation ? round(touchData.azimuthAngle || 0, 4) : 0,
-  ]
-}
-
-const getStepMoveLineData = (
-  toolProps: any,
-  touchData: any,
-  lastStep: any
-): ['move', number, number, number] => {
-  const size = getStepSize(toolProps, touchData)
-  return [
-    'move',
-    size,
-    getStepAlpha(toolProps, touchData, size),
-    getStepRotation(toolProps, touchData, lastStep),
-  ]
-}
-
-const getStepEndLineData = (
-  toolProps: any,
-  touchData: any,
-  lastStep: any
-): ['end', number, number, number] => {
-  return [
-    'end',
-    getStepSize(toolProps, touchData),
-    toolProps.minAlpha,
-    getStepRotation(toolProps, touchData, lastStep),
-  ]
-}
-
-const getStepSize = (toolProps: any, touchData: any): number => {
-  return Math.round(
-    toolProps.size +
-      toolProps.size * (toolProps.sizeForceFactor || 0) * (touchData.force || 0) +
-      toolProps.size * (toolProps.sizeSpeedFactor || 0) * (touchData.speedFactor || 0) +
-      toolProps.size * (toolProps.sizeAltitudeFactor || 0) * (touchData.altitudeFactor || 0)
-  )
-}
-
-const getStepAlpha = (toolsProps: any, touchData: any, currentSize: number): number => {
-  let alpha =
-    round(
-      toolsProps.alpha +
-        (touchData.force || 0) * (toolsProps.alphaForceFactor || 0) +
-        (touchData.speedFactor || 0) * (toolsProps.alphaSpeedFactor || 0) +
-        (touchData.altitudeFactor || 0) * (toolsProps.alphaAltitudeFactor || 0),
-      3
-    ) / (toolsProps.degradeAlphaBySize ? currentSize / toolsProps.size : 1)
-  alpha = getNumberInBetween(toolsProps.minAlpha, alpha, toolsProps.maxAlpha)
-  return alpha
-}
-
-const getStepRotation = (toolsProps: any, touchData: any, lastStep: any): number => {
-  let rotation = lastStep.rotation || 0
-
-  if (!touchData.isNearRuler) {
-    if (touchData.type === TOUCH_TYPE_STYLUS || touchData.touchType === TOUCH_TYPE_STYLUS) {
-      rotation = 0
-      if (toolsProps.handleStylusRotation) {
-        if (touchData.canHandleStylusRotation) {
-          rotation = touchData.azimuthAngle
-        } else {
-          rotation = lastStep.rotation || 0
-        }
-      }
-      if (toolsProps.handlePathRotation) {
-        rotation += touchData.pathRotation
-      }
-    } else if (toolsProps.handlePathRotation) {
-      rotation = -touchData.pathRotation
-    }
-  }
-
-  const lastRotation = lastStep.rotation || 0
-  let deltaRotation = (rotation - lastRotation) % (Math.PI * 2)
-  if (deltaRotation > Math.PI) {
-    deltaRotation -= Math.PI * 2
-  } else if (deltaRotation < -Math.PI) {
-    deltaRotation += Math.PI * 2
-  }
-  rotation = lastRotation + deltaRotation
-
-  return round(rotation, 4)
-}
-
-export const shouldThisStepMoveAdaptLine = (state: any): boolean => {
+export const shouldThisStepMoveAdaptLine = (state: EditorState): boolean => {
   let result = false
   const now = Date.now()
   state.pxDistanceSinceLastLineAdaptation += state.currentTouch.stepLength
@@ -501,8 +426,8 @@ export const updateEditorZoomGlobalState = (currentScale: number) => {
   }
 }
 
-export const initCanvasOffset = (state: any) => {
-  state.canvas = state.canvas || {}
+export const initCanvasOffset = (state: EditorState) => {
+  state.canvas = state.canvas || ({} as EditorState['canvas'])
   const safeRight =
     parseInt(
       getComputedStyle(document.documentElement).getPropertyValue('--safe-area-right'),
@@ -526,8 +451,8 @@ export const initCanvasOffset = (state: any) => {
   }
 }
 
-export const initState = (initialState: any) => {
-  const state = JSON.parse(JSON.stringify(initialState))
+export const initState = (initialState: EditorState): EditorState => {
+  const state = JSON.parse(JSON.stringify(initialState)) as EditorState
   initCanvasOffset(state)
   return state
 }
@@ -546,16 +471,25 @@ export const findValueWithMagnetism = (
   return [value, false, false]
 }
 
-export const applyRationResizeMagnetism = (
-  resizeState: any,
-  magnetismCoords: any,
+interface DraggedSideSnap {
+  dragValue: number
+  newValue: number
+  magnetismLineCoord: number | false
+  diff: number
+}
+
+export const applyRationResizeMagnetism = <
+  T extends Pick<ResizeModeState, 'x' | 'y' | 'w' | 'h' | 'r'>,
+>(
+  resizeState: T,
+  magnetismCoords: LayersMagnetismCoords,
   left: boolean,
   top: boolean,
   right: boolean,
   bottom: boolean
-): [any, number, number] => {
+): [T, number, number] => {
   const ratio = resizeState.w / resizeState.h
-  const draggedSides: Record<string, any> = {}
+  const draggedSides: Record<string, DraggedSideSnap> = {}
   let lineXCoord = 0
   let lineYCoord = 0
 

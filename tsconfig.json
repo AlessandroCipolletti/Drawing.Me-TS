@@ -14,6 +14,9 @@
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "noFallthroughCasesInSwitch": true,
+    "jsx": "react",
+    "jsxFactory": "h",
+    "jsxFragmentFactory": "Fragment",
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"],
@@ -22,7 +25,9 @@
       "modules/*": ["src/modules/*"],
       "pages/*": ["src/pages/*"],
       "utils/*": ["src/utils/*"],
-      "static/*": ["src/static/*"]
+      "static/*": ["src/static/*"],
+      "ui/*": ["src/ui/*"],
+      "app/*": ["src/app/*"]
     }
   },
   "include": ["src"]

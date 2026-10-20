@@ -1,4 +1,3 @@
-import tplPage from './dashboard.tpl?raw'
 import './dashboard.css'
 import spinnerImg from 'static/img/spinner.svg'
 
@@ -8,7 +7,7 @@ import * as Cache from './modules/Cache'
 import * as Messages from 'modules/Messages'
 import * as Editor from 'pages/Editor'
 import { spacing } from 'main/Theme'
-import { goToPage } from 'modules/Router'
+import { goToPage } from 'app/navigation'
 import { round, getNumberInBetween } from 'utils/mathUtils'
 import { deepCopy } from 'utils/jsUtils'
 import {
@@ -18,15 +17,11 @@ import {
   addGlobalStatus,
   removeGlobalStatus,
 } from 'utils/moduleUtils'
-import {
-  preventDefault,
-  setSpinner,
-  loadTemplate,
-  getEventCoordX,
-  getEventCoordY,
-} from 'utils/domUtils'
+import { preventDefault, setSpinner, getEventCoordX, getEventCoordY } from 'utils/domUtils'
 import { fadeInElements, fadeOutElements } from 'utils/animationsUtils'
 import { handlePointerEvents } from 'utils/pointerEventsUtils'
+import { mount } from 'ui/mount'
+import { DashboardView, DashboardRefs } from './DashboardView'
 
 const config = {
   svgNamespace: 'http://www.w3.org/2000/svg',
@@ -35,8 +30,24 @@ const config = {
   minZoomScale: 0.05,
 }
 
-let state: Record<string, any> = {}
-const initialState = {
+interface DashboardState {
+  maxWidth: number
+  maxHeight: number
+  width: number
+  height: number
+  centerX: number
+  centerY: number
+  scale: number
+  gestureStartScale: number
+  dragStartX: number
+  dragStartY: number
+  dragStartCenterX: number
+  dragStartCenterY: number
+  isDragging: boolean
+  targetDrawingId: number | false
+}
+
+const initialState: DashboardState = {
   maxWidth: 0,
   maxHeight: 0,
   width: 0,
@@ -50,19 +61,12 @@ const initialState = {
   dragStartCenterX: 0,
   dragStartCenterY: 0,
   isDragging: false,
-  targetDrawingId: false as number | false,
+  targetDrawingId: false,
 }
 
-const refs: {
-  container: HTMLElement | null
-  svg: SVGSVGElement | null
-  worldGroup: SVGGElement | null
-  spinner: HTMLElement | null
-  zoomLabel: SVGTextElement | null
-  zoomLabelRect: SVGRectElement | null
-  drawButton: HTMLElement | null
-  cleanPointerEvents: (() => void) | null
-} = {
+let state: DashboardState = deepCopy(initialState)
+
+const refs: DashboardRefs = {
   container: null,
   svg: null,
   worldGroup: null,
@@ -90,7 +94,6 @@ const renderWorldSheet = () => {
   const viewW = state.width / state.scale
   const viewH = state.height / state.scale
 
-  // Draw a subtle millimeter/centimeter reference origin marker at current GPS position
   const currentPos = GPS.getCurrentCoordinates()
   const posScreenX = round(state.width / 2 + (currentPos.x - state.centerX) * state.scale, 1)
   const posScreenY = round(state.height / 2 - (currentPos.y - state.centerY) * state.scale, 1)
@@ -239,7 +242,6 @@ const onDrawButtonTap = async (e: Event) => {
       (state.targetDrawingId &&
         drawings.find((d) => d.localDbId === state.targetDrawingId)?.localDbId) ||
       drawings[0].localDbId
-    // Pin the drawing you came in with (or the latest drawing) at the current camera / GPS position on the 1px = 1mm sheet
     await Cache.pinDrawingAtCurrentPosition(targetId, state.centerX, state.centerY)
     renderWorldSheet()
     Messages.info(labels.pinnedAtCurrentPos, 2000)
@@ -256,9 +258,9 @@ const onRotate = () => {
 }
 
 const initDom = async () => {
-  const dom = await loadTemplate(
-    tplPage,
-    {
+  mount(
+    Params.pagesContainer,
+    DashboardView({
       marginTop: spacing.HEADER_HEIGHT,
       labelToDraw: labels.draw,
       zoomRectCoord: spacing.ONE_REM,
@@ -267,31 +269,14 @@ const initDom = async () => {
       zoomRectHeight: spacing.ONE_REM * 4,
       zoomLabelX: spacing.ONE_REM * 3,
       zoomLabelY: spacing.ONE_REM * 3.5,
-    },
-    Params.pagesContainer
+      spinnerImg,
+      refs,
+    })
   )
-  const container = (Array.isArray(dom) ? dom[0] : dom) as HTMLElement
-  refs.container = container
-  refs.svg = container.querySelector('.dashboard__svg')
-  refs.spinner = container.querySelector('.dashboard__spinner')
-  refs.zoomLabel = container.querySelector('.dashboard__zoom-label')
-  refs.zoomLabelRect = container.querySelector('.dashboard__zoom-label-rect')
-  refs.drawButton = container.querySelector('.dashboard__showeditor')
 
-  const spinnerImage = container.querySelector(
-    '.dashboard__spinner-image'
-  ) as HTMLImageElement | null
-  if (spinnerImage) {
-    spinnerImage.src = spinnerImg
-  }
   refs.spinner?.classList.remove('displayNone')
 
   if (refs.svg) {
-    const group = document.createElementNS(config.svgNamespace, 'g') as SVGGElement
-    group.setAttribute('class', 'dashboard__world-group')
-    refs.svg.insertBefore(group, refs.svg.firstChild)
-    refs.worldGroup = group
-
     refs.cleanPointerEvents = handlePointerEvents(refs.svg as unknown as HTMLElement, {
       onSingleTouchStart: onTouchStart,
       onSingleTouchMove: onTouchMove,
@@ -347,5 +332,5 @@ export const close = async () => {
   if (refs.container) await fadeOutElements(refs.container)
   Cache.clean()
   cleanRefs(refs)
-  state = {}
+  state = deepCopy(initialState)
 }

@@ -97,6 +97,9 @@ export const getRealScreenHeight = (): number => {
   }
 }
 
+export const getRealScreenMaxSize = (): number =>
+  Math.max(getRealScreenWidth(), getRealScreenHeight())
+
 const appHasGlobalStatus = (status: string): boolean =>
   Boolean(document.body.classList.contains(status))
 

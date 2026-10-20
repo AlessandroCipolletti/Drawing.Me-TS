@@ -18,15 +18,7 @@ interface AppInitState {
   DEBUG: boolean
 }
 
-interface ParamsObject {
-  [key: string]: any
-  appName: string
-  appVersion: string
-  isInstalledWebapp: boolean
-  isLocal: boolean
-  isDevEnv: boolean
-  isProdEnv: boolean
-  debugMode: boolean
+interface DeviceContext {
   supportTouch: boolean
   eventStart: string
   eventMove: string
@@ -45,25 +37,41 @@ interface ParamsObject {
   isPhone: boolean
   isMobile: boolean
   isDesktop: boolean
-  isAppOnline: boolean
   deviceType: 'PHONE' | 'DESKTOP' | 'TABLET'
   pixelRatio: number
+  isHighPerformanceTablet: boolean
+  isHighPerformanceDesktop: boolean
+  deviceHasGoodPerformance: boolean
+}
+
+interface LayoutMetrics {
   viewportScale: number
   pxScale: number
   width: number
   height: number
-  isHighPerformanceTablet: boolean
-  isHighPerformanceDesktop: boolean
-  deviceHasGoodPerformance: boolean
+  mainContainer: HTMLElement | null
+  pagesContainer: HTMLElement | null
+}
+
+interface FeatureFlags {
+  appName: string
+  appVersion: string
+  isInstalledWebapp: boolean
+  isLocal: boolean
+  isDevEnv: boolean
+  isProdEnv: boolean
+  debugMode: boolean
+  isAppOnline: boolean
   peerServerHost: string
   peerServerPort: number
   peerServerPath: string
   peerPingInterval: number
   localDbName: string
-  mainContainer: HTMLElement | null
-  pagesContainer: HTMLElement | null
+}
+
+interface ParamsObject extends DeviceContext, LayoutMetrics, FeatureFlags {
   init: (appState: AppInitState) => void
-  set: (key: string, value: any) => void
+  set: <K extends keyof LayoutMetrics>(key: K, value: LayoutMetrics[K]) => void
 }
 
 const Params: ParamsObject = {
@@ -193,10 +201,8 @@ const Params: ParamsObject = {
     Params.localDbName = 'drawing_me_ts_DB'
   },
 
-  set(key: string, value: any) {
-    if (key !== 'set' && key !== 'init') {
-      Params[key] = value
-    }
+  set(key, value) {
+    ;(Params as Record<keyof LayoutMetrics, any>)[key] = value
   },
 }
 
