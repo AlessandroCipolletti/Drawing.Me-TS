@@ -140,7 +140,17 @@ const initialState: LayersState = {
 
 export let state: LayersState = deepCopy(initialState)
 
+let layersReady = false
+
+export const markLayersReady = (ready: boolean) => {
+  layersReady = ready
+}
+
+export const areLayersReady = () =>
+  layersReady && state.canvases.width > 0 && state.canvases.height > 0
+
 export const resetLayersState = () => {
+  layersReady = false
   state = deepCopy(initialState)
 }
 

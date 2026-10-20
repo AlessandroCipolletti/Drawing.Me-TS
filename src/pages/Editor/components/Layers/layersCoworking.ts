@@ -86,7 +86,7 @@ export const addNewLayerFromCoworker = async (layer: LayerRecord) => {
     clearLayerHistoryStepBitmap
   )
   state.layers[layer.id] = layer
-  createNewLayerDom(layer.id, true)
+  await createNewLayerDom(layer.id, true)
   reorderLayersList()
   addLayerHistoryNewStep(layer.id)
   Object.values(state.layers).forEach((l) => {

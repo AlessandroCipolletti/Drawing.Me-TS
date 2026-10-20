@@ -494,6 +494,6 @@ export const initLayers = async (
     await selectLayer(layersIds.find((layerId) => state.layers[layerId].selected) || layersIds[0])
     reorderLayersList()
   } else {
-    addNewLayer()
+    await addNewLayer()
   }
 }

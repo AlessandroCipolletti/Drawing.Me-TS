@@ -407,9 +407,9 @@ const handleConnectionClosed = () => {
 
 const waitForEditorToBeReady = async () => {
   let attempts = 0
-  const maxAttempts = 10
+  const maxAttempts = 100
 
-  while (getCurrentPage() !== 'editor') {
+  while (getCurrentPage() !== 'editor' || !Layers.areLayersReady()) {
     if (attempts > maxAttempts) {
       throw new Error('waitForEditorToBeReady timeout')
     }

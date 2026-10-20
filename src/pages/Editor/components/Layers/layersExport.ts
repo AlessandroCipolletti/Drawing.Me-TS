@@ -296,13 +296,15 @@ export const createNewLayerDom = async (layerId: string, withAnimation = false) 
   updateLayerPreview(layerId)
   editorFacade.appendLayer(layer.canvas)
 
-  layer.history.add({
-    bitmap: await createImageBitmap(layer.canvas),
-    minX: layer.minX,
-    minY: layer.minY,
-    maxX: layer.maxX,
-    maxY: layer.maxY,
-  })
+  if (layer.canvas.width > 0 && layer.canvas.height > 0) {
+    layer.history.add({
+      bitmap: await createImageBitmap(layer.canvas),
+      minX: layer.minX,
+      minY: layer.minY,
+      maxX: layer.maxX,
+      maxY: layer.maxY,
+    })
+  }
 }
 
 export const reorderLayersList = () => {

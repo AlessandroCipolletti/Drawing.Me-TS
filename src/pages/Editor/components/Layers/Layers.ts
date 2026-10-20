@@ -17,8 +17,10 @@ import {
   getLayerContext,
   getMagnetismCoords,
   hardDeleteLayer,
+  areLayersReady,
   initHistories,
   isYourLayerEmpty,
+  markLayersReady,
   resetLayersState,
   setLayerCoordsAfterDragResize,
   updateMagnetismCoords,
@@ -106,6 +108,7 @@ export {
   receiveFlipLayerFromCoworker,
   updateLayerOpacityFromCoworker,
   layerDragChangeFromCoworker,
+  areLayersReady,
 }
 
 const initDom = async (moduleContainer: HTMLElement) => {
@@ -159,6 +162,7 @@ export const init = async (
   canvasHeight: number,
   coworkersId: string[] = []
 ) => {
+  markLayersReady(false)
   initHistories(coworkersId)
 
   config.maxLayersNumber = config.maxLayersNumberHighPerf
@@ -172,6 +176,7 @@ export const init = async (
   await initDom(moduleContainer)
   if (refs.layersList) refs.layersList.scrollTop = 1
   await initLayers(initialLayers, canvasWidth, canvasHeight)
+  markLayersReady(true)
 
   setTimeout(() => {
     if (refs.layersList) {
@@ -184,6 +189,7 @@ export const init = async (
 }
 
 export const remove = (isSavingLayers = false) => {
+  markLayersReady(false)
   if (state.layers) {
     Object.values(state.layers).forEach((layer) => hardDeleteLayer(layer.id, !isSavingLayers))
   }
