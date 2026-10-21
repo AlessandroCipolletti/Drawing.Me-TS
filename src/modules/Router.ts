@@ -21,6 +21,8 @@ import * as Folder from 'pages/Folder'
 import * as Info from 'pages/Info'
 import { PageModule, registerNavigator } from 'app/navigation'
 import { notifyMenuRouteChanged } from 'app/shellState'
+import { initialRouteFromLocation } from 'modules/initialRoute'
+import { iosVersionToCheck, scoreOsVersion } from 'modules/iosVersion'
 
 const DEFAULT_ERROR_MSG = 'Routing error: refresh the page.'
 
@@ -38,25 +40,6 @@ let currentRoute = ''
 let routingQueue: Promise<any> = Promise.resolve()
 
 const getCurrentPage = () => currentRoute
-
-const decryptInitialPathUrl = (path: string, search: string): string => {
-  const queryParams = new URLSearchParams(search)
-  let url = path
-
-  if (queryParams.get('S')) {
-    url = `${url}/coworking/requestSession/${queryParams.get('S')}`.replace('//', '/')
-  }
-
-  if (url.endsWith('/editor') || url.endsWith('/editor/')) {
-    url = url.replace('/editor', '/folder')
-  }
-
-  if (url.includes('/notSupported') || url.includes('/notsupported')) {
-    url = '/folder'
-  }
-
-  return url
-}
 
 const goToPage = securizeAsyncFn(
   async (path = '', forceOrOptions: any = false) => {
@@ -125,26 +108,19 @@ const goToPage = securizeAsyncFn(
 registerNavigator(goToPage, getCurrentPage)
 
 export const openCurrentUrlPage = async () => {
-  const ROOT_URL = '/workspace/drawithme'
-  const pathname = document.location.pathname.toLowerCase().replace(ROOT_URL, '')
-  const nextPage = decryptInitialPathUrl(pathname, document.location.search)
+  const nextPage = initialRouteFromLocation(
+    document.location.pathname,
+    document.location.search,
+    new Set(Object.keys(PAGES))
+  )
   await goToPage(nextPage, nextPage !== `/${DEFAULT_PAGE}`)
 }
 
-const parseMobileDeviceDetectOSVersion = (version: string) =>
-  String(version || '')
-    .replace(/_/g, '.')
-    .split('.')
-    .reduce((tot, v, i) => tot + (parseInt(v, 10) || 0) * Math.pow(10, 4 - i * 2), 0)
-
 export const isSupportedOs = async () => {
   if (isIOS) {
-    const parsedOs = parseMobileDeviceDetectOSVersion(osVersion)
-    if (
-      notSupportedConfig.ios.supported &&
-      (parsedOs === 0 ||
-        parsedOs >= parseMobileDeviceDetectOSVersion(notSupportedConfig.ios.minVersion))
-    ) {
+    const parsedOs = scoreOsVersion(iosVersionToCheck(osVersion, browserVersion))
+    const minVersion = scoreOsVersion(notSupportedConfig.ios.minVersion)
+    if (notSupportedConfig.ios.supported && (parsedOs === 0 || parsedOs >= minVersion)) {
       return true
     }
     return false

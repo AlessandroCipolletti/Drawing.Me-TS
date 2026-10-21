@@ -3,9 +3,9 @@
   "short_name": "Drawith.Me",
   "display": "standalone",
   "background_color": "#fff",
-  "scope": "https://app.drawith.me/",
+  "scope": "./",
   "description": "Share your creativity",
-  "start_url": "https://app.drawith.me/folder",
+  "start_url": "./index.html",
   "icons": [{
     "src": "static/appIcons/icon48.png",
     "sizes": "48x48",

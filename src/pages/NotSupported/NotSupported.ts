@@ -15,6 +15,7 @@ import {
   isOpera,
 } from 'mobile-device-detect'
 import { addGlobalStatus } from 'utils/moduleUtils'
+import { iosVersionToCheck } from 'modules/iosVersion'
 import { config } from './config'
 import Params from 'main/Params'
 import { mount } from 'ui/mount'
@@ -34,7 +35,7 @@ const getTitle = () => `${labels.sorry}`
 
 const getSubTitle = () => {
   if (isIOS) {
-    return `iOS ${browserVersion} ${labels.isNoLongerSupported}`
+    return `iOS ${iosVersionToCheck(osVersion, browserVersion)} ${labels.isNoLongerSupported}`
   } else if (isAndroid) {
     if (parseInt(osVersion, 10) < config.android.minVersion) {
       return `Android ${osVersion} ${labels.isNoLongerSupported}`

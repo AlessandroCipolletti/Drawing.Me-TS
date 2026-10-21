@@ -4,7 +4,10 @@ import { fileURLToPath } from 'node:url'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
+  // Relative asset URLs so one build works at the domain root or in any FTP subdirectory.
+  // Dev stays on `/` because the Vite dev server does not support a relative base.
+  base: command === 'build' ? './' : '/',
   root: '.',
   publicDir: 'public',
   resolve: {
@@ -33,4 +36,4 @@ export default defineConfig({
     emptyOutDir: true,
     target: 'es2022',
   },
-})
+}))

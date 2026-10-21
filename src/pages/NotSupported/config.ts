@@ -1,7 +1,7 @@
 export const config = {
   ios: {
     supported: true,
-    minVersion: '16.4.0',
+    minVersion: '16.0.0',
   },
   android: {
     supported: true,

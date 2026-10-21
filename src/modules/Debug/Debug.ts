@@ -1,4 +1,3 @@
-import Params from 'main/Params'
 import * as Messages from 'modules/Messages'
 
 const state: {
@@ -25,44 +24,24 @@ const updateFps = () => {
   state.fpsLastUpdateTime = now
 }
 
-export let startFpsLog = () => {
-  if (Params.debugMode) {
-    startFpsLog = () => {
-      state.fpsTotal = state.fpsCurrent = 0
-      state.fpsLastUpdateTime = Date.now()
-      state.fpsInterval = setInterval(updateFps, 1000)
-    }
-    startFpsLog()
-  } else {
-    startFpsLog = () => {}
+export const startFpsLog = () => {
+  state.fpsTotal = state.fpsCurrent = 0
+  state.fpsLastUpdateTime = Date.now()
+  if (state.fpsInterval) clearInterval(state.fpsInterval)
+  state.fpsInterval = setInterval(updateFps, 1000)
+}
+
+export const logFps = () => {
+  state.fpsCurrent += 1
+  state.fpsTotal += 1
+  if (state.fpsTotal === 1) {
+    state.fpsStartLogTime = Date.now()
   }
 }
 
-export let logFps = () => {
-  if (Params.debugMode) {
-    logFps = () => {
-      state.fpsCurrent += 1
-      state.fpsTotal += 1
-      if (state.fpsTotal === 1) {
-        state.fpsStartLogTime = Date.now()
-      }
-    }
-    logFps()
-  } else {
-    logFps = () => {}
-  }
-}
-
-export let stopFpsLog = () => {
-  if (Params.debugMode) {
-    stopFpsLog = () => {
-      state.fpsTotal = state.fpsCurrent = 0
-      state.fpsLastUpdateTime = 0
-      if (state.fpsInterval) clearInterval(state.fpsInterval)
-      state.fpsInterval = false
-    }
-    stopFpsLog()
-  } else {
-    stopFpsLog = () => {}
-  }
+export const stopFpsLog = () => {
+  state.fpsTotal = state.fpsCurrent = 0
+  state.fpsLastUpdateTime = 0
+  if (state.fpsInterval) clearInterval(state.fpsInterval)
+  state.fpsInterval = false
 }
