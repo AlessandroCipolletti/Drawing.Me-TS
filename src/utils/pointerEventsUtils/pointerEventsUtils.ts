@@ -4,9 +4,7 @@ import { handleDesktopEventsWithGesture } from './desktopEventsUtils'
 import { preventDefault } from 'utils/domUtils'
 
 /**
- * High-rate 120 Hz pointer/touch dispatcher.
- * Fix #1 from the rewrite plan: Do NOT wrap stroke or gesture handlers in delayFn (requestAnimationFrame),
- * so iPad ProMotion 120 Hz samples paint synchronously without a 1-frame lag or dropped coalesced points.
+ * Collects every new pencil sample. The editor paints those samples once per screen refresh.
  */
 export const handlePointerEvents = (
   target: Element | Element[],

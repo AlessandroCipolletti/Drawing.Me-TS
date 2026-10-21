@@ -15,6 +15,39 @@ import {
 import { delay } from 'utils/jsUtils'
 import { TOUCH_TYPE_STYLUS, TOUCH_TYPE_FINGER } from 'main/constants'
 
+export interface PointerSampleStamp {
+  timeStamp?: number
+  clientX?: number
+  clientY?: number
+}
+
+export interface DeliveredPointerSample {
+  timeStamp: number
+  clientX: number
+  clientY: number
+}
+
+/** Drops samples already painted by pointerrawupdate or repeated inside one coalesced list. */
+export const filterFreshPointerSamples = <T extends PointerSampleStamp>(
+  samples: T[],
+  last: DeliveredPointerSample | null
+): { fresh: T[]; last: DeliveredPointerSample | null } => {
+  let cursor = last
+  const fresh: T[] = []
+  for (const sample of samples) {
+    const timeStamp = sample.timeStamp || 0
+    const clientX = sample.clientX ?? 0
+    const clientY = sample.clientY ?? 0
+    if (cursor) {
+      if (timeStamp && cursor.timeStamp && timeStamp <= cursor.timeStamp) continue
+      if (clientX === cursor.clientX && clientY === cursor.clientY) continue
+    }
+    cursor = { timeStamp: timeStamp || cursor?.timeStamp || 0, clientX, clientY }
+    fresh.push(sample)
+  }
+  return { fresh, last: cursor }
+}
+
 const TIME_TO_WAIT_FOR_SECOND_FINGER = 40
 const TIME_TO_WAIT_FOR_TAP_END = 50
 const MOVE_EVENTS_TO_FORCE_MOVE = 6
@@ -94,7 +127,7 @@ export const handleTouchEventsWithGestures = (
   }: PointerGestureCallbacks = {}
 ) => {
   const activePointers = new Map<number, any>()
-  const lastRawTimeStampByPointer = new Map<number, number>()
+  const lastDeliveredSampleByPointer = new Map<number, DeliveredPointerSample>()
   let touches: any[] = []
   let ratedTouchEvents: any[] = []
   let waitedForFingers = false
@@ -151,7 +184,7 @@ export const handleTouchEventsWithGestures = (
 
   const reset = () => {
     activePointers.clear()
-    lastRawTimeStampByPointer.clear()
+    lastDeliveredSampleByPointer.clear()
     touches = []
     ratedTouchEvents = []
     waitedForFingers = false
@@ -203,7 +236,7 @@ export const handleTouchEventsWithGestures = (
       }
       if (norm.touchType === TOUCH_TYPE_STYLUS && activePointers.size > 0 && !gestureStarted) {
         activePointers.clear()
-        lastRawTimeStampByPointer.clear()
+        lastDeliveredSampleByPointer.clear()
         ratedTouchEvents = []
         maxTouchesLength = 1
       }
@@ -236,7 +269,7 @@ export const handleTouchEventsWithGestures = (
       removed.target = prev.target
     }
     activePointers.delete(pid)
-    lastRawTimeStampByPointer.delete(pid)
+    lastDeliveredSampleByPointer.delete(pid)
     touches = Array.from(activePointers.values())
     return removed
   }
@@ -366,33 +399,45 @@ export const handleTouchEventsWithGestures = (
     }
 
     const pid = latestSample.pointerId ?? 0
-    if (e?.type === 'pointerrawupdate' && latestSample.timeStamp) {
-      lastRawTimeStampByPointer.set(pid, latestSample.timeStamp)
+
+    if (maxTouchesLength !== 1) {
+      touchMoveLength++
+      if (touchMoveLength > MOVE_EVENTS_TO_FORCE_MOVE || waitedForTapEnd) {
+        handleGestureChange()
+      }
+      return
     }
 
-    touchMoveLength++
     if (maxTouchesLength === 1) {
       let coalescedSamples: any[]
       if (typeof e.getCoalescedEvents === 'function') {
         const rawList = e.getCoalescedEvents()
-        const lastRawTs = e?.type === 'pointermove' ? lastRawTimeStampByPointer.get(pid) || 0 : 0
-        const filtered =
-          rawList && rawList.length > 0
-            ? rawList.filter((ev: any) => !lastRawTs || !ev.timeStamp || ev.timeStamp > lastRawTs)
-            : [e]
-        if (filtered.length === 0) {
-          return
-        }
-        coalescedSamples = filtered.map((ev: any) => {
+        const source = rawList && rawList.length > 0 ? rawList : [e]
+        const normalized = source.map((ev: any) => {
           const norm = normalizeTouchOrPointerEvent(ev)
           if (!norm.target) {
             norm.target = latestSample.target || target
           }
           return norm
         })
+        const filtered = filterFreshPointerSamples(
+          normalized,
+          lastDeliveredSampleByPointer.get(pid) ?? null
+        )
+        if (filtered.last) lastDeliveredSampleByPointer.set(pid, filtered.last)
+        if (filtered.fresh.length === 0) return
+        coalescedSamples = filtered.fresh
       } else {
-        coalescedSamples = [latestSample]
+        const filtered = filterFreshPointerSamples(
+          [latestSample],
+          lastDeliveredSampleByPointer.get(pid) ?? null
+        )
+        if (filtered.last) lastDeliveredSampleByPointer.set(pid, filtered.last)
+        if (filtered.fresh.length === 0) return
+        coalescedSamples = filtered.fresh
       }
+
+      touchMoveLength++
 
       if (!usedForSingleTouch) {
         ratedTouchEvents.push(...coalescedSamples)
@@ -413,8 +458,6 @@ export const handleTouchEventsWithGestures = (
           }
         }
       }
-    } else if (touchMoveLength > MOVE_EVENTS_TO_FORCE_MOVE || waitedForTapEnd) {
-      handleGestureChange()
     }
   }
 

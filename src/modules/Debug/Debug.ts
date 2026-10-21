@@ -31,17 +31,31 @@ export const startFpsLog = () => {
   state.fpsInterval = setInterval(updateFps, 1000)
 }
 
+let countedThisFrame = false
+let frameResetId = 0
+
 export const logFps = () => {
+  if (countedThisFrame) return
+  countedThisFrame = true
   state.fpsCurrent += 1
   state.fpsTotal += 1
   if (state.fpsTotal === 1) {
     state.fpsStartLogTime = Date.now()
+  }
+  if (!frameResetId) {
+    frameResetId = requestAnimationFrame(() => {
+      frameResetId = 0
+      countedThisFrame = false
+    })
   }
 }
 
 export const stopFpsLog = () => {
   state.fpsTotal = state.fpsCurrent = 0
   state.fpsLastUpdateTime = 0
+  countedThisFrame = false
+  if (frameResetId) cancelAnimationFrame(frameResetId)
+  frameResetId = 0
   if (state.fpsInterval) clearInterval(state.fpsInterval)
   state.fpsInterval = false
 }

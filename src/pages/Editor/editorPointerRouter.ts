@@ -1,4 +1,5 @@
 import Params from 'main/Params'
+import * as Debug from 'modules/Debug'
 import * as Layers from './components/Layers'
 import * as Ruler from './components/Ruler'
 import { getEventCoordX, getEventCoordY } from 'utils/domUtils'
@@ -211,20 +212,38 @@ export const createEditorPointerHandlers = (deps: PointerRouterDeps) => {
     )
   }
 
+  let moveFrameId = 0
+  const queuedMoves: PointerTouchEvent[] = []
+
+  const paintQueuedMoves = () => {
+    const batch = queuedMoves.splice(0, queuedMoves.length)
+    for (const touchEvent of batch) {
+      const action = resolveTouchMoveAction({
+        isResizing: state.resizeMode.isResizing,
+        resizeModeActive: state.resizeMode.active,
+        isZooming: state.currentTouch.isZooming,
+        currentDeviceHasStylus: state.currentDeviceHasStylus,
+        touchType: touchEvent?.touchType,
+        toolName: state.currentToolProps.name,
+        currentLayerIsActive: state.currentLayerIsActive,
+      })
+      if (action === 'dragLayer') onDragLayerContentTouchMove(touchEvent)
+      else if (action === 'dragZoom') onDragZoomTouchMove(touchEvent)
+      else if (action === 'pipette') onPipetteTouchMove(touchEvent)
+      else if (action === 'step') session.onStepTouchMove(touchEvent)
+    }
+    if (batch.length) Debug.logFps()
+  }
+
+  const flushQueuedMoves = () => {
+    moveFrameId = 0
+    paintQueuedMoves()
+  }
+
   const onTouchMove = (_e: unknown, touchEvent: PointerTouchEvent) => {
-    const action = resolveTouchMoveAction({
-      isResizing: state.resizeMode.isResizing,
-      resizeModeActive: state.resizeMode.active,
-      isZooming: state.currentTouch.isZooming,
-      currentDeviceHasStylus: state.currentDeviceHasStylus,
-      touchType: touchEvent?.touchType,
-      toolName: state.currentToolProps.name,
-      currentLayerIsActive: state.currentLayerIsActive,
-    })
-    if (action === 'dragLayer') onDragLayerContentTouchMove(touchEvent)
-    else if (action === 'dragZoom') onDragZoomTouchMove(touchEvent)
-    else if (action === 'pipette') onPipetteTouchMove(touchEvent)
-    else if (action === 'step') session.onStepTouchMove(touchEvent)
+    queuedMoves.push(touchEvent)
+    if (moveFrameId) return
+    moveFrameId = requestAnimationFrame(flushQueuedMoves)
   }
 
   const onDragLayerContentTouchEnd = (e: PointerTouchEvent) => {
@@ -252,6 +271,11 @@ export const createEditorPointerHandlers = (deps: PointerRouterDeps) => {
   }
 
   const onTouchEnd = (e: PointerTouchEvent) => {
+    if (moveFrameId) {
+      cancelAnimationFrame(moveFrameId)
+      moveFrameId = 0
+    }
+    paintQueuedMoves()
     const action = resolveTouchEndAction({
       isResizing: state.resizeMode.isResizing,
       resizeModeActive: state.resizeMode.active,

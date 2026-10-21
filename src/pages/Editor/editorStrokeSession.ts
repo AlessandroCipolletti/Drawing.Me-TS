@@ -1,6 +1,5 @@
 import Params from 'main/Params'
 import * as Coworking from 'modules/Coworking'
-import * as Debug from 'modules/Debug'
 import * as ColorPicker from './components/ColorPicker'
 import * as Toolbar from './components/Toolbar'
 import * as Layers from './components/Layers'
@@ -199,8 +198,6 @@ export const createEditorStrokeSession = (deps: StrokeSessionDeps) => {
       )
     }
     updateLastStepData(state, stepData)
-
-    Debug.logFps()
   }
 
   const handleTouchEndStep = (context: ExtendedCanvasContext) => {

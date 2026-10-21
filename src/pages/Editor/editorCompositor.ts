@@ -1,5 +1,4 @@
 import Params from 'main/Params'
-import * as Debug from 'modules/Debug'
 import * as Layers from './components/Layers'
 import * as Toolbar from './components/Toolbar'
 import * as Tools from './components/Tools'
@@ -355,7 +354,6 @@ export const handleResizeLayerContentTouchMove = (
   bottom: boolean,
   rotation: boolean
 ) => {
-  Debug.logFps()
   if (state.resizeMode.useMagnetism) {
     if (rotation) {
       const newR = roundAngleForSteps(
@@ -413,7 +411,6 @@ export const handleDragLayerContentTouchMove = (
   refs: EditorRefs,
   touchEvent: PointerTouchEvent
 ) => {
-  Debug.logFps()
   updateCurrentTouchData(state, touchEvent, Params.eventMove)
   let newX = state.resizeMode.startDragX + state.currentTouch.dragX
   let magnetismLineX: number | false = false
