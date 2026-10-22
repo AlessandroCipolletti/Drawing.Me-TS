@@ -177,7 +177,7 @@ export const updateParamsByColor = (idColor: number, showParams = true) => {
     if (refs.brightnessCursor) refs.brightnessCursor.style.left = `${color.brightness}%`
     const gradientMiddleColor = applyBrightnessToHex(color.initialHex, 50)
     if (refs.brightnessSlider) {
-      refs.brightnessSlider.style.background = `linear-gradient(to right, #000000 0%, ${gradientMiddleColor} 50%, #ffffff 100%)`
+      refs.brightnessSlider.style.backgroundImage = `linear-gradient(to right, #000000 0%, ${gradientMiddleColor} 50%, #ffffff 100%)`
     }
 
     updateSuggestedColorByHex(color.finalHex)

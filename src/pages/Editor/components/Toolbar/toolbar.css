@@ -93,8 +93,8 @@
   height: 3.6rem;
   width: auto;
   margin: 0rem 0.45rem;
-  padding: 0 0.85rem;
-  border-radius: 1rem;
+  padding: 0 1rem;
+  border-radius: 999px;
   background-color: var(--surface-subtle);
   border: 1px solid var(--border-subtle);
   box-sizing: border-box;

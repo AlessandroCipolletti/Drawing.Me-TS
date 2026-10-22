@@ -158,6 +158,9 @@ const updateDrawing = securizeAsyncFn(
     drawing.createTimestamp = oldDrawing?.createTimestamp || Date.now()
     drawing.appVersions = appVersions
     drawing.updateTimestamp = Date.now()
+    if (oldDrawing?.title && !drawing.title) {
+      drawing.title = oldDrawing.title
+    }
     if (oldDrawing?.gpsCoordinates && !drawing.gpsCoordinates) {
       drawing.gpsCoordinates = oldDrawing.gpsCoordinates
     }
@@ -251,6 +254,38 @@ export const saveDrawingPaletteColors = securizeAsyncFn(
   },
   DEFAULT_LOCAL_DB_ERROR_MSG,
   'saveDrawingPaletteColors'
+)
+
+export const renameLocalDrawing = securizeAsyncFn(
+  async (localDbId: number, title: string) => {
+    await updateLocalDrawing(Number(localDbId), {
+      title,
+    })
+  },
+  DEFAULT_LOCAL_DB_ERROR_MSG,
+  'renameLocalDrawing'
+)
+
+export const duplicateLocalDrawing = securizeAsyncFn(
+  async (localDbId: number) => {
+    const original: any = await getOneDrawing(Number(localDbId))
+    if (!original) return false
+    const copy: Record<string, any> = { ...original }
+    delete copy.localDbId
+    const baseTitle =
+      typeof original.title === 'string' && original.title.trim()
+        ? original.title.trim()
+        : `Sketch #${localDbId}`
+    copy.title = `${baseTitle} (Copy)`
+    const now = Date.now()
+    copy.createTimestamp = now
+    copy.updateTimestamp = now
+    copy.state = DRAWING_STATE_SAVED_LOCALLY
+    copy.wasSavedAsDraft = false
+    return await addLocalDrawing(copy)
+  },
+  DEFAULT_LOCAL_DB_ERROR_MSG,
+  'duplicateLocalDrawing'
 )
 
 export const saveDrawingGpsCoordinates = securizeAsyncFn(

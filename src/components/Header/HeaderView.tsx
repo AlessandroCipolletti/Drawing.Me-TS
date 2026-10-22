@@ -15,20 +15,30 @@ export const HeaderView = ({ refs }: { refs: HeaderRefs }) => (
   >
     <div
       class="menu-button displayNone"
+      role="button"
+      aria-label="Toggle menu"
       ref={(el) => {
         refs.menuButton = el
       }}
     >
-      <svg width="100px" height="100px" viewBox="0 0 1000 1000">
-        <path
-          id="pathA"
-          d="M 300 400 L 700 400 C 900 400 900 750 600 850 A 400 400 0 0 1 200 200 L 800 800"
-        />
-        <path id="pathB" d="M 300 500 L 700 500" />
-        <path
-          id="pathC"
-          d="M 700 600 L 300 600 C 100 600 100 200 400 150 A 400 380 0 1 1 200 800 L 800 200"
-        />
+      <svg
+        class="menu-button__svg"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2.1"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <g class="menu-button__icon-menu">
+          <path d="M4 7h16" />
+          <path d="M4 12h11" />
+          <path d="M4 17h16" />
+        </g>
+        <g class="menu-button__icon-close">
+          <path d="M6 6l12 12" />
+          <path d="M18 6L6 18" />
+        </g>
       </svg>
     </div>
 

@@ -14,6 +14,14 @@
     background-color 200ms ease,
     border-color 200ms ease;
 }
+.drawith__MENU-OPEN .header__container {
+  z-index: 100000;
+  background-color: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border-bottom-color: transparent;
+  pointer-events: none;
+}
 .drawith__EDITOR-OPEN .header__container {
   background-color: transparent;
   backdrop-filter: none;
@@ -34,7 +42,13 @@
   background-repeat: no-repeat;
   background-size: 0rem;
   opacity: 1;
-  transition: opacity var(--options-show-transition);
+  transition:
+    opacity 200ms ease,
+    filter 200ms ease;
+}
+.drawith__MENU-OPEN .header__logo {
+  opacity: 0.28;
+  filter: blur(2px);
 }
 .drawith__PHONE .header__logo {
   background-size: 16rem;
@@ -50,9 +64,9 @@
 
 .header__button {
   top: 0px;
-  width: 4rem;
-  height: 4rem;
-  margin: 0.75rem 1.25rem;
+  width: 3.8rem;
+  height: 3.8rem;
+  margin: 0.85rem 1.25rem;
   position: absolute;
   background-size: 80%;
   background-repeat: no-repeat;
@@ -65,9 +79,9 @@
   margin: 0.5rem;
 }
 .drawith__PHONE .header__button {
-  margin: 1.25rem 0.75rem 1rem 0.75rem;
-  width: 3rem;
-  height: 3rem;
+  margin: 1.05rem 0.75rem;
+  width: 3.4rem;
+  height: 3.4rem;
 }
 .drawith__PHONE .header__button.header__button-big {
   margin: 0.75rem 0.25rem 0.75rem 0.25rem;

@@ -1,35 +1,287 @@
 .folder__drawing {
-  border: 1px solid var(--border-subtle);
+  display: flex;
+  flex-direction: column;
+  background-color: #ffffff;
+  border: 1px solid var(--border-medium);
   border-radius: 1.4rem;
   box-shadow: var(--shadow-sm);
   margin: 0;
   cursor: pointer;
-  background: url('../../../static/img/paper/white.png'), #ffffff;
-  background-size: 43px;
-  background-repeat: repeat;
   position: relative;
-  overflow: hidden;
+  overflow: visible;
   transition:
-    transform 180ms cubic-bezier(0.22, 1, 0.36, 1),
     box-shadow 180ms ease,
     border-color 180ms ease;
 }
+.folder__drawing.folder__drawing-menu-open {
+  z-index: 30;
+  border-color: rgba(15, 23, 42, 0.35);
+}
 .folder__drawings-container .folder__drawing:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-md);
-  border-color: rgba(15, 23, 42, 0.25);
+  border-color: rgba(15, 23, 42, 0.32);
+}
+.folder__drawing > .drawith__overlay-spinner {
+  border-radius: 1.4rem;
 }
 
-.folder__drawings-container .folder__drawing {
-  display: inline-flex;
+/* CANVAS ARTWORK STAGE */
+.folder__drawing-stage {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  display: flex;
   justify-content: center;
   align-items: center;
+  padding: 1.2rem;
+  box-sizing: border-box;
+  overflow: hidden;
+  border-radius: calc(1.4rem - 1px) calc(1.4rem - 1px) 0 0;
+  background-color: #ffffff;
+  background-image: url('../../../static/img/paper/white.png');
+  background-size: 43px;
+  background-repeat: repeat;
+}
+.folder__drawing-stage.paper-squares {
+  background-image: url('../../../static/img/paper/squares.png');
+}
+.folder__drawing-stage.paper-lines {
+  background-image: url('../../../static/img/paper/lines.png');
+}
+.folder__drawing-stage.paper-points {
+  background-image: url('../../../static/img/paper/points.png');
 }
 
 .folder__drawing-preview {
-  max-width: 105%;
-  max-height: 105%;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
 }
+
+/* CARD METADATA FOOTER */
+.folder__drawing-meta {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  padding: 0.95rem 1.1rem 0.95rem 1.4rem;
+  background-color: #ffffff;
+  border-top: 1px solid var(--border-subtle);
+  border-radius: 0 0 calc(1.4rem - 1px) calc(1.4rem - 1px);
+  box-sizing: border-box;
+}
+.drawith__PHONE .folder__drawing-meta {
+  padding: 0.7rem 0.8rem 0.7rem 1rem;
+  gap: 0.5rem;
+}
+
+.folder__drawing-meta-left {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.folder__drawing-name {
+  font-size: 1.35rem;
+  line-height: 1.8rem;
+  font-family: 'Poppins-Medium', sans-serif;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.folder__drawing-date {
+  font-size: 1.1rem;
+  line-height: 1.5rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.drawith__PHONE .folder__drawing-name {
+  font-size: 1.2rem;
+}
+.drawith__PHONE .folder__drawing-date {
+  font-size: 1rem;
+}
+
+.folder__drawing-meta-right {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.45rem;
+  flex-shrink: 0;
+}
+
+.folder__drawing-layers-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  height: 2.4rem;
+  padding: 0 0.7rem;
+  border-radius: 0.65rem;
+  background-color: var(--surface-subtle);
+  border: 1px solid var(--border-subtle);
+  font-family: 'Poppins-Medium', sans-serif;
+  font-variant-numeric: tabular-nums;
+  font-size: 1.1rem;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+.folder__drawing-layers-icon {
+  width: 1.25rem;
+  height: 1.25rem;
+  background-color: var(--text-secondary);
+}
+
+/* 3-DOTS SETTINGS BUTTON */
+.folder__drawing-menu-btn {
+  width: 2.8rem;
+  height: 2.8rem;
+  border-radius: 0.75rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background-color: transparent;
+  border: 1px solid transparent;
+  cursor: pointer;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  transition:
+    background-color 140ms ease,
+    border-color 140ms ease;
+}
+.folder__drawing-menu-btn > * {
+  pointer-events: none;
+}
+.folder__drawing-menu-btn:hover {
+  background-color: var(--surface-subtle);
+  border-color: var(--border-subtle);
+}
+.folder__drawing-menu-open .folder__drawing-menu-btn {
+  background-color: var(--accent-ink);
+  border-color: var(--accent-ink-strong);
+}
+.folder__drawing-menu-btn-icon {
+  width: 1.65rem;
+  height: 1.65rem;
+  background-color: var(--text-secondary);
+  transition: background-color 140ms ease;
+}
+.folder__drawing-menu-btn:hover .folder__drawing-menu-btn-icon {
+  background-color: var(--text-primary);
+}
+.folder__drawing-menu-open .folder__drawing-menu-btn-icon {
+  background-color: #ffffff;
+}
+.drawith__FOLDER-SELECT-MODE .folder__drawing-menu-btn {
+  display: none;
+}
+
+/* CONTEXTUAL SETTINGS MENU POPOVER */
+.folder__drawing-menu-anchor {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+}
+.folder__drawing-menu {
+  position: absolute;
+  bottom: calc(100% + 0.55rem);
+  left: 50%;
+  z-index: 50;
+  min-width: 14.5rem;
+  padding: 0.5rem;
+  background-color: rgba(255, 255, 255, 0.98);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--border-medium);
+  border-radius: 1.15rem;
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(calc(-50% + var(--menu-nudge, 0px))) translateY(6px) scale(0.96);
+  transform-origin: bottom center;
+  box-sizing: border-box;
+  transition:
+    opacity 140ms ease,
+    transform 140ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.folder__drawing-menu-open .folder__drawing-menu {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateX(calc(-50% + var(--menu-nudge, 0px))) translateY(0px) scale(1);
+}
+.drawith__FOLDER-SELECT-MODE .folder__drawing-menu {
+  display: none !important;
+}
+
+.folder__drawing-menu-item {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.85rem;
+  height: 3.4rem;
+  padding: 0 1rem;
+  border-radius: 0.75rem;
+  color: var(--text-primary);
+  font-size: 1.3rem;
+  font-family: 'Poppins-Medium', sans-serif;
+  cursor: pointer;
+  box-sizing: border-box;
+  transition: background-color 120ms ease;
+}
+.folder__drawing-menu-item > * {
+  pointer-events: none;
+}
+.folder__drawing-menu-item:hover {
+  background-color: var(--surface-subtle);
+}
+.folder__drawing-menu-item-icon {
+  width: 1.55rem;
+  height: 1.55rem;
+  flex-shrink: 0;
+  background-color: var(--text-secondary);
+}
+.folder__drawing-menu-item:hover .folder__drawing-menu-item-icon {
+  background-color: var(--text-primary);
+}
+
+.folder__drawing-menu-divider {
+  height: 1px;
+  margin: 0.25rem 0.4rem;
+  background-color: var(--border-subtle);
+}
+
+.folder__drawing-menu-item-danger {
+  color: var(--palette-red-1);
+}
+.folder__drawing-menu-item-danger .folder__drawing-menu-item-icon {
+  background-color: var(--palette-red-1);
+}
+.folder__drawing-menu-item-danger:hover {
+  background-color: var(--palette-red-5);
+}
+.folder__drawing-menu-item-danger:hover .folder__drawing-menu-item-icon {
+  background-color: var(--palette-red-0);
+}
+
+.folder__drawing-coop-pill {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: 999px;
+  background-color: rgba(15, 23, 42, 0.78);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  color: #ffffff;
+  font-family: 'Poppins-Medium', sans-serif;
+  font-size: 1.05rem;
+  letter-spacing: 0.04rem;
+}
+
 .folder__drawing .spinner {
   display: inline-block;
   margin: 0.5rem;
@@ -37,20 +289,20 @@
   height: 2rem;
 }
 
+/* SELECTION CHECK BADGE */
 .folder__drawing-select-icon {
   position: absolute;
-  top: 0rem;
-  right: 0rem;
-  margin: 1rem;
+  top: 1rem;
+  right: 1rem;
   height: 2.6rem;
   width: 2.6rem;
-  border: 2px solid rgba(15, 23, 42, 0.22);
-  background-color: rgba(255, 255, 255, 0.92);
+  border: 2px solid rgba(15, 23, 42, 0.24);
+  background-color: rgba(255, 255, 255, 0.94);
   border-radius: 50%;
   background-size: 62%;
   background-position: center;
   background-repeat: no-repeat;
-  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.16);
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.14);
   display: none;
   transition:
     background-color 150ms ease,
@@ -59,7 +311,7 @@
 }
 
 .drawith__FOLDER-SELECT-MODE .folder__drawing:not(.folder__drawing-selected) {
-  filter: opacity(72%);
+  filter: opacity(75%);
 }
 .drawith__FOLDER-SELECT-MODE .folder__drawing-selected {
   border-color: var(--accent-ink-strong);
@@ -75,21 +327,4 @@
   border-color: #ffffff;
   background-image: url('../../../static/icons/svg/check.svg');
   transform: scale(1.06);
-}
-
-.drawith__DESKTOP .folder__drawing,
-.drawith__TABLET .folder__drawing {
-  width: 20vw;
-  height: 20vh;
-}
-.drawith__PHONE .folder__drawing {
-  margin: 0;
-}
-.drawith__PHONE.drawith__PORTRAIT .folder__drawing {
-  width: 43vw;
-  height: 16vh;
-}
-.drawith__PHONE.drawith__LANDSCAPE .folder__drawing {
-  width: 25vw;
-  height: 35vh;
 }

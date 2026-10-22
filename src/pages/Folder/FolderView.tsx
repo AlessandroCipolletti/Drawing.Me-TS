@@ -17,6 +17,8 @@ export interface FolderRefs {
   newDrawingButton: HTMLElement | null
   newCoworkingButton: HTMLElement | null
   newContainer: HTMLElement | null
+  countBadge?: HTMLElement | null
+  selectionBadge?: HTMLElement | null
 }
 
 export interface FolderLabels {
@@ -24,6 +26,10 @@ export interface FolderLabels {
   done: string
   offline: string
   areYouSure: string
+  renameDrawingPrompt: string
+  rename: string
+  duplicate: string
+  delete: string
   tapAndHoldOneImage: string
   tapAndHoldImages: string
   withWhiteBackground: string
@@ -39,6 +45,39 @@ export interface FolderLabels {
   waitingToReconnect: string
 }
 
+export interface FolderDrawingItem {
+  localDbId: number | string
+  title?: string
+  base64?: string
+  preview?: string
+  updateTimestamp?: number
+  createTimestamp?: number
+  paper?: string
+  madeByCorowking?: boolean
+  layers?: unknown[]
+  wasSavedAsDraft?: boolean
+}
+
+const formatDrawingTimestamp = (ts?: number): string => {
+  if (!ts || !Number.isFinite(ts)) return 'Saved'
+  try {
+    const date = new Date(ts)
+    const now = new Date()
+    const isToday =
+      date.getDate() === now.getDate() &&
+      date.getMonth() === now.getMonth() &&
+      date.getFullYear() === now.getFullYear()
+    const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    if (isToday) {
+      return `Today, ${timeStr}`
+    }
+    const monthDay = date.toLocaleDateString([], { month: 'short', day: 'numeric' })
+    return `${monthDay} · ${timeStr}`
+  } catch {
+    return 'Saved'
+  }
+}
+
 export const FolderView = ({ labels, refs }: { labels: FolderLabels; refs: FolderRefs }) => (
   <div
     class="folder__container displayNone"
@@ -46,6 +85,7 @@ export const FolderView = ({ labels, refs }: { labels: FolderLabels; refs: Folde
       refs.container = el
     }}
   >
+    {/* TOP STUDIO LAUNCH DECK */}
     <div
       class="folder__new-container"
       ref={(el) => {
@@ -53,67 +93,123 @@ export const FolderView = ({ labels, refs }: { labels: FolderLabels; refs: Folde
       }}
     >
       <div
-        class="folder__drawing folder__drawing-new-drawing"
+        class="folder__launch-card folder__launch-card-primary folder__drawing-new-drawing"
         ref={(el) => {
           refs.newDrawingButton = el
         }}
       >
-        <span>{labels.newDrawing}</span>
+        <div class="folder__launch-card-body">
+          <div class="folder__launch-eyebrow">
+            <span class="folder__launch-pill folder__launch-pill-dark">NEW CANVAS</span>
+          </div>
+          <div class="folder__launch-title">{labels.newDrawing}</div>
+          <div class="folder__launch-desc">
+            Open a blank sheet and start sketching with your favorite brushes and colors.
+          </div>
+        </div>
+        <div class="folder__launch-cta-circle folder__launch-cta-dark">
+          <div class="folder__launch-cta-icon svg-icon-plus svg-icon-light" />
+        </div>
       </div>
+
       <div
-        class="folder__drawing folder__drawing-new-coworking"
+        class="folder__launch-card folder__launch-card-coop folder__drawing-new-coworking"
         ref={(el) => {
           refs.newCoworkingButton = el
         }}
       >
-        <span>{labels.drawWithAFriend}</span>
+        <div class="folder__launch-card-body">
+          <div class="folder__launch-eyebrow">
+            <span class="folder__launch-pill">
+              <span class="folder__live-dot" />
+              SHARED CANVAS
+            </span>
+          </div>
+          <div class="folder__launch-title">{labels.drawWithAFriend}</div>
+          <div class="folder__launch-desc">
+            Share a link with a friend and draw together on the same sheet at the same time.
+          </div>
+        </div>
+        <div class="folder__launch-cta-circle">
+          <div class="folder__launch-cta-icon svg-icon-users svg-icon-dark" />
+        </div>
         <div class="folder__drawing-new-coworking-offline">{labels.offline}</div>
       </div>
     </div>
 
+    {/* GALLERY SECTION BAR */}
     <div
       class="folder__topbar"
       ref={(el) => {
         refs.topnav = el
       }}
     >
-      <span class="folder__topbar-title">{labels.navbarTitle}</span>
-      <div
-        class="folder__topbar-button folder__topbar-button-TEXT folder__topbar-button-select"
-        ref={(el) => {
-          refs.selectButton = el
-        }}
-      >
-        {labels.select}
+      <div class="folder__topbar-left">
+        <span class="folder__topbar-title">{labels.navbarTitle}</span>
+        <span
+          class="folder__count-badge"
+          ref={(el) => {
+            refs.countBadge = el
+          }}
+        >
+          0 sketches
+        </span>
+        <span
+          class="folder__selection-badge"
+          ref={(el) => {
+            refs.selectionBadge = el
+          }}
+        >
+          0 selected
+        </span>
       </div>
-      <div
-        class="folder__topbar-button folder__topbar-button-TEXT folder__topbar-button-done displayNone"
-        ref={(el) => {
-          refs.doneButton = el
-        }}
-      >
-        {labels.done}
+
+      <div class="folder__topbar-actions">
+        <div
+          class="folder__topbar-button folder__topbar-button-ICON folder__topbar-button-export disabled"
+          ref={(el) => {
+            refs.exportButton = el
+          }}
+        >
+          <div class="folder__topbar-btn-icon svg-icon-export svg-icon-dark" />
+          <span>Export</span>
+        </div>
+        <div
+          class="folder__topbar-button folder__topbar-button-ICON folder__topbar-button-delete disabled"
+          ref={(el) => {
+            refs.deleteButton = el
+          }}
+        >
+          <div class="folder__topbar-btn-icon svg-icon-delete svg-icon-dark" />
+          <span>Delete</span>
+        </div>
+        <div
+          class="folder__topbar-button folder__topbar-button-TEXT folder__topbar-button-select"
+          ref={(el) => {
+            refs.selectButton = el
+          }}
+        >
+          {labels.select}
+        </div>
+        <div
+          class="folder__topbar-button folder__topbar-button-TEXT folder__topbar-button-done displayNone"
+          ref={(el) => {
+            refs.doneButton = el
+          }}
+        >
+          {labels.done}
+        </div>
       </div>
-      <div
-        class="folder__topbar-button folder__topbar-button-ICON folder__topbar-button-delete svg-icon-delete svg-icon-dark disabled"
-        ref={(el) => {
-          refs.deleteButton = el
-        }}
-      />
-      <div
-        class="folder__topbar-button folder__topbar-button-ICON folder__topbar-button-export svg-icon-export svg-icon-dark disabled"
-        ref={(el) => {
-          refs.exportButton = el
-        }}
-      />
     </div>
 
+    {/* COWORKING INVITE MODAL */}
     <div
       class="folder__coworking-popup"
       ref={(el) => {
         refs.coworkingPopup = el
       }}
     >
+      <div class="folder__coworking-popup-badge">SHARED CANVAS</div>
       <div class="folder__coworking-popup-title">{labels.coworkingPopupTitle}</div>
       <div class="folder__coworking-popup-id-container">
         <div
@@ -150,6 +246,7 @@ export const FolderView = ({ labels, refs }: { labels: FolderLabels; refs: Folde
       <span class="folder__coworking-popup-instructions">{labels.coworkingPopupIstructions2}</span>
     </div>
 
+    {/* GALLERY GRID */}
     <div
       class="folder__drawings-container"
       ref={(el) => {
@@ -159,20 +256,88 @@ export const FolderView = ({ labels, refs }: { labels: FolderLabels; refs: Folde
   </div>
 )
 
-export const FolderDrawingsListView = ({
-  drawings,
-}: {
-  drawings: Array<{ localDbId: number | string; base64?: string }>
-}) => (
-  <>
-    {drawings.map((item) => (
-      <div class="folder__drawing" data-local-id={String(item.localDbId)}>
-        <img class="folder__drawing-preview" src={item.base64 || ''} />
-        <div class="folder__drawing-select-icon" />
+export const FolderDrawingsListView = ({ drawings }: { drawings: FolderDrawingItem[] }) => {
+  if (!drawings || drawings.length === 0) {
+    return (
+      <div class="folder__empty-state">
+        <div class="folder__empty-box">
+          <div class="folder__empty-icon svg-icon-drawing" />
+          <div class="folder__empty-title">Your sketchbook is empty</div>
+          <div class="folder__empty-subtitle">
+            Drawings you create solo or with a friend will appear here automatically.
+          </div>
+        </div>
       </div>
-    ))}
-  </>
-)
+    )
+  }
+
+  return (
+    <>
+      {drawings.map((item) => {
+        const layerCount = Array.isArray(item.layers) ? item.layers.length : 0
+        const paperClass = item.paper ? `paper-${item.paper}` : 'paper-white'
+        const imgSrc = item.base64 || item.preview || ''
+        const displayTitle =
+          typeof item.title === 'string' && item.title.trim()
+            ? item.title.trim()
+            : `Sketch #${String(item.localDbId)}`
+        return (
+          <div class="folder__drawing" data-local-id={String(item.localDbId)}>
+            <div class={`folder__drawing-stage ${paperClass}`}>
+              <img class="folder__drawing-preview" src={imgSrc} />
+              <div class="folder__drawing-select-icon" />
+              {item.madeByCorowking ? <div class="folder__drawing-coop-pill">Co-op</div> : null}
+            </div>
+            <div class="folder__drawing-meta">
+              <div class="folder__drawing-meta-left">
+                <span class="folder__drawing-name">{displayTitle}</span>
+                <span class="folder__drawing-date">
+                  {formatDrawingTimestamp(item.updateTimestamp || item.createTimestamp)}
+                </span>
+              </div>
+              <div class="folder__drawing-meta-right">
+                {layerCount > 0 ? (
+                  <div class="folder__drawing-layers-pill">
+                    <div class="folder__drawing-layers-icon svg-icon-layers-mini" />
+                    <span>{layerCount}</span>
+                  </div>
+                ) : null}
+                <div class="folder__drawing-menu-anchor">
+                  <div
+                    class="folder__drawing-menu-btn"
+                    data-action="toggle-menu"
+                    role="button"
+                    aria-label="Drawing settings"
+                  >
+                    <div class="folder__drawing-menu-btn-icon svg-icon-options" />
+                  </div>
+                  <div class="folder__drawing-menu">
+                    <div class="folder__drawing-menu-item" data-menu-action="rename">
+                      <div class="folder__drawing-menu-item-icon svg-icon-edit" />
+                      <span>Rename</span>
+                    </div>
+                    <div class="folder__drawing-menu-item" data-menu-action="duplicate">
+                      <div class="folder__drawing-menu-item-icon svg-icon-duplicate" />
+                      <span>Duplicate</span>
+                    </div>
+                    <div class="folder__drawing-menu-divider" />
+                    <div
+                      class="folder__drawing-menu-item folder__drawing-menu-item-danger"
+                      data-menu-action="delete"
+                    >
+                      <div class="folder__drawing-menu-item-icon svg-icon-delete" />
+                      <span>Delete</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )
+      })}
+    </>
+  )
+}
 
 export const FolderSharePopupView = ({
   drawings,

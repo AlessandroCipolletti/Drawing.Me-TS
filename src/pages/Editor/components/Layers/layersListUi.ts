@@ -114,7 +114,7 @@ export const updateParamsByLayer = (layerId: string | false = state.currentSelec
     if (refs.opacityLabel) refs.opacityLabel.innerHTML = `${round(opacity, 0)}`
     if (refs.opacityCursor) refs.opacityCursor.style.bottom = `${opacity}%`
     if (refs.opacitySlider) {
-      refs.opacitySlider.style.background = `linear-gradient(0deg, var(--palette-gray-1) ${opacity}%, var(--palette-gray-6) ${opacity}%)`
+      refs.opacitySlider.style.backgroundImage = `linear-gradient(0deg, var(--palette-gray-1) ${opacity}%, var(--palette-gray-6) ${opacity}%)`
     }
     refs.duplicateLayerButton?.classList.toggle('disabled', !canDuplicate)
     refs.deleteLayerButton?.classList.toggle('disabled', !canBeDeleted)
@@ -329,7 +329,7 @@ export const _updateLayerOpacity = (layerId: string, opacity: number, inProgress
   if (refs.opacityCursor) refs.opacityCursor.style.bottom = `${opacity}%`
   if (refs.opacityLabel) refs.opacityLabel.innerHTML = `${round(opacity, 0)}`
   if (refs.opacitySlider) {
-    refs.opacitySlider.style.background = `linear-gradient(0deg, var(--palette-gray-1) ${opacity}%, var(--palette-gray-6) ${opacity}%)`
+    refs.opacitySlider.style.backgroundImage = `linear-gradient(0deg, var(--palette-gray-1) ${opacity}%, var(--palette-gray-6) ${opacity}%)`
   }
   const normalizedOpacity = round(opacity / 100, 2)
   state.layers[layerId].opacity = normalizedOpacity

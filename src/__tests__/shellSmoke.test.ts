@@ -443,7 +443,7 @@ describe('Shell Pages Smoke Tests (Messages, NotSupported, Info, Folder)', () =>
 
   it('mounts Folder page, renders saved drawings, and closes cleanly', async () => {
     vi.spyOn(LocalDB, 'getAllLocalDrawings').mockResolvedValue([
-      { localDbId: 42, preview: 'data:image/png;base64,AAA', state: 1 },
+      { localDbId: 42, title: 'My Portrait', preview: 'data:image/png;base64,AAA', state: 1 },
     ])
     vi.spyOn(Coworking, 'completePendingCoworkerJoinIfNeeded').mockResolvedValue(undefined)
 
@@ -451,7 +451,12 @@ describe('Shell Pages Smoke Tests (Messages, NotSupported, Info, Folder)', () =>
     await Folder.open()
 
     expect(pagesContainer.querySelector('.folder__container')).not.toBeNull()
-    expect(pagesContainer.querySelector('.folder__drawing[data-local-id="42"]')).not.toBeNull()
+    const card = pagesContainer.querySelector('.folder__drawing[data-local-id="42"]')
+    expect(card).not.toBeNull()
+    expect(card?.querySelector('.folder__drawing-menu-btn')).not.toBeNull()
+    expect(card?.querySelector('[data-menu-action="rename"]')).not.toBeNull()
+    expect(card?.querySelector('[data-menu-action="duplicate"]')).not.toBeNull()
+    expect(card?.querySelector('[data-menu-action="delete"]')).not.toBeNull()
     expect((globalThis as any).document.body.classList.contains('drawith__FOLDER-OPEN')).toBe(true)
 
     await Folder.close()

@@ -144,6 +144,10 @@ const makeMessage = (
 }
 
 const onMessageTouchStart = async (e: Event) => {
+  if (e.target === refs.inputText) {
+    e.stopPropagation()
+    return
+  }
   preventDefault(e)
   if (
     refs.messageDom?.classList.contains('messages__container-success') ||
@@ -158,6 +162,7 @@ const onMessageTouchStart = async (e: Event) => {
 
 const onConfirmButtonClick = (e: Event) => {
   preventDefault(e)
+  refs.inputText?.blur?.()
   const callback = state.currentConfirmCallback
   state.currentConfirmCallback = null
   state.currentCancelCallback = null
@@ -167,6 +172,7 @@ const onConfirmButtonClick = (e: Event) => {
 
 const onCancelButtonClick = (e: Event) => {
   preventDefault(e)
+  refs.inputText?.blur?.()
   const callback = state.currentCancelCallback
   state.currentConfirmCallback = null
   state.currentCancelCallback = null
@@ -228,10 +234,24 @@ export const confirm = (
 export const input = (
   msg: string,
   initialValue?: string,
-  _mandatory = true,
-  _closeDelay = config.defaultCloseDelay
-): string | null => {
-  return prompt(msg, initialValue)
+  mandatory = true,
+  closeDelay = config.defaultCloseDelay
+): Promise<string | null> => {
+  return new Promise((resolve) => {
+    if (state.messageIsVisible) {
+      hide(true)
+    }
+    if (refs.inputText) {
+      refs.inputText.value = initialValue || ''
+    }
+    state.currentConfirmCallback = () => resolve(refs.inputText ? refs.inputText.value : '')
+    state.currentCancelCallback = () => resolve(null)
+    makeMessage('input', msg, mandatory, closeDelay)
+    requestAnimationFrame(() => {
+      refs.inputText?.focus?.()
+      refs.inputText?.select?.()
+    })
+  })
 }
 
 export const panel = async (
@@ -291,6 +311,13 @@ const initDom = async () => {
   refs.messageDom?.addEventListener(Params.eventStart, onMessageTouchStart)
   refs.confirmButton?.addEventListener(Params.eventStart, onConfirmButtonClick)
   refs.cancelButton?.addEventListener(Params.eventStart, onCancelButtonClick)
+  refs.inputText?.addEventListener('keydown', (e: KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      onConfirmButtonClick(e)
+    } else if (e.key === 'Escape') {
+      onCancelButtonClick(e)
+    }
+  })
   refs.updateDom?.addEventListener(Params.eventStart, preventDefault)
   refs.overlay?.addEventListener('gesturestart', preventDefault, true)
   refs.overlay?.addEventListener(
