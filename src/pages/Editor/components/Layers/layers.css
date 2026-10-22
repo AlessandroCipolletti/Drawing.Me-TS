@@ -364,7 +364,8 @@ body:not(.drawith__LAYERS_EMPTY)
 }
 
 /* TOOLBAR BUTTONS */
-.editor-layers__resize-button {
+.editor-layers__resize-button,
+.editor-layers__pan-button {
   width: 2.3rem !important;
   height: 2.3rem !important;
 }

@@ -53,6 +53,7 @@ import {
   onListClick,
   onListLongPress,
   resizeButtonTouchStart,
+  canvasPanButtonTouchStart,
   updateCanvasContent,
   updateCurrentTool,
   updateLayerOpacity,
@@ -121,6 +122,12 @@ const initDom = async (moduleContainer: HTMLElement) => {
   )
   refs.gcoButton = createDom('svg-icon-source-over')
   refs.resizeButton?.classList.toggle('selected', state.resizeMode)
+  if (Params.isDesktop) {
+    const panBtn = createDom()
+    panBtn.appendChild(createDom('editor-layers__pan-button', 'svg-icon-hand', 'svg-icon-dark'))
+    panBtn.addEventListener(Params.eventStart, canvasPanButtonTouchStart)
+    refs.canvasPanButton = panBtn
+  }
 
   refs.layerListElement?.remove()
   refs.paramsContainer?.addEventListener(Params.eventStart, preventDefault)
@@ -151,7 +158,11 @@ const initDom = async (moduleContainer: HTMLElement) => {
     )
   }
   if (refs.resizeButton) {
-    Toolbar.addOptionButtonsGroup([refs.resizeButton, refs.gcoButton])
+    const groupButtons =
+      Params.isDesktop && refs.canvasPanButton
+        ? [refs.canvasPanButton, refs.resizeButton, refs.gcoButton]
+        : [refs.resizeButton, refs.gcoButton]
+    Toolbar.addOptionButtonsGroup(groupButtons)
   }
 }
 

@@ -199,6 +199,7 @@ const bindEditorInput = () => {
     onTwoFingersSingleTap: Layers.undoLayers,
     onThreeFingersSingleTap: Layers.redoLayers,
     onFourFingersSingleTap: toggleFullscreen,
+    isWheelBlocked: () => state.desktopPointerDown,
   })
   return strokeSession
 }
@@ -331,6 +332,13 @@ registerEditorFacade({
   saveDrawingsPalette: (colors: PaletteColor[] = []) => persistSaveDrawingsPalette(state, colors),
   hidePipetteCursor: () => lifecycleHidePipetteCursor(state, refs),
   setDrawingModified: () => persistSetDrawingModified(state, config, setLastActiveDrawingId),
+  setDesktopCanvasPanMode: (active: boolean) => {
+    state.desktopCanvasPanMode = active
+    refs.touchLayer?.classList.toggle('editor__touch-layer-pan', active)
+    if (!active) {
+      refs.touchLayer?.classList.remove('editor__touch-layer-panning')
+    }
+  },
   hideDragBox: () => compositorHideDragBox(state, refs),
   showDragBox: (x, y, w, h, useMagnetism) =>
     compositorShowDragBox(state, refs, x, y, w, h, useMagnetism),

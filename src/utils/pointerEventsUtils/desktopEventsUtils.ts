@@ -1,9 +1,11 @@
 import { debounce } from 'utils/jsUtils'
+import { round } from 'utils/mathUtils'
 import { preventDefault, getEventCoordX, getEventCoordY } from 'utils/domUtils'
 import Params from 'main/Params'
 import { PointerGestureCallbacks } from './touchEventsUtils'
 
 const TIME_TO_END_SCROLL_GESTURE = 50
+const WHEEL_ZOOM_SENSITIVITY = 0.005
 
 export const handleDesktopEventsWithGesture = (
   target: HTMLElement,
@@ -11,6 +13,7 @@ export const handleDesktopEventsWithGesture = (
     onGestureStart = () => {},
     onGestureChange = () => {},
     onGestureEnd = () => {},
+    isWheelBlocked = () => false,
   }: PointerGestureCallbacks = {}
 ) => {
   let isScrolling = false
@@ -27,8 +30,14 @@ export const handleDesktopEventsWithGesture = (
     currentGestureY = 0
   }, TIME_TO_END_SCROLL_GESTURE)
 
-  target.addEventListener(Params.eventScroll, (e: any) => {
+  const onWheel = (e: any) => {
+    if (isWheelBlocked() || (typeof e?.buttons === 'number' && e.buttons > 0)) {
+      return
+    }
     preventDefault(e)
+
+    const deltaX = Number(e.deltaX) || 0
+    const deltaY = Number(e.deltaY) || 0
 
     if (!isScrolling) {
       currentGestureX = getEventCoordX(e, 0)
@@ -38,14 +47,20 @@ export const handleDesktopEventsWithGesture = (
       isScrolling = true
     }
 
-    if (e.ctrlKey || e.metaKey) {
-      currentGestureS = Math.max(0.1, currentGestureS - e.deltaY * 0.01)
+    if (e.ctrlKey || e.metaKey || Math.abs(deltaY) >= Math.abs(deltaX)) {
+      const stepFactor = Math.max(0.1, 1 - deltaY * WHEEL_ZOOM_SENSITIVITY)
+      currentGestureS = Math.max(0.1, round(currentGestureS * stepFactor, 4))
     } else {
-      currentGestureX -= e.deltaX
-      currentGestureY -= e.deltaY
+      currentGestureX -= deltaX
+      currentGestureY -= deltaY
     }
 
     onGestureChange(currentGestureX, currentGestureY, currentGestureS, 0)
     debouncedStopScrolling()
-  })
+  }
+
+  target.addEventListener(Params.eventScroll, onWheel)
+  return () => {
+    target.removeEventListener?.(Params.eventScroll, onWheel)
+  }
 }

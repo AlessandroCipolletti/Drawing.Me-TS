@@ -180,6 +180,8 @@ export interface EditorState {
   currentToolGCO?: GlobalCompositeOperation
   currentLayerIsActive: boolean
   currentDeviceHasStylus: boolean
+  desktopCanvasPanMode: boolean
+  desktopPointerDown: boolean
   drawnStepsSinceDraft: number
   draftInterval: ReturnType<typeof setInterval> | false
   currentSavingDraw: boolean
@@ -363,6 +365,8 @@ export const createInitialEditorState = (
   currentToolGCO: 'source-over',
   currentLayerIsActive: true,
   currentDeviceHasStylus: false,
+  desktopCanvasPanMode: false,
+  desktopPointerDown: false,
   drawnStepsSinceDraft: 0,
   draftInterval: false,
   currentSavingDraw: false,

@@ -18,6 +18,7 @@ export const handlePointerEvents = (
     onTwoFingersSingleTap = () => {},
     onThreeFingersSingleTap = () => {},
     onFourFingersSingleTap = () => {},
+    isWheelBlocked = () => false,
   }: PointerGestureCallbacks = {}
 ): (() => void) => {
   const targets = Array.isArray(target) ? target : [target]
@@ -42,11 +43,15 @@ export const handlePointerEvents = (
     }
 
     if (Params.isDesktop) {
-      handleDesktopEventsWithGesture(el as HTMLElement, {
+      const cleanDesktop = handleDesktopEventsWithGesture(el as HTMLElement, {
         onGestureStart,
         onGestureChange,
         onGestureEnd,
+        isWheelBlocked,
       })
+      if (typeof cleanDesktop === 'function') {
+        cleanups.push(cleanDesktop)
+      }
     } else {
       el.addEventListener('gesturestart', preventDefault)
       el.addEventListener('gesturechange', preventDefault)

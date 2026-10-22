@@ -709,25 +709,38 @@ describe('Unified Numeric Stroke Kernel (Local & PeerJS Coworking)', () => {
       })
       expect(mouseEvents).toEqual(['start:120', 'move:140', 'end'])
 
-      // 2. Desktop wheel / trackpad gesture fires onGestureStart at origin and onGestureChange on the very first wheel tick
+      // 2. Desktop wheel zooms without requiring Ctrl/Meta, and ignores wheel while pointer is down
       const wheelGestures: Array<{ phase: string; x: number; y: number; s: number }> = []
+      let wheelBlocked = false
       handleDesktopEventsWithGesture(mockTarget, {
         onGestureStart: (x, y, s) => wheelGestures.push({ phase: 'start', x, y, s }),
         onGestureChange: (x, y, s) => wheelGestures.push({ phase: 'change', x, y, s }),
+        isWheelBlocked: () => wheelBlocked,
       })
 
       targetListeners[Params.eventScroll]({
         clientX: 500,
         clientY: 400,
-        deltaX: 20,
-        deltaY: 30,
+        deltaX: 0,
+        deltaY: -40,
         ctrlKey: false,
         metaKey: false,
       })
       expect(wheelGestures).toEqual([
         { phase: 'start', x: 500, y: 400, s: 1 },
-        { phase: 'change', x: 480, y: 370, s: 1 },
+        { phase: 'change', x: 500, y: 400, s: 1.2 },
       ])
+
+      wheelBlocked = true
+      targetListeners[Params.eventScroll]({
+        clientX: 500,
+        clientY: 400,
+        deltaX: 0,
+        deltaY: -40,
+        ctrlKey: false,
+        metaKey: false,
+      })
+      expect(wheelGestures).toHaveLength(2)
 
       // 3. Phone Portrait vs Landscape canvas offsets
       const prevIsPhone = Params.isPhone

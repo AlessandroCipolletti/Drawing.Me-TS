@@ -15,11 +15,20 @@ import { EditorRefs } from './EditorView'
 import { EditorConfig, EditorState, PointerTouchEvent, ResizeModeState } from './editorTypes'
 import { updateCurrentTouchType } from './editorStrokeSession'
 
-export type TouchDispatchAction = 'none' | 'dragLayer' | 'dragZoom' | 'pipette' | 'step'
+export type TouchDispatchAction =
+  'none' | 'panCanvas' | 'dragLayer' | 'dragZoom' | 'pipette' | 'step'
+
+const isDesktopCanvasPan = (params: {
+  desktopCanvasPanMode?: boolean
+  pointerType?: string
+}): boolean =>
+  Boolean(Params.isDesktop && params.desktopCanvasPanMode && params.pointerType === 'mouse')
 
 export const resolveTouchStartAction = (params: {
   isResizing: boolean
   resizeModeActive: boolean
+  desktopCanvasPanMode?: boolean
+  pointerType?: string
   currentDeviceHasStylus: boolean
   touchType?: string
   hasZoom: boolean
@@ -27,6 +36,7 @@ export const resolveTouchStartAction = (params: {
   currentLayerIsActive: boolean
 }): TouchDispatchAction => {
   if (params.isResizing) return 'none'
+  if (isDesktopCanvasPan(params)) return 'panCanvas'
   if (params.resizeModeActive) return 'dragLayer'
   if (params.currentDeviceHasStylus && params.touchType !== TOUCH_TYPE_STYLUS && params.hasZoom) {
     return 'dragZoom'
@@ -39,6 +49,8 @@ export const resolveTouchStartAction = (params: {
 export const resolveTouchMoveAction = (params: {
   isResizing: boolean
   resizeModeActive: boolean
+  desktopCanvasPanMode?: boolean
+  pointerType?: string
   isZooming: boolean
   currentDeviceHasStylus: boolean
   touchType?: string
@@ -46,6 +58,7 @@ export const resolveTouchMoveAction = (params: {
   currentLayerIsActive: boolean
 }): TouchDispatchAction => {
   if (params.isResizing) return 'none'
+  if (isDesktopCanvasPan(params) && params.isZooming) return 'panCanvas'
   if (params.resizeModeActive) return 'dragLayer'
   if (params.isZooming && params.currentDeviceHasStylus && params.touchType !== TOUCH_TYPE_STYLUS) {
     return 'dragZoom'
@@ -58,12 +71,15 @@ export const resolveTouchMoveAction = (params: {
 export const resolveTouchEndAction = (params: {
   isResizing: boolean
   resizeModeActive: boolean
+  desktopCanvasPanMode?: boolean
+  pointerType?: string
   currentDeviceHasStylus: boolean
   isZooming: boolean
   toolName?: string
   currentLayerIsActive: boolean
 }): TouchDispatchAction => {
   if (params.isResizing) return 'none'
+  if (isDesktopCanvasPan(params) && params.isZooming) return 'panCanvas'
   if (params.resizeModeActive) return 'dragLayer'
   if (params.currentDeviceHasStylus && params.isZooming) return 'dragZoom'
   if (params.toolName === 'pipette') return 'pipette'
@@ -110,6 +126,11 @@ export const createEditorPointerHandlers = (deps: PointerRouterDeps) => {
     state.resizeMode.startDragY = state.resizeMode.y
   }
 
+  const onPanCanvasTouchStart = (touchEvent: PointerTouchEvent) => {
+    refs.touchLayer?.classList.add('editor__touch-layer-panning')
+    onGestureStart(getEventCoordX(touchEvent, 0), getEventCoordY(touchEvent, 0), 1, 0)
+  }
+
   const onDragZoomTouchStart = (touchEvent: PointerTouchEvent) => {
     if (currentCanvasHasZoom()) {
       onGestureStart(
@@ -136,19 +157,25 @@ export const createEditorPointerHandlers = (deps: PointerRouterDeps) => {
   }
 
   const onTouchStart = (_e: unknown, touchEvent: PointerTouchEvent) => {
+    if (Params.isDesktop && touchEvent?.pointerType === 'mouse') {
+      state.desktopPointerDown = true
+    }
     if (!state.resizeMode.isResizing && touchEvent?.touchType === TOUCH_TYPE_STYLUS) {
       state.currentDeviceHasStylus = true
     }
     const action = resolveTouchStartAction({
       isResizing: state.resizeMode.isResizing,
       resizeModeActive: state.resizeMode.active,
+      desktopCanvasPanMode: state.desktopCanvasPanMode,
+      pointerType: touchEvent?.pointerType,
       currentDeviceHasStylus: state.currentDeviceHasStylus,
       touchType: touchEvent?.touchType,
       hasZoom: currentCanvasHasZoom(),
       toolName: state.currentToolProps.name,
       currentLayerIsActive: state.currentLayerIsActive,
     })
-    if (action === 'dragLayer') onDragLayerContentTouchStart(touchEvent)
+    if (action === 'panCanvas') onPanCanvasTouchStart(touchEvent)
+    else if (action === 'dragLayer') onDragLayerContentTouchStart(touchEvent)
     else if (action === 'dragZoom') onDragZoomTouchStart(touchEvent)
     else if (action === 'pipette') onPipetteTouchStart(touchEvent)
     else if (action === 'step') session.onStepTouchStart(touchEvent)
@@ -182,6 +209,13 @@ export const createEditorPointerHandlers = (deps: PointerRouterDeps) => {
 
   const onDragLayerContentTouchMove = (touchEvent: PointerTouchEvent) =>
     handleDragLayerContentTouchMove(state, refs, touchEvent)
+
+  const onPanCanvasTouchMove = (touchEvent: PointerTouchEvent) => {
+    if (state.currentTouch.isZooming) {
+      updateCurrentTouchType(state, touchEvent)
+      onGestureChange(getEventCoordX(touchEvent, 0), getEventCoordY(touchEvent, 0), 1, 0)
+    }
+  }
 
   const onDragZoomTouchMove = (touchEvent: PointerTouchEvent) => {
     if (
@@ -221,13 +255,16 @@ export const createEditorPointerHandlers = (deps: PointerRouterDeps) => {
       const action = resolveTouchMoveAction({
         isResizing: state.resizeMode.isResizing,
         resizeModeActive: state.resizeMode.active,
+        desktopCanvasPanMode: state.desktopCanvasPanMode,
+        pointerType: touchEvent?.pointerType,
         isZooming: state.currentTouch.isZooming,
         currentDeviceHasStylus: state.currentDeviceHasStylus,
         touchType: touchEvent?.touchType,
         toolName: state.currentToolProps.name,
         currentLayerIsActive: state.currentLayerIsActive,
       })
-      if (action === 'dragLayer') onDragLayerContentTouchMove(touchEvent)
+      if (action === 'panCanvas') onPanCanvasTouchMove(touchEvent)
+      else if (action === 'dragLayer') onDragLayerContentTouchMove(touchEvent)
       else if (action === 'dragZoom') onDragZoomTouchMove(touchEvent)
       else if (action === 'pipette') onPipetteTouchMove(touchEvent)
       else if (action === 'step') session.onStepTouchMove(touchEvent)
@@ -262,6 +299,11 @@ export const createEditorPointerHandlers = (deps: PointerRouterDeps) => {
     state.resizeMode.isResizing = false
   }
 
+  const onPanCanvasTouchEnd = () => {
+    refs.touchLayer?.classList.remove('editor__touch-layer-panning')
+    onGestureEnd(0, 0, 1, 0)
+  }
+
   const onDragZoomTouchEnd = () => {
     onGestureEnd(0, 0, 1, 0)
   }
@@ -271,6 +313,9 @@ export const createEditorPointerHandlers = (deps: PointerRouterDeps) => {
   }
 
   const onTouchEnd = (e: PointerTouchEvent) => {
+    if (Params.isDesktop) {
+      state.desktopPointerDown = false
+    }
     if (moveFrameId) {
       cancelAnimationFrame(moveFrameId)
       moveFrameId = 0
@@ -279,12 +324,15 @@ export const createEditorPointerHandlers = (deps: PointerRouterDeps) => {
     const action = resolveTouchEndAction({
       isResizing: state.resizeMode.isResizing,
       resizeModeActive: state.resizeMode.active,
+      desktopCanvasPanMode: state.desktopCanvasPanMode,
+      pointerType: e?.pointerType,
       currentDeviceHasStylus: state.currentDeviceHasStylus,
       isZooming: state.currentTouch.isZooming,
       toolName: state.currentToolProps.name,
       currentLayerIsActive: state.currentLayerIsActive,
     })
-    if (action === 'dragLayer') onDragLayerContentTouchEnd(e)
+    if (action === 'panCanvas') onPanCanvasTouchEnd()
+    else if (action === 'dragLayer') onDragLayerContentTouchEnd(e)
     else if (action === 'dragZoom') onDragZoomTouchEnd()
     else if (action === 'pipette') onPipetteTouchEnd()
     else if (action === 'step') session.onStepTouchEnd(e)

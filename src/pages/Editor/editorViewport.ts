@@ -200,6 +200,7 @@ export const handleGestureEnd = (
   const centerShiftY = round(Math.abs(state.canvas.centerCoordY - centerRect.top))
 
   if (
+    !state.desktopCanvasPanMode &&
     Math.abs(round(scale - state.canvas.initialScale, 2)) < 0.1 &&
     (Math.abs(rotation) <= 5 || Math.abs(Math.abs(rotation) - 360) <= 5) &&
     centerShiftX < 150 &&

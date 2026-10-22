@@ -13,6 +13,7 @@ export interface EditorFacade {
   saveDrawingsPalette: (colors: PaletteColor[]) => Promise<void> | void
   hidePipetteCursor: () => Promise<void> | void
   setDrawingModified: () => void
+  setDesktopCanvasPanMode: (active: boolean) => void
   hideDragBox: () => void
   showDragBox: (x: number, y: number, w: number, h: number, useMagnetism: boolean) => void
   flushPendingResizeFrame: () => void
@@ -43,6 +44,7 @@ export const editorFacade: EditorFacade = {
   saveDrawingsPalette: (colors) => currentFacade?.saveDrawingsPalette(colors),
   hidePipetteCursor: () => currentFacade?.hidePipetteCursor(),
   setDrawingModified: () => currentFacade?.setDrawingModified(),
+  setDesktopCanvasPanMode: (active) => currentFacade?.setDesktopCanvasPanMode(active),
   hideDragBox: () => currentFacade?.hideDragBox(),
   showDragBox: (x, y, w, h, useMagnetism) => currentFacade?.showDragBox(x, y, w, h, useMagnetism),
   flushPendingResizeFrame: () => currentFacade?.flushPendingResizeFrame(),

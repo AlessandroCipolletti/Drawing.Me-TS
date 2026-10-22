@@ -64,6 +64,14 @@ export const updateEditorCanvas = () => {
   }
 }
 
+const updateCanvasPanMode = (selected: boolean) => {
+  if (selected !== state.canvasPanMode) {
+    state.canvasPanMode = selected
+    refs.canvasPanButton?.classList.toggle('selected', selected)
+    editorFacade.setDesktopCanvasPanMode(selected)
+  }
+}
+
 export const updateResizeMode = (selected: boolean, active: boolean) => {
   refs.resizeButton?.classList.toggle('disabled', !active)
   if (selected !== state.resizeMode) {
@@ -164,6 +172,9 @@ export const updateCanvasContent = (
 
 export const startResizeMode = () => {
   if (!state.currentSelectedLayerId) return
+  if (state.canvasPanMode) {
+    updateCanvasPanMode(false)
+  }
   const layerOptionButton = refs.layersList?.querySelector(
     `div[data-id="${state.currentSelectedLayerId}"] .editor-layers__layer-options-button`
   )
@@ -300,6 +311,16 @@ export const flipHorizontally = (
   e: Event,
   layerId: string | false = state.currentSelectedLayerId
 ) => flipLayer(e, layerId, true)
+
+export const canvasPanButtonTouchStart = (e: Event) => {
+  preventDefault(e)
+  closeParams()
+  const next = !state.canvasPanMode
+  if (next && state.resizeMode) {
+    endResizeMode()
+  }
+  updateCanvasPanMode(next)
+}
 
 export const resizeButtonTouchStart = (e: Event) => {
   preventDefault(e)

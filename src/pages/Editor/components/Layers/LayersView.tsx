@@ -17,6 +17,7 @@ export interface LayersRefs {
   opacitySlider: HTMLElement | null
   opacityCursor: HTMLElement | null
   opacityLabel: HTMLElement | null
+  canvasPanButton?: HTMLElement | null
   resizeButton: HTMLElement | null
   gcoButton: HTMLElement | null
   imageForResize: HTMLCanvasElement | OffscreenCanvas | null

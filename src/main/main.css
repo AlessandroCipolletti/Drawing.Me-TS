@@ -598,6 +598,10 @@ iframe {
   mask-image: url('../static/icons/svg/move.svg');
   -webkit-mask-image: url('../static/icons/svg/move.svg');
 }
+.svg-icon-hand {
+  mask-image: url('../static/icons/svg/hand.svg');
+  -webkit-mask-image: url('../static/icons/svg/hand.svg');
+}
 .svg-icon-merge-down {
   mask-image: url('../static/icons/svg/merge-down.svg');
   -webkit-mask-image: url('../static/icons/svg/merge-down.svg');

@@ -87,6 +87,7 @@ export interface LayersState {
   layers: Record<string, LayerRecord>
   deletedLayers: Record<string, LayerRecord>
   currentSelectedLayerId: string | false
+  canvasPanMode: boolean
   resizeMode: boolean
   gcoMode: boolean
   editorIsUsingEraser: boolean
@@ -111,6 +112,7 @@ const initialState: LayersState = {
   layers: {},
   deletedLayers: {},
   currentSelectedLayerId: false,
+  canvasPanMode: false,
   resizeMode: false,
   gcoMode: false,
   editorIsUsingEraser: false,
@@ -167,6 +169,7 @@ export const refs: LayersRefs = {
   flipVerticalButton: null,
   flipHorizontalButton: null,
   sendLayerButton: null,
+  canvasPanButton: null,
   gcoButton: null,
   resizeButton: null,
   visibilityLayerButton: null,

@@ -62,6 +62,7 @@ export interface PointerGestureCallbacks {
   onTwoFingersSingleTap?: (e: any, touches: any[]) => void
   onThreeFingersSingleTap?: (e: any, touches: any[]) => void
   onFourFingersSingleTap?: (e: any, touches: any[]) => void
+  isWheelBlocked?: () => boolean
 }
 
 const convertTiltToAltitudeAzimuth = (tiltX = 0, tiltY = 0): [number, number] => {

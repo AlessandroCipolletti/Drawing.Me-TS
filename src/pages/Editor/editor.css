@@ -30,6 +30,12 @@
   width: calc(100% - var(--editor-tools-width));
   height: calc(100% - var(--header-height) - var(--colorpicker-height) - var(--app-margin-bottom));
 }
+.drawith__DESKTOP .editor__touch-layer.editor__touch-layer-pan {
+  cursor: grab;
+}
+.drawith__DESKTOP .editor__touch-layer.editor__touch-layer-pan.editor__touch-layer-panning {
+  cursor: grabbing;
+}
 .drawith__EDITOR-FULLSCREEN .editor__touch-layer {
   left: 0px;
   top: var(--header-height);

@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import Params from 'main/Params'
 import {
   resolveTouchStartAction,
   resolveTouchMoveAction,
@@ -87,6 +88,68 @@ describe('Editor pointer dispatch & coalesced 120Hz stroke safety net', () => {
         currentLayerIsActive: false,
       })
     ).toBe('none')
+
+    const prevIsDesktop = Params.isDesktop
+    try {
+      Params.isDesktop = true
+      expect(
+        resolveTouchStartAction({
+          isResizing: false,
+          resizeModeActive: false,
+          desktopCanvasPanMode: true,
+          pointerType: 'mouse',
+          currentDeviceHasStylus: false,
+          touchType: TOUCH_TYPE_FINGER,
+          hasZoom: false,
+          toolName: 'pencil',
+          currentLayerIsActive: true,
+        })
+      ).toBe('panCanvas')
+
+      expect(
+        resolveTouchMoveAction({
+          isResizing: false,
+          resizeModeActive: false,
+          desktopCanvasPanMode: true,
+          pointerType: 'mouse',
+          isZooming: true,
+          currentDeviceHasStylus: false,
+          touchType: TOUCH_TYPE_FINGER,
+          toolName: 'pencil',
+          currentLayerIsActive: true,
+        })
+      ).toBe('panCanvas')
+
+      expect(
+        resolveTouchEndAction({
+          isResizing: false,
+          resizeModeActive: false,
+          desktopCanvasPanMode: true,
+          pointerType: 'mouse',
+          currentDeviceHasStylus: false,
+          isZooming: true,
+          toolName: 'pencil',
+          currentLayerIsActive: true,
+        })
+      ).toBe('panCanvas')
+
+      Params.isDesktop = false
+      expect(
+        resolveTouchStartAction({
+          isResizing: false,
+          resizeModeActive: false,
+          desktopCanvasPanMode: true,
+          pointerType: 'mouse',
+          currentDeviceHasStylus: false,
+          touchType: TOUCH_TYPE_FINGER,
+          hasZoom: false,
+          toolName: 'pencil',
+          currentLayerIsActive: true,
+        })
+      ).toBe('step')
+    } finally {
+      Params.isDesktop = prevIsDesktop
+    }
   })
 
   it('routes touchMove and touchEnd consistently with touchStart', () => {
