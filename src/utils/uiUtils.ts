@@ -354,6 +354,7 @@ export const addListHorizontalScrollClickAndPressHandlers = (
   let isLongPressed = false
   let minPxToScroll = 0
   let startTarget: EventTarget | null = null
+  let lastTapStart = 0
 
   const doLongPress = (e: any) => {
     isLongPressed = true
@@ -390,6 +391,14 @@ export const addListHorizontalScrollClickAndPressHandlers = (
   }
 
   const onTouchStart = async (e: any) => {
+    const now = Date.now()
+    const isDoubleTap = now - lastTapStart < 300
+    lastTapStart = now
+    if (isDoubleTap) {
+      e.preventDefault()
+      e.stopPropagation()
+      return
+    }
     e.stopPropagation()
     if ((typeof e.button === 'number' && e.button > 0) || (e.touches && e.touches.length > 1)) {
       e.preventDefault()
@@ -474,7 +483,7 @@ export const addListHorizontalScrollClickAndPressHandlers = (
     }
   }
 
-  listElement.addEventListener(Params.eventStart, onTouchStart)
+  listElement.addEventListener(Params.eventStart, onTouchStart, { passive: false })
   listElement.addEventListener('wheel', onWheel, { passive: false })
 }
 

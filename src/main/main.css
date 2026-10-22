@@ -84,6 +84,7 @@ body {
   box-sizing: border-box;
   background-color: #0f172a;
   color: var(--text-primary);
+  touch-action: pan-x pan-y;
 }
 
 small {

@@ -17,6 +17,7 @@
   --colorpicker-input-width: 5rem;
   --colorpicker-pipette-width: 5rem;
   --colorpicker-random-width: 5.5rem;
+  touch-action: manipulation;
 
   padding-bottom: var(--app-margin-bottom);
   position: absolute;
@@ -147,6 +148,7 @@
   align-items: center;
   padding: 0 0.8rem 0 0.6rem;
   box-sizing: border-box;
+  touch-action: pan-x;
   -webkit-overflow-scrolling: touch;
   -ms-overflow-style: none;
   scrollbar-width: none;

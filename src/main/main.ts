@@ -260,6 +260,10 @@ const initDom = async () => {
     )
   }
 
+  document.addEventListener('gesturestart', preventDefault, { passive: false })
+  document.addEventListener('gesturechange', preventDefault, { passive: false })
+  document.addEventListener('gestureend', preventDefault, { passive: false })
+
   Params.set('mainContainer', mainContainer)
   Params.set('pagesContainer', refs.pagesContainer)
   attachRotationHandler()
