@@ -4,7 +4,7 @@ import Params from 'main/Params'
 import * as Tools from 'pages/Editor/components/Tools'
 import * as Layers from 'pages/Editor/components/Layers'
 import { preventDefault, preventDefaultTouchOnEls } from 'utils/domUtils'
-import { getHexBrightness } from 'utils/colorsUtils'
+import { getHexBrightness, swatchNeedsDarkRing } from 'utils/colorsUtils'
 import { cleanRefs } from 'utils/moduleUtils'
 import { removeOutElement } from 'utils/animationsUtils'
 import { editorFacade } from 'pages/Editor/editorFacade'
@@ -51,7 +51,10 @@ export {
 const deselectCurrentColor = () => {
   const selected = refs.colorPickerContainer?.querySelector('.editor-colorpicker__color-selected')
   if (selected) {
-    selected.classList.remove('editor-colorpicker__color-selected')
+    selected.classList.remove(
+      'editor-colorpicker__color-selected',
+      'editor-colorpicker__color-selected-light'
+    )
   }
 }
 
@@ -74,7 +77,9 @@ const selectColor = (idColor: number, autoDeselect = true, showParams = true) =>
   state.lastSelectedColorId = idColor
   updateParamsByColor(idColor, showParams)
   const target = refs.colorsContainer?.querySelector(`div[data-id="${idColor}"]`)
+  const hex = getFinalColorById(idColor)
   target?.classList.add('editor-colorpicker__color-selected')
+  target?.classList.toggle('editor-colorpicker__color-selected-light', swatchNeedsDarkRing(hex))
   state.selectedColorId = idColor
   editorFacade.setToolColor(getFinalColorById(idColor), false)
 }

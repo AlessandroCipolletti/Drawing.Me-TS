@@ -155,14 +155,18 @@ export const getToolsCustomProps = (): PersistedToolCustomProps[] => {
 
 export const mergeCustomProps = (toolsCustomProps: PersistedToolCustomProps[] = []) => {
   if (toolsConfig && toolsCustomProps && toolsCustomProps.length) {
+    const legacyHardBrushVersions = toolsCustomProps.find((e) => e.name === 'hardBrush')?.versions
     Object.values(toolsConfig).forEach((tool) => {
       const customTool = toolsCustomProps.find((e) => e.name === tool.name)
-      if (customTool) {
-        tool.customProps = customTool.customProps || {}
-        if (tool.versions?.length > 0 && customTool.versions && customTool.versions.length > 0) {
+      const legacyVersions = tool.name === 'brush' ? legacyHardBrushVersions : undefined
+      if (customTool || legacyVersions) {
+        tool.customProps = customTool?.customProps || {}
+        if (tool.versions?.length > 0) {
           tool.versions.forEach((version) => {
             version.customProps =
-              customTool.versions?.find((v) => v.name === version.name)?.customProps || {}
+              customTool?.versions?.find((v) => v.name === version.name)?.customProps ||
+              legacyVersions?.find((v) => v.name === version.name)?.customProps ||
+              {}
           })
         }
       }
@@ -201,7 +205,11 @@ export const initToolsImages = async () => {
             )) as HTMLElement | null
           if (versionButton) {
             versionButton.innerHTML = ''
-            versionButton.style.backgroundImage = `url('${toolsImgs[frameImageName]}')`
+            versionButton.classList.add('editor-tools__versions-button-image')
+            versionButton.style.setProperty(
+              '--version-preview-image',
+              `url('${toolsImgs[frameImageName]}')`
+            )
           }
         }
       }

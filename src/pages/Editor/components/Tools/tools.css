@@ -72,6 +72,11 @@
   transform: translate3d(calc(100% + 0.4rem), 0rem, 0rem);
   opacity: 1;
   pointer-events: auto;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+.editor-tools__versions-open::-webkit-scrollbar {
+  display: none;
 }
 
 .drawith__PHONE .editor-tools__tool {
@@ -157,10 +162,6 @@
   mask-image: url('../../../../static/icons/svg/tool-brush.svg');
   -webkit-mask-image: url('../../../../static/icons/svg/tool-brush.svg');
 }
-.editor-tools__tool-hardBrush::after {
-  mask-image: url('../../../../static/icons/svg/tool-hard-brush.svg');
-  -webkit-mask-image: url('../../../../static/icons/svg/tool-hard-brush.svg');
-}
 .editor-tools__tool-bucket::after {
   mask-image: url('../../../../static/icons/svg/tool-bucket.svg');
   -webkit-mask-image: url('../../../../static/icons/svg/tool-bucket.svg');
@@ -207,8 +208,10 @@
 }
 
 .editor-tools__versions-button {
+  position: relative;
   width: 4rem;
   height: 4rem;
+  flex-shrink: 0;
   border-radius: 1.2rem;
   margin: 0.5rem 0.4rem;
   border: 1.5px solid var(--border-medium);
@@ -231,8 +234,16 @@
   transform: scale(1.04);
   border-color: var(--accent-ink);
 }
-.editor-tools__versions-button.editor-tools__versions-button-image {
-  border: 1.5px solid var(--border-medium);
+.editor-tools__versions-button-image::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: var(--version-preview-image);
+  background-size: 76%;
+  background-repeat: no-repeat;
+  background-position: center;
+  pointer-events: none;
+  transition: filter 150ms ease;
 }
 .drawith__PHONE .editor-tools__versions-button {
   margin: 0.45rem 0.5rem;
@@ -243,14 +254,8 @@
   border: 1.5px solid var(--accent-ink-strong);
   box-shadow: 0 4px 12px rgba(15, 23, 42, 0.25);
 }
-.editor-tools__versions-button-selected.editor-tools__versions-button-image {
-  border: 2px solid var(--accent-ink-strong);
-}
-.editor-tools__versions-button-image.editor-tools__versions-button-selected {
-  background-color: #ffffff;
-  box-shadow:
-    0 0 0 2px var(--accent-ink-ring),
-    var(--shadow-md);
+.editor-tools__versions-button-selected.editor-tools__versions-button-image::after {
+  filter: invert(1);
 }
 
 .editor-tools__versions-button > p {

@@ -2,6 +2,7 @@ import { preventDefault, createDom } from 'utils/domUtils'
 import {
   applyBrightnessToHex,
   getHexBrightness,
+  swatchNeedsDarkRing,
   getSuggestedColors,
   getRandomHexColor,
 } from 'utils/colorsUtils'
@@ -201,7 +202,13 @@ export const updateColorBrightness = (brightness: number) => {
   const target = refs.colorsContainer?.querySelector(
     `div[data-id="${state.selectedColorId}"]`
   ) as HTMLElement | null
-  if (target) target.style.backgroundColor = finalHex
+  if (target) {
+    target.style.backgroundColor = finalHex
+    target.classList.toggle(
+      'editor-colorpicker__color-selected-light',
+      swatchNeedsDarkRing(finalHex)
+    )
+  }
   editorFacade.setToolColor(finalHex, false)
 }
 

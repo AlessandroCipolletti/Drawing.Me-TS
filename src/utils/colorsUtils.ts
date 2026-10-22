@@ -160,6 +160,8 @@ export const applyBrightnessToHex = (hex: string, brightness: number): string =>
   return rgbToHex(newRgb.r, newRgb.g, newRgb.b)
 }
 
+export const swatchNeedsDarkRing = (hex: string): boolean => tinycolor(hex).getLuminance() > 0.72
+
 export const getHexBrightness = (hex: string): number => {
   if (hex.startsWith('#')) {
     hex = hex.substring(1)

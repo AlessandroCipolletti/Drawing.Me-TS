@@ -10,6 +10,25 @@ import {
   TOOL_FRAME_IMAGE,
 } from 'pages/Editor/constants'
 
+const hardBrushStampProps = (): Partial<ToolConfigProps> => {
+  const minSize = 10
+  const maxSize = Params.isPhone ? round(100 / 3, 0) : 100
+  const minAlpha = 0.003
+  const maxAlpha = 0.11
+  return {
+    minSize,
+    maxSize,
+    size: logarithmicPercToValue(50, minSize, maxSize, 1),
+    sizeForceFactor: 1,
+    sizeSpeedFactor: 0.4,
+    sizeAltitudeFactor: 4,
+    minAlpha,
+    maxAlpha,
+    alpha: logarithmicPercToValue(50, minAlpha, maxAlpha, 3),
+    alphaForceFactor: 0.05,
+  }
+}
+
 const getCustomTool = (
   props: Partial<ToolConfigProps>,
   versions: Array<{
@@ -159,32 +178,12 @@ const toolsConfigInit = (): Record<string, ToolConfigProps> => ({
       { name: '3', props: { frameImageName: 'brush-3' } },
       { name: '4', props: { frameImageName: 'brush-4' } },
       { name: '5', props: { frameImageName: 'brush-5' } },
-    ]
-  ),
-  hardBrush: getCustomTool(
-    {
-      name: 'hardBrush',
-      frameType: TOOL_FRAME_IMAGE,
-      showVersionPreview: true,
-      handleStylusRotation: true,
-      sizeToFramesRatio: 1 / 100,
-      minPxDistanceBetweenFrames: 0.1,
-      minSize: 10,
-      maxSize: 100,
-      sizeForceFactor: 1,
-      sizeSpeedFactor: 0.4,
-      sizeAltitudeFactor: 4,
-      minAlpha: 0.003,
-      maxAlpha: 0.11,
-      alphaForceFactor: 0.05,
-    },
-    [
-      { name: '6', props: { frameImageName: 'brush-6' } },
-      { name: '7', props: { frameImageName: 'brush-7' } },
-      { name: '8', props: { frameImageName: 'brush-8' } },
-      { name: '9', props: { frameImageName: 'brush-9' } },
-      { name: '10', props: { frameImageName: 'brush-10' } },
-      { name: '11', props: { frameImageName: 'brush-11' } },
+      { name: '6', props: { frameImageName: 'brush-6', ...hardBrushStampProps() } },
+      { name: '7', props: { frameImageName: 'brush-7', ...hardBrushStampProps() } },
+      { name: '8', props: { frameImageName: 'brush-8', ...hardBrushStampProps() } },
+      { name: '9', props: { frameImageName: 'brush-9', ...hardBrushStampProps() } },
+      { name: '10', props: { frameImageName: 'brush-10', ...hardBrushStampProps() } },
+      { name: '11', props: { frameImageName: 'brush-11', ...hardBrushStampProps() } },
     ]
   ),
   spray: getCustomTool({

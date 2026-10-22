@@ -97,7 +97,7 @@ export const editorDefaultConfig = {
   defaultToolParams: { ...toolDefaultProps },
   maxScale: 5.0,
   minScale: 0.3,
-  maxCanvasSize: 4096,
+  maxCanvasSize: 8192,
   canvasScaleWithGoodPerformance: 1,
   minAltitudeFactorToHandleRotation: 0.3,
   resizeRotationStep: 2.5,

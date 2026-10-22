@@ -13,6 +13,63 @@ import { EditorCanvasState, EditorState, PointerTouchEvent } from './editorTypes
 
 const BASE_MAX_SPEED_FACTOR_LENGTH = 150
 const DIFFERENT_SCREEN_SIZES_MESSAGE = 'You and your friend have different screen sizes'
+const SAFE_CANVAS_SIDE = 4096
+
+let provenCanvasSide = SAFE_CANVAS_SIDE
+let provenCanvasArea = SAFE_CANVAS_SIDE * SAFE_CANVAS_SIDE
+
+const fitCanvasInsideSide = (width: number, height: number, maxSide: number): [number, number] => {
+  const longest = Math.max(width, height)
+  if (longest <= maxSide) return [round(width, 0), round(height, 0)]
+  const fit = maxSide / longest
+  return [round(width * fit, 0), round(height * fit, 0)]
+}
+
+const browserCanAllocateCanvas = (width: number, height: number): boolean => {
+  const side = Math.max(width, height)
+  const area = width * height
+  if (side <= provenCanvasSide && area <= provenCanvasArea) return true
+  const canvas = document.createElement('canvas')
+  canvas.width = width
+  canvas.height = height
+  if (canvas.width !== width || canvas.height !== height) {
+    canvas.width = 1
+    canvas.height = 1
+    return false
+  }
+  const context = canvas.getContext('2d')
+  if (!context) {
+    canvas.width = 1
+    canvas.height = 1
+    return false
+  }
+  try {
+    context.fillRect(0, 0, 1, 1)
+    const pixel = context.getImageData(0, 0, 1, 1)
+    const usable = pixel.data.length === 4
+    if (usable) {
+      provenCanvasSide = Math.max(provenCanvasSide, side)
+      provenCanvasArea = Math.max(provenCanvasArea, area)
+    }
+    canvas.width = 1
+    canvas.height = 1
+    return usable
+  } catch {
+    canvas.width = 1
+    canvas.height = 1
+    return false
+  }
+}
+
+const resolveBackingStoreSize = (
+  width: number,
+  height: number,
+  maxSide: number
+): [number, number] => {
+  const preferred = fitCanvasInsideSide(width, height, maxSide)
+  if (browserCanAllocateCanvas(preferred[0], preferred[1])) return preferred
+  return fitCanvasInsideSide(width, height, Math.min(maxSide, SAFE_CANVAS_SIDE))
+}
 
 let zoomLabelRafId = 0
 let pendingZoomLabelScale = 1
@@ -205,23 +262,16 @@ export const getCanvasPxSizesForEditor = (
   if (withCoworking) {
     const [width, height] = getCanvasContainerPxSizes(state)
     return [width + spacing.EDITOR_TOOLS_WIDTH, height]
-  } else if (Params.deviceHasGoodPerformance) {
-    const [containerWidth, containerHeight] = getCanvasContainerPxSizes(state)
-    const maxSide = round(
-      Math.min(
-        editorConfig.maxCanvasSize,
-        Math.max(containerWidth, containerHeight) * editorConfig.canvasScaleWithGoodPerformance
-      ),
-      0
-    )
-    if (containerWidth > containerHeight) {
-      return [maxSide, round(maxSide * (containerHeight / containerWidth), 0)]
-    } else {
-      return [round(maxSide * (containerWidth / containerHeight), 0), maxSide]
-    }
-  } else {
-    return getCanvasContainerPxSizes(state)
   }
+  const [containerWidth, containerHeight] = getCanvasContainerPxSizes(state)
+  if (!Params.deviceHasGoodPerformance) {
+    return resolveBackingStoreSize(containerWidth, containerHeight, editorConfig.maxCanvasSize)
+  }
+  return resolveBackingStoreSize(
+    round(containerWidth * editorConfig.canvasScaleWithGoodPerformance, 0),
+    round(containerHeight * editorConfig.canvasScaleWithGoodPerformance, 0),
+    editorConfig.maxCanvasSize
+  )
 }
 
 export const initCanvasDimension = (

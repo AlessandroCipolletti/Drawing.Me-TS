@@ -1,0 +1,16 @@
+---
+description: Keep replies short. Do the work fully, then explain it in a few sentences.
+alwaysApply: true
+---
+
+# Brief replies
+
+Answer questions in a few sentences. Do not walk through the investigation, the alternatives, or the reasoning unless the user asks why.
+
+When implementing a change, including a large feature, do the work completely. The reply after that is only a short summary of what changed. No sectioned write-up, no restating the request, no extra background.
+
+```text
+❌ The canvas was capped at 4096 because high-performance desktops... On iPad the drawing area is already under that limit... If allocation fails we fall back...
+
+✅ New sheets on a 5K display now open at 100% zoom. If the browser cannot allocate that canvas, the previous zoom-to-fit behavior stays.
+```

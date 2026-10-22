@@ -123,7 +123,6 @@ const toolsFunctions: Record<string, (selected?: boolean) => unknown> = {
   spray: (selected) => (selected ? toggleVersions('spray') : selectTool('spray')),
   highlighter: (selected) => (selected ? toggleVersions('highlighter') : selectTool('highlighter')),
   brush: (selected) => (selected ? toggleVersions('brush') : selectTool('brush')),
-  hardBrush: (selected) => (selected ? toggleVersions('hardBrush') : selectTool('hardBrush')),
   eraser: (selected) => (selected ? toggleVersions('eraser') : selectTool('eraser')),
   bucket: () => selectTool('bucket'),
   pipette: () => selectTool('pipette'),
@@ -181,6 +180,14 @@ const onRotate = () => {
   }
 }
 
+const resolveSelectedTool = (
+  selectedTool: SelectedToolDescriptor | false
+): SelectedToolDescriptor | false => {
+  if (!selectedTool || selectedTool.name !== 'hardBrush') return selectedTool
+  const versionIndex = typeof selectedTool.version === 'number' ? selectedTool.version : 0
+  return { name: 'brush', version: 5 + versionIndex }
+}
+
 const selectInitialTools = (selectedTool: SelectedToolDescriptor | false = false) => {
   for (const [tool, versionContainer] of Object.entries(refs.toolsVersions)) {
     const selectedVersion = versionContainer.querySelector(
@@ -196,8 +203,9 @@ const selectInitialTools = (selectedTool: SelectedToolDescriptor | false = false
   }
   state.openVersionsEl = null
 
-  if (selectedTool && config.tools.includes(selectedTool.name)) {
-    selectTool(selectedTool.name, selectedTool.version, false)
+  const initialTool = resolveSelectedTool(selectedTool)
+  if (initialTool && config.tools.includes(initialTool.name)) {
+    selectTool(initialTool.name, initialTool.version, false)
   } else {
     selectTool(state.selectedTool, false, false)
   }
