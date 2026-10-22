@@ -2,7 +2,7 @@ import Params from 'main/Params'
 import { round } from 'utils/mathUtils'
 import { iterateFn, delay, noop } from 'utils/jsUtils'
 import { fadeInElements, fadeOutElements } from 'utils/animationsUtils'
-import spinnerImgUrl from 'static/img/pencil-spinner.gif'
+import spinnerImgUrl from 'static/img/spinner.svg'
 
 const refs: {
   overlaySpinner: HTMLElement | null

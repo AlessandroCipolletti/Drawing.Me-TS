@@ -119,7 +119,7 @@ const initDom = async (moduleContainer: HTMLElement) => {
       refs,
     })
   )
-  refs.gcoButton = createDom('png-icon-source-over')
+  refs.gcoButton = createDom('svg-icon-source-over')
   refs.resizeButton?.classList.toggle('selected', state.resizeMode)
 
   refs.layerListElement?.remove()

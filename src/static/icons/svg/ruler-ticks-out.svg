@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 120" preserveAspectRatio="none">
+  <line x1="0" y1="0" x2="0" y2="26" stroke="#334155" stroke-width="2.5" />
+  <line x1="25" y1="0" x2="25" y2="14" stroke="#64748b" stroke-width="1.5" />
+  <line x1="50" y1="0" x2="50" y2="20" stroke="#475569" stroke-width="1.8" />
+  <line x1="75" y1="0" x2="75" y2="14" stroke="#64748b" stroke-width="1.5" />
+
+  <line x1="0" y1="120" x2="0" y2="94" stroke="#334155" stroke-width="2.5" />
+  <line x1="25" y1="120" x2="25" y2="106" stroke="#64748b" stroke-width="1.5" />
+  <line x1="50" y1="120" x2="50" y2="100" stroke="#475569" stroke-width="1.8" />
+  <line x1="75" y1="120" x2="75" y2="106" stroke="#64748b" stroke-width="1.5" />
+</svg>

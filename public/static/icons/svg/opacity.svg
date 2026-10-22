@@ -1,14 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0, 0, 48, 48">
-
-  <linearGradient id="gradient" x1="0" y1="0" x2="1" y2="0">
-    <stop offset="10%" stop-color="black" />
-    <stop offset="100%" stop-color="black" stop-opacity="0" />
-  </linearGradient>
-
-  <path
-    d="M24.5,43.003 C14.281,43.003 5.997,34.719 5.997,24.5 C5.997,14.281 14.281,5.997 24.5,5.997 C34.719,5.997 43.003,14.281 43.003,24.5 C43.003,34.719 34.719,43.003 24.5,43.003 z"
-    stroke="#000000"
-    stroke-width="3"
-    fill="url(#gradient)"
-  />
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#000000" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z" />
+  <path d="M12 3v18a8 8 0 0 0 5.66-13.66L12 2.69z" fill="#000000" fill-opacity="0.35" stroke="none" />
 </svg>

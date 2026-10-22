@@ -82,7 +82,7 @@ const labels: FolderLabels = {
   withoutBackground: 'With no background',
   newDrawing: 'Draw alone',
   drawWithAFriend: 'Draw with a friend',
-  navbarTitle: 'YOUR DRAWINGS - 2',
+  navbarTitle: 'Your Drawings',
   tapToShare: '^ Double tap to share ^',
   copied: 'Copied!',
   coworkingPopupTitle: 'Send this url to a friend to start drawing together',

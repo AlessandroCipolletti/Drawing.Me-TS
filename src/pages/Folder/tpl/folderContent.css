@@ -1,17 +1,23 @@
 .folder__drawing {
-  border: solid 1px var(--palette-gray-4);
-  border-radius: 0.75rem;
-  box-shadow:
-    0 1px 1px rgba(0, 0, 0, 0.25),
-    0 2px 2px rgba(0, 0, 0, 0.2),
-    0 4px 4px rgba(0, 0, 0, 0.15);
-  margin: 2rem 0rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 1.4rem;
+  box-shadow: var(--shadow-sm);
+  margin: 0;
   cursor: pointer;
-  background: url('../../../static/img/paper/white.png');
+  background: url('../../../static/img/paper/white.png'), #ffffff;
   background-size: 43px;
   background-repeat: repeat;
   position: relative;
   overflow: hidden;
+  transition:
+    transform 180ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 180ms ease,
+    border-color 180ms ease;
+}
+.folder__drawings-container .folder__drawing:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+  border-color: rgba(15, 23, 42, 0.25);
 }
 
 .folder__drawings-container .folder__drawing {
@@ -21,8 +27,8 @@
 }
 
 .folder__drawing-preview {
-  max-width: 110%;
-  max-height: 110%;
+  max-width: 105%;
+  max-height: 105%;
 }
 .folder__drawing .spinner {
   display: inline-block;
@@ -35,29 +41,40 @@
   position: absolute;
   top: 0rem;
   right: 0rem;
-  margin: 0.75rem;
-  height: 2.5rem;
-  width: 2.5rem;
-  border: solid 0.1rem white;
-  background-color: white;
+  margin: 1rem;
+  height: 2.6rem;
+  width: 2.6rem;
+  border: 2px solid rgba(15, 23, 42, 0.22);
+  background-color: rgba(255, 255, 255, 0.92);
   border-radius: 50%;
-  background-size: 60%;
+  background-size: 62%;
   background-position: center;
   background-repeat: no-repeat;
-  box-shadow: 0px 0px 0.2rem 0px rgba(0, 0, 0, 0.75);
-  /*, inset 0px 0px 0.2rem 0px rgba(0,0,0,0.75);*/
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.16);
   display: none;
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease,
+    transform 150ms ease;
 }
 
 .drawith__FOLDER-SELECT-MODE .folder__drawing:not(.folder__drawing-selected) {
-  filter: opacity(70%);
+  filter: opacity(72%);
+}
+.drawith__FOLDER-SELECT-MODE .folder__drawing-selected {
+  border-color: var(--accent-ink-strong);
+  box-shadow:
+    0 0 0 2px var(--accent-ink-strong),
+    var(--shadow-md);
 }
 .drawith__FOLDER-SELECT-MODE .folder__drawing-select-icon {
   display: block;
 }
 .drawith__FOLDER-SELECT-MODE .folder__drawing-selected .folder__drawing-select-icon {
-  background-color: rgb(25, 110, 225);
-  background-image: url('../../../static/icons/png/select.png');
+  background-color: var(--accent-ink-strong);
+  border-color: #ffffff;
+  background-image: url('../../../static/icons/svg/check.svg');
+  transform: scale(1.06);
 }
 
 .drawith__DESKTOP .folder__drawing,
@@ -66,10 +83,10 @@
   height: 20vh;
 }
 .drawith__PHONE .folder__drawing {
-  margin: 1rem 0rem;
+  margin: 0;
 }
 .drawith__PHONE.drawith__PORTRAIT .folder__drawing {
-  width: 44vw;
+  width: 43vw;
   height: 16vh;
 }
 .drawith__PHONE.drawith__LANDSCAPE .folder__drawing {

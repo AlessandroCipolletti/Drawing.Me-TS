@@ -157,7 +157,7 @@ const closePreviewPopups = () => {
 const updateParams = (value: number) => {
   if (refs.sliderCursor) refs.sliderCursor.style.left = `${value}%`
   if (refs.slider) {
-    refs.slider.style.background = `linear-gradient(90deg, var(--palette-green-1) ${value}%, var(--palette-white) ${value}%)`
+    refs.slider.style.background = `linear-gradient(90deg, var(--palette-gray-1) ${value}%, var(--palette-gray-6) ${value}%)`
   }
   if (refs.sliderLabel) refs.sliderLabel.innerHTML = `${value}`
 }

@@ -1,18 +1,18 @@
 export const colors = {
   // PRIMARY COLORS
-  primary: ['#ff60a0', '#f19186', '#ffbb61', '#854af1', '#652ba8'],
-  blue: ['#007aff', '#0c9ddc', '#44bff6', '#a7e1fb', '#ddf3fd', '#f2fafe'],
-  gray: ['#222222', '#444444', '#666666', '#888888', '#aaaaaa', '#cccccc', '#eeeeee'],
-  purple: ['#5454d9', '#788aec', '#a0adf2', '#DEE3FA', '#f5f7fe'],
+  primary: ['#ff5292', '#ff7e5f', '#ffbb61', '#7c3aed', '#5b21b6'],
+  blue: ['#2563eb', '#0284c7', '#38bdf8', '#bae6fd', '#e0f2fe', '#f0f9ff'],
+  gray: ['#0f172a', '#334155', '#64748b', '#94a3b8', '#cbd5e1', '#e2e8f0', '#f1f5f9'],
+  purple: ['#6d28d9', '#7c3aed', '#a78bfa', '#ede9fe', '#f5f3ff'],
 
   // SECONDARY COLORS
-  red: ['#c1202c', '#dc303d', '#e1505c', '#ea848d', '#f6cace', '#fcedee'],
-  orange: ['#e96c1a', '#fe812b', '#feab72', '#ffe3d0', '#fff7f1'],
-  yellow: ['#fbbc20', '#fdd43d', '#fde486', '#fff7db', '#fffcf1'],
-  green: ['#259457', '#2fbb6d', '#5CD692', '#a0e7bf', '#e5f8ed', '#f5fcf8'],
+  red: ['#be123c', '#e11d48', '#f43f5e', '#fda4af', '#ffe4e6', '#fff1f2'],
+  orange: ['#ea580c', '#f97316', '#fb923c', '#fed7aa', '#fff7ed'],
+  yellow: ['#d97706', '#f59e0b', '#fbbf24', '#fef3c7', '#fffbeb'],
+  green: ['#059669', '#10b981', '#34d399', '#a7f3d0', '#ecfdf5', '#f0fdf4'],
 
   white: '#ffffff',
-  black: '#191D20',
+  black: '#0f172a',
 
-  overlayColor: 'linear-gradient(120deg, rgba(234, 238, 68, 0.5), rgba(51, 208, 255, 0.5))',
+  overlayColor: 'rgba(15, 23, 42, 0.32)',
 }

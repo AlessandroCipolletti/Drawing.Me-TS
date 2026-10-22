@@ -1,6 +1,5 @@
 .notSupported__container {
   position: absolute;
-  background-color: white;
   top: var(--header-height);
   left: 0rem;
   width: 100%;
@@ -8,10 +7,8 @@
   z-index: 50;
   display: flex;
   align-items: center;
-  background: linear-gradient(to bottom, var(--palette-primary-0), var(--palette-primary-2));
-  /* background: linear-gradient(217deg, rgba(255, 0, 0, 1), rgba(255, 0, 0, 0) 70.71%),
-              linear-gradient(127deg, rgba(0, 255, 0, 1), rgba(0, 255, 0, 0) 70.71%),
-              linear-gradient(336deg, rgba(0, 0, 255, 1), rgba(0, 0, 255, 0) 70.71%); */
+  justify-content: center;
+  background-color: var(--surface-bg);
 }
 .drawith__PORTRAIT .notSupported__container {
   flex-direction: column;
@@ -22,16 +19,16 @@
 }
 
 .drawith__PORTRAIT .notSupported__image {
-  height: 30%;
-  margin: 15%;
+  height: 18rem;
+  margin: 2rem;
 }
 .drawith__LANDSCAPE .notSupported__image {
-  height: 50%;
-  margin: 5%;
+  height: 20rem;
+  margin: 3rem;
 }
 
 .drawith__PORTRAIT .drawith_notSupported__text_container {
-  width: 80%;
+  width: 85%;
 }
 .drawith__LANDSCAPE .drawith_notSupported__text_container {
   width: 50%;
@@ -39,24 +36,23 @@
 .drawith_notSupported__text_container {
   text-align: center;
 }
-.notSupported__title,
-.notSupported__subTitle {
-  font-family: sans-serif;
-  font-weight: 100;
-}
-
 .notSupported__title {
-  font-size: 6rem;
-  line-height: 10rem;
-  font-weight: 300;
+  font-family: 'Poppins-Medium', sans-serif;
+  color: var(--text-primary);
+  font-size: 4.2rem;
+  line-height: 5.5rem;
+  margin-bottom: 1rem;
 }
 .notSupported__subTitle {
-  font-size: 3rem;
-  font-weight: 300;
+  font-family: 'Poppins', sans-serif;
+  color: var(--text-secondary);
+  font-size: 2rem;
+  font-weight: 400;
 }
 .drawith__PHONE .notSupported__title {
-  font-size: 4rem;
+  font-size: 3rem;
+  line-height: 4rem;
 }
 .drawith__PHONE .notSupported__subTitle {
-  font-size: 2rem;
+  font-size: 1.6rem;
 }

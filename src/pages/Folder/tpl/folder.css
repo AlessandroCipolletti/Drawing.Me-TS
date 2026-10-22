@@ -1,6 +1,6 @@
 .folder__container {
   position: absolute;
-  background-color: var(--palette-white);
+  background-color: var(--surface-bg);
   top: var(--header-height);
   left: 0rem;
   width: 100%;
@@ -14,31 +14,39 @@
   position: relative;
   top: 0px;
   left: 0rem;
-  height: 5rem;
+  height: 5.2rem;
   z-index: 60;
   padding: 0rem 4rem;
   flex-grow: 0;
+  border-top: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--border-subtle);
+  background-color: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-sizing: border-box;
 }
 .drawith__PHONE .folder__topbar {
-  padding: 0rem calc(2rem + env(safe-area-inset-right)) 0rem calc(2rem + env(safe-area-inset-left));
+  padding: 0rem calc(1.5rem + env(safe-area-inset-right)) 0rem
+    calc(1.5rem + env(safe-area-inset-left));
 }
 
 .folder__topbar-title {
   position: absolute;
   left: 50%;
   transform: translate3d(-50%, 0px, 0px);
-  line-height: 5rem;
-  font-size: 2.5rem;
+  line-height: 5.2rem;
+  font-size: 1.7rem;
   height: 100%;
   margin: 0 0.5rem;
-  font-family: 'Poppins-Medium';
+  font-family: 'Poppins-Medium', sans-serif;
+  letter-spacing: 0.06rem;
+  text-transform: uppercase;
   white-space: nowrap;
-  /* font-weight: 900; */
-  color: var(--palette-gray-0);
+  color: var(--text-secondary);
 }
 .drawith__PHONE .folder__topbar-title {
-  line-height: 5rem;
-  font-size: 1.6rem;
+  line-height: 5.2rem;
+  font-size: 1.4rem;
 }
 
 .folder__topbar-button {
@@ -47,40 +55,71 @@
   margin: 0 0.5rem;
   z-index: 70;
   cursor: pointer;
+  transition:
+    background-color 150ms ease,
+    color 150ms ease,
+    transform 120ms ease;
 }
 .folder__topbar-button.folder__topbar-button-ICON {
-  width: 3.5rem;
-  height: 3.5rem;
-  margin: 0.75rem 1.25rem;
+  width: 2.6rem;
+  height: 2.6rem;
+  margin: 1.3rem 1rem;
+  background-color: var(--text-secondary);
+}
+.folder__topbar-button.folder__topbar-button-ICON:hover:not(.disabled) {
+  background-color: var(--accent-ink-strong);
+  transform: scale(1.06);
 }
 .drawith__PHONE .folder__topbar-button.folder__topbar-button-ICON {
-  width: 2.5rem;
-  height: 2.5rem;
-  margin: 1rem 0.75rem;
+  width: 2.3rem;
+  height: 2.3rem;
+  margin: 1.45rem 0.65rem;
 }
 
 .folder__topbar-button-TEXT {
-  width: 14rem;
-  margin: -2px 1.5rem 0px;
-  border: solid 1px var(--palette-gray-3);
-  border-radius: 0.75rem;
-  font-size: 1.8rem;
+  width: auto;
+  min-width: 9.5rem;
+  height: 3.4rem;
+  padding: 0 1.6rem;
+  margin: 0.9rem 0.5rem;
+  border: 1px solid var(--border-medium);
+  background-color: #ffffff;
+  border-radius: 999px;
+  font-size: 1.45rem;
+  font-family: 'Poppins-Medium', sans-serif;
   text-align: center;
-  line-height: 5rem;
-  color: var(--palette-blue-0);
+  line-height: 3.4rem;
+  color: var(--text-primary);
+  box-shadow: var(--shadow-xs);
+  box-sizing: border-box;
+}
+.folder__topbar-button-TEXT:hover {
+  background-color: var(--surface-subtle);
+  border-color: rgba(15, 23, 42, 0.28);
+}
+.folder__topbar-button-done {
+  background: var(--accent-ink);
+  color: #ffffff;
+  border-color: transparent;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.25);
+}
+.folder__topbar-button-done:hover {
+  background: var(--accent-ink-strong);
 }
 .drawith__PHONE .folder__topbar-button-TEXT {
-  width: 5.5rem;
-  border: none;
-  text-align: right;
-  font-size: 1.6rem;
-  margin: -2px 0.5rem 0px;
+  min-width: 6.5rem;
+  padding: 0 1.2rem;
+  font-size: 1.35rem;
+  margin: 0.9rem 0.25rem;
 }
 
 .folder__topbar-button-delete,
 .folder__topbar-button-export {
   display: none;
   float: left;
+}
+.folder__topbar-button-delete:hover:not(.disabled) {
+  background-color: var(--palette-red-1) !important;
 }
 .drawith__FOLDER-SELECT-MODE .folder__topbar-button-delete,
 .drawith__FOLDER-SELECT-MODE .folder__topbar-button-export {
@@ -90,12 +129,17 @@
 .folder__new-container {
   width: 100%;
   display: flex;
-  justify-content: space-evenly;
+  justify-content: center;
+  gap: 3.5rem;
   flex-grow: 0;
+  padding: 0 2rem;
+  box-sizing: border-box;
 }
 .drawith__PHONE .folder__new-container {
-  height: 20rem;
+  height: 19rem;
   align-items: center;
+  gap: 1.5rem;
+  padding: 0 1.2rem;
 }
 
 .folder__drawings-container {
@@ -105,45 +149,72 @@
   display: flex;
   flex-wrap: wrap;
   align-content: flex-start;
-  justify-content: space-evenly;
+  justify-content: center;
+  gap: 2.4rem;
   overflow: auto;
-  padding-top: 2rem;
+  padding: 2.4rem 3rem;
+  box-sizing: border-box;
   -webkit-overflow-scrolling: touch;
   flex-grow: 1;
   margin-bottom: var(--app-margin-bottom);
 }
+.drawith__PHONE .folder__drawings-container {
+  gap: 1.4rem;
+  padding: 1.6rem 1.2rem;
+}
 
 .drawith__FOLDER-SELECT-MODE .folder__drawing-new-drawing,
 .drawith__FOLDER-SELECT-MODE .folder__drawing-new-coworking {
-  filter: opacity(30%) !important;
+  filter: opacity(35%) !important;
   cursor: auto;
+  transform: none !important;
 }
 
 .folder__new-container .folder__drawing-new-drawing,
 .folder__new-container .folder__drawing-new-coworking {
   text-align: center;
-  margin: 4rem 0rem;
+  margin: 2.6rem 0rem;
   position: relative;
   overflow: hidden;
+  border-radius: 1.6rem;
+  border: 1px solid var(--border-medium);
+  box-shadow: var(--shadow-md);
   background:
-    url('../../../static/img/new-coworking.png') no-repeat center,
-    url('../../../static/img/paper/white.png');
+    url('../../../static/img/new-coworking.svg') no-repeat center 65%,
+    #ffffff;
   background-size:
-    auto 50%,
-    43px;
+    auto 62%,
+    100% 100%;
+  transition:
+    transform 180ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 180ms ease,
+    border-color 180ms ease;
 }
 .folder__new-container .folder__drawing-new-drawing {
   background:
-    url('../../../static/img/new.png') no-repeat center,
-    url('../../../static/img/paper/white.png');
+    url('../../../static/img/new-drawing.svg') no-repeat center 65%,
+    #ffffff;
   background-size:
-    auto 50%,
-    43px;
+    auto 62%,
+    100% 100%;
 }
+.folder__new-container .folder__drawing-new-drawing:hover,
+.folder__new-container .folder__drawing-new-coworking:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-lg);
+  border-color: rgba(15, 23, 42, 0.28);
+}
+.folder__new-container .folder__drawing-new-drawing:active,
+.folder__new-container .folder__drawing-new-coworking:active {
+  transform: translateY(0px) scale(0.98);
+}
+
 .folder__drawing-new-coworking-offline {
   position: absolute;
   z-index: 10;
-  background-color: #333333;
+  background-color: rgba(15, 23, 42, 0.72);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
   color: white;
   display: none;
   text-align: center;
@@ -151,94 +222,110 @@
   height: 100%;
   top: 0px;
   left: 0px;
-  font-size: 2rem;
-  font-weight: 900;
+  font-size: 1.5rem;
+  font-family: 'Poppins-Medium', sans-serif;
+  letter-spacing: 0.12rem;
   justify-content: center;
   align-items: center;
   cursor: auto;
-  /* -webkit-backdrop-filter: blur(10px);
-  backdrop-filter: blur(10px); */
 }
 
 body:not(.drawith__SOCKET_CONNECTED)
   .folder__drawing-new-coworking
   .folder__drawing-new-coworking-offline {
-  opacity: 0.7;
+  opacity: 1;
   display: flex;
 }
 
 .folder__drawing-new-drawing span,
 .folder__drawing-new-coworking span {
-  font-size: 2rem;
-  line-height: 5rem;
+  display: inline-block;
+  font-size: 1.65rem;
+  font-family: 'Poppins-Medium', sans-serif;
+  color: var(--text-primary);
+  line-height: 4.4rem;
+  letter-spacing: 0.02rem;
 }
 
 .drawith__PORTRAIT .folder__drawing-new-drawing span,
 .drawith__PORTRAIT .folder__drawing-new-coworking span {
-  font-size: 1.5rem;
+  font-size: 1.45rem;
 }
 
 /* COWORKING POPUP */
 .folder__coworking-popup {
   text-align: center;
-  padding: 8% 10%;
-  width: 65rem;
-  height: 36rem;
+  padding: 4rem 4.5rem;
+  width: 62rem;
+  height: auto;
+  min-height: 30rem;
   overflow: hidden;
   max-width: 100%;
   max-height: 100%;
+  box-sizing: border-box;
 }
 
 @media screen and (orientation: landscape) {
   .drawith__PHONE .folder__coworking-popup {
-    padding: 4%;
+    padding: 2.5rem;
     width: 60vw;
-    height: 29rem;
+    min-height: 26rem;
   }
 }
 @media screen and (orientation: portrait) {
   .drawith__PHONE .folder__coworking-popup {
-    padding: 4%;
-    width: 95vw;
-    height: 29rem;
+    padding: 2.5rem;
+    width: 92vw;
+    min-height: 26rem;
   }
 }
 
 .folder__coworking-popup-title,
 .folder__send-popup-title {
-  font-family: 'Poppins-Medium';
-  text-transform: uppercase;
-  line-height: 4rem;
-  font-size: 2.5rem;
+  font-family: 'Poppins-Medium', sans-serif;
+  color: var(--text-primary);
+  line-height: 3.2rem;
+  font-size: 2.1rem;
 }
 .drawith__PHONE .folder__coworking-popup-title,
 .drawith__PHONE .folder__send-popup-title {
-  line-height: 3.5rem;
-  font-size: 2rem;
+  line-height: 2.8rem;
+  font-size: 1.75rem;
 }
 
-/* COWORKING POPUP */
 .folder__coworking-popup-id-container {
   position: relative;
-  margin: 6% 0% 10px;
+  margin: 2.5rem 0 1.2rem;
 }
 .drawith__PHONE .folder__coworking-popup-id-container {
-  margin-top: 10%;
+  margin-top: 2rem;
 }
 .folder__coworking-popup-id {
   width: 100%;
-  height: 4.2rem;
-  font-size: 0.9rem;
-  line-height: 4rem;
+  height: 4.6rem;
+  font-size: 1.3rem;
+  font-family: 'Poppins-Medium', monospace;
+  color: var(--text-primary);
+  background-color: var(--surface-subtle);
+  line-height: 4.4rem;
   text-align: left;
-  border-radius: 5px;
-  border: solid 1px var(--palette-gray-3);
+  border-radius: 1rem;
+  border: 1px solid var(--border-medium);
   outline: none;
   user-select: none;
-  padding-left: 2rem;
+  padding: 0 4.5rem 0 1.6rem;
   cursor: pointer;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   box-sizing: border-box;
+  transition:
+    border-color 150ms ease,
+    background-color 150ms ease;
+}
+.folder__coworking-popup-id:hover {
+  border-color: var(--accent-ink);
+  background-color: #e2e8f0;
 }
 .drawith__PHONE .folder__coworking-popup-id {
   font-size: 1.2rem;
@@ -249,31 +336,34 @@ body:not(.drawith__SOCKET_CONNECTED)
 }
 .folder__coworking-popup-copy,
 .folder__coworking-popup-copied {
-  color: var(--palette-gray-0);
-  font-size: 1.5rem;
-  line-height: 3rem;
+  color: var(--text-primary);
+  font-family: 'Poppins-Medium', sans-serif;
+  font-size: 1.4rem;
+  line-height: 2.8rem;
 }
 .drawith__DESKTOP .folder__coworking-copy-icon {
   display: block;
 }
 .folder__coworking-copy-icon {
   position: absolute;
-  height: 2rem;
-  width: 2rem;
-  top: 1rem;
+  height: 2.2rem;
+  width: 2.2rem;
+  top: 1.2rem;
   right: 1.4rem;
   display: none;
   cursor: pointer;
+  background-color: var(--accent-ink);
 }
 
 .folder__coworking-popup-instructions {
-  font-size: 1.8rem;
-  line-height: 2.5rem;
+  font-size: 1.45rem;
+  color: var(--text-secondary);
+  line-height: 2.2rem;
   display: inline-block;
 }
 .drawith__PHONE .folder__coworking-popup-instructions {
-  font-size: 1.4rem;
-  line-height: 2rem;
+  font-size: 1.3rem;
+  line-height: 1.9rem;
 }
 
 /* SEND DRAWINGS POPUP */
@@ -283,7 +373,7 @@ body:not(.drawith__SOCKET_CONNECTED)
   height: 33rem;
 }
 .folder__send-popup-message {
-  color: var(--palette-gray-0);
+  color: var(--text-secondary);
   font-size: 1.5rem;
   line-height: 2.5rem;
   margin: 2rem 0rem;
@@ -294,7 +384,7 @@ body:not(.drawith__SOCKET_CONNECTED)
   margin: 1rem 0rem;
 }
 .folder__send-popup span {
-  color: var(--palette-gray-0);
+  color: var(--text-primary);
   font-size: 2rem;
   line-height: 2.5rem;
   margin: 2rem 0rem;
@@ -306,8 +396,6 @@ body:not(.drawith__SOCKET_CONNECTED)
   margin: 2.5rem 1rem 0rem;
 }
 .folder__send-popup input {
-  width: 2rem;
-  height: 2rem;
   vertical-align: middle;
   margin: 1.5rem;
   width: 3rem;
@@ -318,7 +406,7 @@ body:not(.drawith__SOCKET_CONNECTED)
   margin: 1rem 1.5rem;
 }
 .folder__send-popup p {
-  color: var(--palette-gray-0);
+  color: var(--text-secondary);
   font-size: 1.2rem;
   line-height: 2rem;
   margin: 2rem 0rem;
@@ -328,14 +416,16 @@ body:not(.drawith__SOCKET_CONNECTED)
   line-height: 1.7rem;
 }
 .folder__send-popup button {
-  width: 12rem;
+  width: 13rem;
   height: 4.5rem;
   border: none;
   cursor: pointer;
-  border-radius: 0.5rem;
-  font-size: 1.7rem;
+  border-radius: 999px;
+  font-size: 1.6rem;
+  font-family: 'Poppins-Medium', sans-serif;
   color: var(--palette-white);
-  background: linear-gradient(to bottom, rgb(255, 96, 160), rgb(255, 186, 97));
+  background: var(--accent-ink);
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.25);
 }
 .folder__send-popup button.disabled {
   cursor: auto;

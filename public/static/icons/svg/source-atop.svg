@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">
+  <defs>
+    <clipPath id="sqClip">
+      <rect x="3" y="3" width="12" height="12" rx="3" />
+    </clipPath>
+  </defs>
+  <rect x="3" y="3" width="12" height="12" rx="3" fill="#475569" opacity="0.4" />
+  <circle cx="15" cy="15" r="6" fill="#0f172a" clip-path="url(#sqClip)" />
+  <circle cx="15" cy="15" r="6" stroke="#64748b" stroke-width="1.5" stroke-dasharray="2.5 2.5" />
+</svg>

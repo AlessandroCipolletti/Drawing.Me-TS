@@ -77,15 +77,18 @@ export const updateGcoMode = (selected: boolean, active: boolean) => {
   if (selected !== state.gcoMode) {
     state.gcoMode = selected
     refs.gcoButton?.classList.remove(
+      'svg-icon-source-atop',
+      'svg-icon-source-over',
+      'svg-icon-source-over-atop',
       'png-icon-source-atop',
       'png-icon-source-over',
       'png-icon-source-over-atop'
     )
     refs.gcoButton?.classList.toggle('selected', selected)
     if (selected) {
-      refs.gcoButton?.classList.add('png-icon-source-atop')
+      refs.gcoButton?.classList.add('svg-icon-source-atop')
     } else {
-      refs.gcoButton?.classList.add('png-icon-source-over')
+      refs.gcoButton?.classList.add('svg-icon-source-over')
     }
     updateEditorCanvas()
   }
@@ -111,7 +114,7 @@ export const updateParamsByLayer = (layerId: string | false = state.currentSelec
     if (refs.opacityLabel) refs.opacityLabel.innerHTML = `${round(opacity, 0)}`
     if (refs.opacityCursor) refs.opacityCursor.style.bottom = `${opacity}%`
     if (refs.opacitySlider) {
-      refs.opacitySlider.style.background = `linear-gradient(0deg, var(--palette-green-1) ${opacity}%, var(--palette-white) ${opacity}%)`
+      refs.opacitySlider.style.background = `linear-gradient(0deg, var(--palette-gray-1) ${opacity}%, var(--palette-gray-6) ${opacity}%)`
     }
     refs.duplicateLayerButton?.classList.toggle('disabled', !canDuplicate)
     refs.deleteLayerButton?.classList.toggle('disabled', !canBeDeleted)
@@ -326,7 +329,7 @@ export const _updateLayerOpacity = (layerId: string, opacity: number, inProgress
   if (refs.opacityCursor) refs.opacityCursor.style.bottom = `${opacity}%`
   if (refs.opacityLabel) refs.opacityLabel.innerHTML = `${round(opacity, 0)}`
   if (refs.opacitySlider) {
-    refs.opacitySlider.style.background = `linear-gradient(0deg, var(--palette-green-1) ${opacity}%, var(--palette-white) ${opacity}%)`
+    refs.opacitySlider.style.background = `linear-gradient(0deg, var(--palette-gray-1) ${opacity}%, var(--palette-gray-6) ${opacity}%)`
   }
   const normalizedOpacity = round(opacity / 100, 2)
   state.layers[layerId].opacity = normalizedOpacity

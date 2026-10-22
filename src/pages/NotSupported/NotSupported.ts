@@ -1,5 +1,5 @@
 import './notSupported.css'
-import imageUrl from 'static/img/sadness.png'
+import imageUrl from 'static/img/not-supported.svg'
 
 import {
   osVersion,

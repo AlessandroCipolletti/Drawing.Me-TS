@@ -102,9 +102,9 @@ const renderWorldSheet = () => {
   markerCircle.setAttributeNS(null, 'cx', String(posScreenX))
   markerCircle.setAttributeNS(null, 'cy', String(posScreenY))
   markerCircle.setAttributeNS(null, 'r', String(Math.max(6, round(10 * state.scale, 1))))
-  markerCircle.setAttributeNS(null, 'fill', 'rgba(135, 206, 250, 0.35)')
-  markerCircle.setAttributeNS(null, 'stroke', '#2196f3')
-  markerCircle.setAttributeNS(null, 'stroke-width', '2')
+  markerCircle.setAttributeNS(null, 'fill', 'rgba(30, 41, 59, 0.18)')
+  markerCircle.setAttributeNS(null, 'stroke', '#1e293b')
+  markerCircle.setAttributeNS(null, 'stroke-width', '2.5')
   refs.worldGroup.appendChild(markerCircle)
 
   const visibleDrawings = Cache.getDrawingsInViewport(
