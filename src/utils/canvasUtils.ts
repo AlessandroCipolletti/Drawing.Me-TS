@@ -45,6 +45,8 @@ export interface StrokeSample {
   oldX: number
   oldY: number
   stepLength: number
+  aspectRatio?: number
+  oldAspectRatio?: number
 }
 
 export interface StrokeToolParams {
@@ -57,6 +59,11 @@ export interface StrokeToolParams {
   minPxDistanceBetweenFrames: number
   sizeToFramesRatio: number
   size?: number
+  jitterPosition?: number
+  jitterSize?: number
+  jitterAlpha?: number
+  jitterRotation?: number
+  preserveStampRemainder?: boolean
 }
 
 export interface ExtendedCanvasContext extends CanvasRenderingContext2D {
@@ -129,9 +136,10 @@ const drawCircle = (
   y: number,
   alpha: number,
   size: number,
-  _rotation: number,
+  rotation: number,
   color = '#000000',
-  blur = 0
+  blur = 0,
+  aspectRatio = 1
 ) => {
   destinationContext.beginPath()
   destinationContext.fillStyle = color
@@ -149,7 +157,21 @@ const drawCircle = (
     destinationContext.shadowBlur = 0
   }
 
-  destinationContext.arc(x, y, size / 2, 0, 2 * PI, true)
+  if (MATH.abs(aspectRatio - 1) > 0.001) {
+    const rx = size / 2
+    const ry = MATH.max(0.5, round(size / (2 * aspectRatio), 2))
+    if (typeof destinationContext.ellipse === 'function') {
+      destinationContext.ellipse(x, y, rx, ry, rotation || 0, 0, 2 * PI, true)
+    } else {
+      destinationContext.translate(x, y)
+      if (rotation) destinationContext.rotate(rotation)
+      destinationContext.arc(0, 0, rx, 0, 2 * PI, true)
+      if (rotation) destinationContext.rotate(-rotation)
+      destinationContext.translate(-x, -y)
+    }
+  } else {
+    destinationContext.arc(x, y, size / 2, 0, 2 * PI, true)
+  }
   destinationContext.fill()
 }
 
@@ -159,8 +181,10 @@ const drawParticlesSprayCircle = (
   y: number,
   alpha: number,
   size: number,
-  _rotation: number,
-  color = '#000000'
+  rotation: number,
+  color = '#000000',
+  _blur = 0,
+  aspectRatio = 1
 ) => {
   destinationContext.lastDrawCoordX = x
   destinationContext.lastDrawCoordY = y
@@ -179,6 +203,9 @@ const drawParticlesSprayCircle = (
   const rawCount = size * 4
   const count = Math.min(rawCount, MAX_SPRAY_STAMPS_PER_STEP)
   const stampScale = rawCount > count ? MATH.sqrt(rawCount / count) : 1
+  const hasAnisotropy = MATH.abs(aspectRatio - 1) > 0.001
+  const cosR = hasAnisotropy && rotation ? MATH.cos(rotation) : 1
+  const sinR = hasAnisotropy && rotation ? MATH.sin(rotation) : 0
 
   for (let i = 0; i < count; i++) {
     angle = rng() * 2 * PI
@@ -186,12 +213,20 @@ const drawParticlesSprayCircle = (
     destinationContext.globalAlpha = Math.max(alpha * (1 - radius / size), 0)
     const w = round((MATH.floor(rng() * (variability + 1)) + 1) * stampScale, 1)
     const h = round((MATH.floor(rng() * (variability + 1)) + 1) * stampScale, 1)
-    destinationContext.fillRect(
-      round(x + radius * MATH.cos(angle), 1),
-      round(y + radius * MATH.sin(angle), 1),
-      w,
-      h
-    )
+    if (hasAnisotropy) {
+      const lx = radius * MATH.cos(angle)
+      const ly = (radius * MATH.sin(angle)) / aspectRatio
+      const ox = rotation ? lx * cosR - ly * sinR : lx
+      const oy = rotation ? lx * sinR + ly * cosR : ly
+      destinationContext.fillRect(round(x + ox, 1), round(y + oy, 1), w, h)
+    } else {
+      destinationContext.fillRect(
+        round(x + radius * MATH.cos(angle), 1),
+        round(y + radius * MATH.sin(angle), 1),
+        w,
+        h
+      )
+    }
   }
 }
 
@@ -201,8 +236,10 @@ const drawParticlesCircle = (
   y: number,
   alpha: number,
   size: number,
-  _rotation: number,
-  color = '#000000'
+  rotation: number,
+  color = '#000000',
+  _blur = 0,
+  aspectRatio = 1
 ) => {
   destinationContext.lastDrawCoordX = x
   destinationContext.lastDrawCoordY = y
@@ -217,18 +254,34 @@ const drawParticlesCircle = (
   const rawCount = size * size
   const count = Math.min(rawCount, MAX_PARTICLE_STAMPS_PER_STEP)
   const stampScale = rawCount > count ? MATH.sqrt(rawCount / count) : 1
+  const hasAnisotropy = MATH.abs(aspectRatio - 1) > 0.001
+  const cosR = hasAnisotropy && rotation ? MATH.cos(rotation) : 1
+  const sinR = hasAnisotropy && rotation ? MATH.sin(rotation) : 0
 
   for (let i = 0; i < count; i++) {
     angle = rng() * 2 * PI
     radius = MATH.floor(rng() * (size + 1)) + 1
     width = MATH.floor(rng() * 3) + 1
     const height = width === 2 ? 1 : MATH.floor(rng() * 3) + 1
-    destinationContext.fillRect(
-      round(x + radius * MATH.cos(angle), 1),
-      round(y + radius * MATH.sin(angle), 1),
-      round(width * stampScale, 1),
-      round(height * stampScale, 1)
-    )
+    if (hasAnisotropy) {
+      const lx = radius * MATH.cos(angle)
+      const ly = (radius * MATH.sin(angle)) / aspectRatio
+      const ox = rotation ? lx * cosR - ly * sinR : lx
+      const oy = rotation ? lx * sinR + ly * cosR : ly
+      destinationContext.fillRect(
+        round(x + ox, 1),
+        round(y + oy, 1),
+        round(width * stampScale, 1),
+        round(height * stampScale, 1)
+      )
+    } else {
+      destinationContext.fillRect(
+        round(x + radius * MATH.cos(angle), 1),
+        round(y + radius * MATH.sin(angle), 1),
+        round(width * stampScale, 1),
+        round(height * stampScale, 1)
+      )
+    }
   }
 }
 
@@ -238,8 +291,10 @@ const drawParticlesRect = (
   y: number,
   alpha: number,
   size: number,
-  _rotation: number,
-  color = '#000000'
+  rotation: number,
+  color = '#000000',
+  _blur = 0,
+  aspectRatio = 1
 ) => {
   destinationContext.lastDrawCoordX = x
   destinationContext.lastDrawCoordY = y
@@ -252,14 +307,25 @@ const drawParticlesRect = (
   const rawCount = size * (size + 1)
   const count = Math.min(rawCount, MAX_PARTICLE_STAMPS_PER_STEP)
   const dotSize = rawCount > count ? round(MATH.sqrt(rawCount / count), 1) : 1
+  const hasAnisotropy = MATH.abs(aspectRatio - 1) > 0.001
+  const cosR = hasAnisotropy && rotation ? MATH.cos(rotation) : 1
+  const sinR = hasAnisotropy && rotation ? MATH.sin(rotation) : 0
 
   for (let i = 0; i < count; i++) {
-    destinationContext.fillRect(
-      round(x + MATH.floor(rng() * (size + 1)) - s2, 1),
-      round(y + MATH.floor(rng() * (size + 1)) - s2, 1),
-      dotSize,
-      dotSize
-    )
+    if (hasAnisotropy) {
+      const lx = MATH.floor(rng() * (size + 1)) - s2
+      const ly = (MATH.floor(rng() * (size + 1)) - s2) / aspectRatio
+      const ox = rotation ? lx * cosR - ly * sinR : lx
+      const oy = rotation ? lx * sinR + ly * cosR : ly
+      destinationContext.fillRect(round(x + ox, 1), round(y + oy, 1), dotSize, dotSize)
+    } else {
+      destinationContext.fillRect(
+        round(x + MATH.floor(rng() * (size + 1)) - s2, 1),
+        round(y + MATH.floor(rng() * (size + 1)) - s2, 1),
+        dotSize,
+        dotSize
+      )
+    }
   }
 }
 
@@ -269,25 +335,31 @@ const drawCanvasImage = (
   y: number,
   alpha: number,
   size: number,
-  rotation: number
+  rotation: number,
+  _color?: string,
+  _blur?: number,
+  aspectRatio = 1
 ) => {
   const image = destinationContext.toolImageShape.canvas
   destinationContext.lastDrawCoordX = x
   destinationContext.lastDrawCoordY = y
   destinationContext.globalAlpha = alpha
+  const width = size
+  const height =
+    MATH.abs(aspectRatio - 1) > 0.001 ? MATH.max(1, round(size / aspectRatio, 1)) : size
   if (rotation) {
     destinationContext.translate(x, y)
     destinationContext.rotate(rotation)
-    destinationContext.drawImage(image, -size / 2, -size / 2, size, size)
+    destinationContext.drawImage(image, -width / 2, -height / 2, width, height)
     destinationContext.rotate(-rotation)
     destinationContext.translate(-x, -y)
   } else {
     destinationContext.drawImage(
       image,
-      MATH.round(x - size / 2),
-      MATH.round(y - size / 2),
-      size,
-      size
+      MATH.round(x - width / 2),
+      MATH.round(y - height / 2),
+      width,
+      height
     )
   }
 }
@@ -302,7 +374,8 @@ const toolShapesDrawFns: Record<
     size: number,
     rotation: number,
     color?: string,
-    blur?: number
+    blur?: number,
+    aspectRatio?: number
   ) => void
 > = {
   [TOOL_FRAME_CIRCLE]: drawCircle,
@@ -310,6 +383,46 @@ const toolShapesDrawFns: Record<
   [TOOL_FRAME_PARTICLES_CIRCLE]: drawParticlesCircle,
   [TOOL_FRAME_SPRAY_CIRCLE]: drawParticlesSprayCircle,
   [TOOL_FRAME_IMAGE]: drawCanvasImage,
+}
+
+const applyDeterministicStampJitter = (
+  tool: StrokeToolParams,
+  x: number,
+  y: number,
+  alpha: number,
+  size: number,
+  rotation: number
+): [number, number, number, number, number] => {
+  const jPos = tool.jitterPosition || 0
+  const jSize = tool.jitterSize || 0
+  const jAlpha = tool.jitterAlpha || 0
+  const jRot = tool.jitterRotation || 0
+  if (jPos === 0 && jSize === 0 && jAlpha === 0 && jRot === 0) {
+    return [x, y, alpha, size, rotation]
+  }
+  const rng = createDeterministicRng(x, y, size, alpha)
+  let drawX = x
+  let drawY = y
+  let drawAlpha = alpha
+  let drawSize = size
+  let drawRotation = rotation
+
+  if (jPos !== 0) {
+    const dist = (rng() - 0.5) * 2 * jPos * size
+    const angle = rng() * 2 * PI
+    drawX = round(x + dist * MATH.cos(angle), 1)
+    drawY = round(y + dist * MATH.sin(angle), 1)
+  }
+  if (jSize !== 0) {
+    drawSize = Math.max(1, round(size * (1 + (rng() - 0.5) * 2 * jSize), 1))
+  }
+  if (jAlpha !== 0) {
+    drawAlpha = Math.max(0.001, Math.min(1, round(alpha * (1 + (rng() - 0.5) * 2 * jAlpha), 4)))
+  }
+  if (jRot !== 0) {
+    drawRotation = round(rotation + (rng() - 0.5) * 2 * jRot, 4)
+  }
+  return [drawX, drawY, drawAlpha, drawSize, drawRotation]
 }
 
 const drawCurvedFunctionLine = (
@@ -324,14 +437,20 @@ const drawCurvedFunctionLine = (
   const deltaAlpha = stepData.alpha - stepData.oldAlpha
   const deltaSize = stepData.size - stepData.oldSize
   const deltaRotation = stepData.rotation - stepData.oldRotation
+  const oldAspect = stepData.oldAspectRatio ?? 1
+  const newAspect = stepData.aspectRatio ?? 1
+  const deltaAspect = newAspect - oldAspect
   const stepLength = stepData.stepLength
   const minPxDist = tool.minPxDistanceBetweenFrames
   const sizeRatio = tool.sizeToFramesRatio
   const color = tool.color
+  const stepInc = tool.preserveStampRemainder ? Math.min(0.5, Math.max(0.1, minPxDist / 2)) : 0.5
 
   let i = 0
   let drewSomething = false
+  let evaluatedEnd = false
   while (i <= stepLength) {
+    if (i === stepLength) evaluatedEnd = true
     const t = getPerc(i, stepLength) / 100
     const frameX = round(quadraticBezierValue(t, stepData.oldMidX, stepData.oldX, stepData.midX), 1)
     const frameY = round(quadraticBezierValue(t, stepData.oldMidY, stepData.oldY, stepData.midY), 1)
@@ -346,20 +465,36 @@ const drawCurvedFunctionLine = (
         pxDistanceBetweenFrames
       )
     ) {
-      drawShape(
-        destinationContext,
+      const frameAlpha = round(stepData.oldAlpha + deltaAlpha * t, 4)
+      const frameRotation = stepData.oldRotation + deltaRotation * t
+      const frameAspect = round(oldAspect + deltaAspect * t, 3)
+      const [drawX, drawY, drawAlpha, drawSize, drawRotation] = applyDeterministicStampJitter(
+        tool,
         frameX,
         frameY,
-        round(stepData.oldAlpha + deltaAlpha * t, 4),
+        frameAlpha,
         frameSize,
-        stepData.oldRotation + deltaRotation * t,
-        color
+        frameRotation
+      )
+      drawShape(
+        destinationContext,
+        drawX,
+        drawY,
+        drawAlpha,
+        drawSize,
+        drawRotation,
+        color,
+        0,
+        frameAspect
       )
       destinationContext.lastDrawCoordX = frameX
       destinationContext.lastDrawCoordY = frameY
       drewSomething = true
     }
-    i += 0.5
+    i += stepInc
+    if (tool.preserveStampRemainder && !evaluatedEnd && i > stepLength && stepLength > 0) {
+      i = stepLength
+    }
   }
 
   return drewSomething
@@ -385,15 +520,27 @@ export const drawStrokeSample = (
     setImageShapeIfNeeded(destinationContext, tool.frameImageFile, tool.frameImageName, tool.color)
   }
   if (sample.type === 'start') {
-    toolShapesDrawFns[tool.frameType](
-      destinationContext,
+    const [drawX, drawY, drawAlpha, drawSize, drawRotation] = applyDeterministicStampJitter(
+      tool,
       sample.x,
       sample.y,
       sample.alpha,
       sample.size,
-      sample.rotation,
-      tool.color
+      sample.rotation
     )
+    toolShapesDrawFns[tool.frameType](
+      destinationContext,
+      drawX,
+      drawY,
+      drawAlpha,
+      drawSize,
+      drawRotation,
+      tool.color,
+      0,
+      sample.aspectRatio ?? 1
+    )
+    destinationContext.lastDrawCoordX = sample.x
+    destinationContext.lastDrawCoordY = sample.y
     return true
   }
   return drawCurvedFunctionLine(destinationContext, sample, tool)

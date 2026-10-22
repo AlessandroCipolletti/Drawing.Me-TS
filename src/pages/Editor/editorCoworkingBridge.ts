@@ -29,10 +29,12 @@ const stepDataKeys: Array<keyof StrokeSample> = [
   'oldX',
   'oldY',
   'stepLength',
+  'aspectRatio',
+  'oldAspectRatio',
 ]
 
-const toStepNumber = (value: string | number | null | undefined): number =>
-  typeof value === 'number' ? value : Number.NaN
+const toStepNumber = (value: string | number | null | undefined, fallback = Number.NaN): number =>
+  typeof value === 'number' ? value : fallback
 
 export const addTouchStepDataKeys = (
   stepDataArray: Array<string | number | null | undefined>
@@ -53,6 +55,8 @@ export const addTouchStepDataKeys = (
   oldX: toStepNumber(stepDataArray[13]),
   oldY: toStepNumber(stepDataArray[14]),
   stepLength: toStepNumber(stepDataArray[15]),
+  aspectRatio: toStepNumber(stepDataArray[16], 1),
+  oldAspectRatio: toStepNumber(stepDataArray[17], 1),
 })
 
 export const removeTouchStepDataKeys = (

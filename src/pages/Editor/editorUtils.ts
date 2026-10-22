@@ -7,6 +7,7 @@ import {
   getAngleRadBetweenTwoPoints,
   rotateCoords,
   convertAngleDegToRad,
+  getNumberInBetween,
 } from 'utils/mathUtils'
 import { addGlobalStatus, removeGlobalStatus } from 'utils/moduleUtils'
 import { getEventCoordX, getEventCoordY } from 'utils/domUtils'
@@ -25,6 +26,7 @@ import { getOneToolVersionCompleteProps } from 'pages/Editor/components/Tools'
 import { ToolCustomPropsMap, toolDefaultProps } from './config'
 import { CurrentToolProps, EditorState, PointerTouchEvent, ResizeModeState } from './editorTypes'
 import {
+  applyOneEuroFilter,
   getAltitudeFactorFromAngle,
   getStepData,
   StepLastState,
@@ -176,6 +178,9 @@ const getTouchEventData = (
   }
 
   const azimuthAngle = touchEvent.azimuthAngle || 0
+  const twist = touchEvent.twist || 0
+  const hasTwist = Boolean(touchEvent.hasTwist || twist !== 0)
+  const tangentialPressure = touchEvent.tangentialPressure || 0
   const pathRotation =
     touchEvent.type === Params.eventStart || touchEvent.type === 'start'
       ? 0
@@ -186,10 +191,11 @@ const getTouchEventData = (
     altitudeAngle,
     config.maxSupportedStylusAltitudeFactor
   )
-  const canHandleStylusRotation = false
+  const canHandleStylusRotation = altitudeFactor > config.minAltitudeFactorToHandleRotation
 
   return {
     type: touchEvent.type,
+    touchType: touchEvent.touchType,
     x,
     y,
     midX,
@@ -197,7 +203,10 @@ const getTouchEventData = (
     stepLength,
     speedFactor,
     force,
+    tangentialPressure,
     azimuthAngle,
+    twist,
+    hasTwist,
     pathRotation,
     altitudeFactor,
     canHandleStylusRotation,
@@ -225,6 +234,7 @@ export const getStepsDataFromTouchEvents = (
     lastStep.size = stepData.size
     lastStep.alpha = stepData.alpha
     lastStep.rotation = stepData.rotation
+    lastStep.aspectRatio = stepData.aspectRatio
     lastStep.speedFactor = touchData.speedFactor
   }
 
@@ -239,6 +249,11 @@ export const updateLastStepData = (state: EditorState, stepData: StrokeSample) =
   state.lastStep.size = stepData.size
   state.lastStep.alpha = stepData.alpha
   state.lastStep.rotation = stepData.rotation
+  state.lastStep.aspectRatio = stepData.aspectRatio ?? 1
+  if (state.currentTouch) {
+    state.lastStep.speedFactor = state.currentTouch.speedFactor
+    state.lastStep.timeStamp = state.currentTouch.timeStamp
+  }
 }
 
 export const updateCurrentTouchData = (
@@ -246,13 +261,17 @@ export const updateCurrentTouchData = (
   touchEvent: PointerTouchEvent | undefined,
   eventType: string,
   x: number | false = false,
-  y: number | false = false
+  y: number | false = false,
+  skipStabilization = false
 ) => {
   const currentTouch = state.currentTouch
   currentTouch.type = eventType
   if (touchEvent?.touchType) {
     currentTouch.touchType = touchEvent.touchType
   }
+
+  const prevStabilizedX = currentTouch.x
+  const prevStabilizedY = currentTouch.y
 
   if (x === false || y === false) {
     currentTouch.x = getEventCoordX(touchEvent, state.canvas.offset.left)
@@ -301,6 +320,50 @@ export const updateCurrentTouchData = (
   }
   currentTouch.x = round(currentTouch.x * Params.pxScale, 1)
   currentTouch.y = round(currentTouch.y * Params.pxScale, 1)
+  currentTouch.rawX = currentTouch.x
+  currentTouch.rawY = currentTouch.y
+
+  const eventTimeStamp = touchEvent?.timeStamp || 0
+  const prevTimeStamp = state.lastStep.timeStamp || currentTouch.timeStamp || 0
+  const dtMs =
+    eventTimeStamp > 0 && prevTimeStamp > 0 && eventTimeStamp > prevTimeStamp
+      ? eventTimeStamp - prevTimeStamp
+      : 0
+  currentTouch.timeStamp = eventTimeStamp
+
+  const stabilization = state.currentToolProps?.stabilization || 0
+  if (skipStabilization && stabilization > 0) {
+    currentTouch.x = prevStabilizedX
+    currentTouch.y = prevStabilizedY
+  } else if (
+    eventType === Params.eventMove &&
+    !currentTouch.isNearRuler &&
+    stabilization > 0 &&
+    typeof state.lastStep.x === 'number' &&
+    state.lastStep.x >= 0
+  ) {
+    const [fx, vx] = applyOneEuroFilter(
+      currentTouch.x,
+      state.lastStep.x,
+      currentTouch.velocityX || 0,
+      dtMs || 8,
+      stabilization
+    )
+    const [fy, vy] = applyOneEuroFilter(
+      currentTouch.y,
+      state.lastStep.y ?? currentTouch.y,
+      currentTouch.velocityY || 0,
+      dtMs || 8,
+      stabilization
+    )
+    currentTouch.x = fx
+    currentTouch.y = fy
+    currentTouch.velocityX = vx
+    currentTouch.velocityY = vy
+  } else {
+    currentTouch.velocityX = 0
+    currentTouch.velocityY = 0
+  }
 
   const prevX = state.lastStep.x ?? currentTouch.x
   const prevY = state.lastStep.y ?? currentTouch.y
@@ -346,17 +409,42 @@ export const updateCurrentTouchData = (
     if (eventType === Params.eventEnd) {
       currentTouch.speedFactor = currentTouch.speedFactor / 2
     } else {
-      currentTouch.speedFactor =
+      const distSpeed =
         Math.min(config.maxSpeedFactorLength, currentTouch.stepLength) / config.maxSpeedFactorLength
+      let rawSpeed = distSpeed
+      if (state.currentToolProps?.useTimeBasedSpeed && dtMs > 0) {
+        const maxVel = Math.max(
+          0.1,
+          (state.currentToolProps.maxVelocityPxPerMs || 2.5) * Params.pxScale
+        )
+        rawSpeed = getNumberInBetween(0, 1, currentTouch.stepLength / dtMs / maxVel, 4)
+      }
+      const smoothing = getNumberInBetween(0, 0.95, state.currentToolProps?.speedSmoothing || 0, 2)
+      if (smoothing > 0) {
+        const prevSpeed = state.lastStep.speedFactor ?? currentTouch.speedFactor ?? 0
+        currentTouch.speedFactor = round(prevSpeed * smoothing + rawSpeed * (1 - smoothing), 4)
+      } else {
+        currentTouch.speedFactor = rawSpeed
+      }
     }
   }
 
   if (touchEvent?.touchType === TOUCH_TYPE_STYLUS) {
     const rawForce = touchEvent.force || 0
+    let normalizedForce: number
     if (rawForce === config.initialForceTouchBugValue) {
-      currentTouch.force = rawForce / 4
+      normalizedForce = rawForce / 4
     } else {
-      currentTouch.force = Math.max(round((rawForce - 0.1) * 1.11, 3), 0.001)
+      normalizedForce = Math.max(round((rawForce - 0.1) * 1.11, 3), 0.001)
+    }
+    if (eventType === Params.eventMove && stabilization > 0 && currentTouch.force > 0) {
+      const forceSmooth = stabilization * 0.4
+      currentTouch.force = round(
+        currentTouch.force * forceSmooth + normalizedForce * (1 - forceSmooth),
+        3
+      )
+    } else {
+      currentTouch.force = normalizedForce
     }
   } else if (eventType === Params.eventStart) {
     currentTouch.force = config.defaultForceTouch
@@ -364,7 +452,14 @@ export const updateCurrentTouchData = (
     currentTouch.force = config.initialForceTouchBugValue / 4
   }
 
+  currentTouch.tangentialPressure =
+    touchEvent?.tangentialPressure ?? currentTouch.tangentialPressure ?? 0
   currentTouch.azimuthAngle = touchEvent?.azimuthAngle || currentTouch.azimuthAngle
+  if (typeof touchEvent?.twist === 'number') {
+    currentTouch.twist = touchEvent.twist
+    currentTouch.hasTwist = Boolean(touchEvent.hasTwist || touchEvent.twist !== 0)
+  }
+
   if (eventType === Params.eventStart) {
     currentTouch.pathRotation = 0
   } else {
@@ -378,12 +473,20 @@ export const updateCurrentTouchData = (
 
   if (touchEvent?.touchType === TOUCH_TYPE_STYLUS) {
     currentTouch.altitudeAngle = touchEvent.altitudeAngle ?? config.defaultAltitudeAngle
-    currentTouch.altitudeFactor = getAltitudeFactorFromAngle(
+    const rawAltitudeFactor = getAltitudeFactorFromAngle(
       currentTouch.altitudeAngle,
       config.maxSupportedStylusAltitudeFactor
     )
+    if (eventType === Params.eventMove && stabilization > 0) {
+      const altSmooth = stabilization * 0.4
+      currentTouch.altitudeFactor = round(
+        currentTouch.altitudeFactor * altSmooth + rawAltitudeFactor * (1 - altSmooth),
+        4
+      )
+    } else {
+      currentTouch.altitudeFactor = rawAltitudeFactor
+    }
     currentTouch.canHandleStylusRotation =
-      currentTouch.canHandleStylusRotation &&
       currentTouch.altitudeFactor > config.minAltitudeFactorToHandleRotation
   }
 }

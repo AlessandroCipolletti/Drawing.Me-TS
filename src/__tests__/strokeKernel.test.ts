@@ -7,12 +7,18 @@ import {
   initCanvasOffset,
 } from 'pages/Editor/editorUtils'
 import {
+  applyOneEuroFilter,
+  applyResponseCurve,
   getAltitudeFactorFromAngle,
   getStepAlpha,
+  getStepAspectRatio,
   getStepRotation,
   getStepSize,
 } from 'pages/Editor/editorStepMath'
-import { handleTouchEventsWithGestures } from 'utils/pointerEventsUtils/touchEventsUtils'
+import {
+  handleTouchEventsWithGestures,
+  normalizeTouchOrPointerEvent,
+} from 'utils/pointerEventsUtils/touchEventsUtils'
 import { handleDesktopEventsWithGesture } from 'utils/pointerEventsUtils/desktopEventsUtils'
 import { spacing, init as initTheme } from 'main/Theme'
 import { TOUCH_TYPE_STYLUS } from 'main/constants'
@@ -52,6 +58,8 @@ function createMockCanvasContext(): {
     moveTo: (x: number, y: number) => ops.push({ op: 'moveTo', args: [x, y] }),
     lineTo: (x: number, y: number) => ops.push({ op: 'lineTo', args: [x, y] }),
     arc: (x: number, y: number, r: number) => ops.push({ op: 'arc', args: [x, y, r] }),
+    ellipse: (x: number, y: number, rx: number, ry: number, rot: number) =>
+      ops.push({ op: 'ellipse', args: [x, y, rx, ry, rot] }),
     fill: () => ops.push({ op: 'fill', args: [] }),
     stroke: () => ops.push({ op: 'stroke', args: [] }),
     translate: (x: number, y: number) => ops.push({ op: 'translate', args: [x, y] }),
@@ -817,5 +825,104 @@ describe('Unified Numeric Stroke Kernel (Local & PeerJS Coworking)', () => {
     expect(size).toBe(29)
     expect(getStepAlpha(tool, touch, size)).toBeCloseTo(0.62, 3)
     expect(getStepRotation(tool, touch, { rotation: 0 })).toBeCloseTo(Math.PI / 2, 3)
+  })
+
+  it('supports Apple Pencil Pro barrel roll (twist), non-linear response curves, anisotropic aspect ratio, 1€ stabilization, and deterministic jitter across coworking', () => {
+    // 1. Apple Pencil Pro twist normalization (degrees -> radians) & vertical barrel roll
+    const normPen = normalizeTouchOrPointerEvent({
+      pointerId: 1,
+      pointerType: 'pen',
+      clientX: 100,
+      clientY: 100,
+      pressure: 0.5,
+      altitudeAngle: Math.PI / 2, // held vertically
+      azimuthAngle: 0,
+      twist: 90, // 90 deg barrel roll
+      tangentialPressure: 0.4,
+      timeStamp: 1000,
+    })
+    expect(normPen.twist).toBeCloseTo(Math.PI / 2, 4)
+    expect(normPen.hasTwist).toBe(true)
+    expect(normPen.tangentialPressure).toBe(0.4)
+
+    // Even when vertical (canHandleStylusRotation = false), handleStylusTwist rotates the nib
+    const twistTool = {
+      size: 30,
+      alpha: 0.5,
+      minAlpha: 0.1,
+      maxAlpha: 1,
+      handleStylusRotation: true,
+      handleStylusTwist: true,
+      forceCurve: 0.7,
+      altitudeCurve: 1.2,
+      aspectRatio: 1.2,
+      aspectAltitudeFactor: 1.5,
+      aspectForceFactor: 0.5,
+      endTaperFactor: 0.5,
+      jitterPosition: 0.05,
+      jitterSize: 0.06,
+      jitterAlpha: 0.08,
+      jitterRotation: 0.1,
+      frameType: TOOL_FRAME_CIRCLE,
+      minPxDistanceBetweenFrames: 1,
+      sizeToFramesRatio: 0.1,
+      preserveStampRemainder: true,
+    }
+    const verticalTouch = {
+      type: 'move',
+      touchType: TOUCH_TYPE_STYLUS,
+      x: 50,
+      y: 60,
+      midX: 30,
+      midY: 40,
+      force: 0.5,
+      altitudeFactor: 0.1,
+      azimuthAngle: 1.2,
+      twist: Math.PI / 2,
+      hasTwist: true,
+      stepLength: 28,
+      canHandleStylusRotation: false,
+    }
+    expect(getStepRotation(twistTool, verticalTouch, { rotation: 0 })).toBeCloseTo(Math.PI / 2, 3)
+
+    // 2. Response curves & anisotropic aspect ratio
+    expect(applyResponseCurve(0.25, 0.5)).toBeCloseTo(0.5, 3)
+    expect(applyResponseCurve(0.25, 2.0)).toBeCloseTo(0.0625, 4)
+    const aspect = getStepAspectRatio(twistTool, { ...verticalTouch, altitudeFactor: 0.6 })
+    expect(aspect).toBeGreaterThan(1.2)
+
+    // 3. 1€ filter stabilization reduces jitter at low velocity and tracks fast strokes
+    const [slowFiltered] = applyOneEuroFilter(102, 100, 0, 8, 0.5)
+    expect(slowFiltered).toBeGreaterThan(100)
+    expect(slowFiltered).toBeLessThan(102)
+    const [unfiltered] = applyOneEuroFilter(102, 100, 0, 8, 0)
+    expect(unfiltered).toBe(102)
+
+    // 4. Local vs Remote Coworking parity with anisotropic aspectRatio and deterministic jitter
+    const startStep = getStepData(
+      twistTool,
+      { ...verticalTouch, type: 'start', x: 10, y: 10, midX: 10, midY: 10, stepLength: 0 },
+      {}
+    )
+    const moveStep = getStepData(twistTool, { ...verticalTouch, altitudeFactor: 0.7 }, startStep)
+    const endStep = getStepData(
+      twistTool,
+      { ...verticalTouch, type: 'end', x: 70, y: 80, midX: 60, midY: 70, stepLength: 20 },
+      moveStep
+    )
+    expect(endStep.alpha).toBeGreaterThan(twistTool.minAlpha)
+
+    const localCtx = createMockCanvasContext()
+    const remoteCtx = createMockCanvasContext()
+    drawStrokeSample(localCtx.ctx, startStep, twistTool, true)
+    drawStrokeSample(localCtx.ctx, moveStep, twistTool, true)
+    drawStrokeSample(localCtx.ctx, endStep, twistTool, true)
+
+    drawStrokeSample(remoteCtx.ctx, { ...startStep }, twistTool, true)
+    drawStrokeSample(remoteCtx.ctx, { ...moveStep }, twistTool, true)
+    drawStrokeSample(remoteCtx.ctx, { ...endStep }, twistTool, true)
+
+    expect(localCtx.ops.some((o) => o.op === 'ellipse')).toBe(true)
+    expect(remoteCtx.ops).toEqual(localCtx.ops)
   })
 })

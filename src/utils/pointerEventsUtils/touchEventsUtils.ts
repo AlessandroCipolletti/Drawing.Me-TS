@@ -96,6 +96,11 @@ export const normalizeTouchOrPointerEvent = (ev: any) => {
     ;[altitudeAngle, azimuthAngle] = convertTiltToAltitudeAzimuth(ev.tiltX || 0, ev.tiltY || 0)
   }
 
+  const rawTwist = typeof ev.twist === 'number' ? ev.twist : 0
+  const twist = ev.twistIsRadians ? rawTwist : (rawTwist * Math.PI) / 180
+  const hasTwist = Boolean(ev.hasTwist || rawTwist !== 0)
+  const tangentialPressure = typeof ev.tangentialPressure === 'number' ? ev.tangentialPressure : 0
+
   return {
     pointerId: ev.pointerId ?? ev.identifier ?? 0,
     identifier: ev.identifier ?? ev.pointerId ?? 0,
@@ -107,8 +112,12 @@ export const normalizeTouchOrPointerEvent = (ev: any) => {
     touchType,
     pointerType: ev.pointerType,
     force,
+    tangentialPressure,
     altitudeAngle,
     azimuthAngle: azimuthAngle ?? 0,
+    twist,
+    hasTwist,
+    twistIsRadians: true,
     timeStamp: ev.timeStamp ?? 0,
   }
 }
@@ -436,6 +445,21 @@ export const handleTouchEventsWithGestures = (
         if (filtered.last) lastDeliveredSampleByPointer.set(pid, filtered.last)
         if (filtered.fresh.length === 0) return
         coalescedSamples = filtered.fresh
+      }
+
+      if (typeof e.getPredictedEvents === 'function' && coalescedSamples.length > 0) {
+        const rawPredicted = e.getPredictedEvents()
+        if (Array.isArray(rawPredicted) && rawPredicted.length > 0) {
+          coalescedSamples[coalescedSamples.length - 1].predictedSamples = rawPredicted
+            .slice(0, 3)
+            .map((ev: any) => {
+              const norm = normalizeTouchOrPointerEvent(ev)
+              if (!norm.target) {
+                norm.target = latestSample.target || target
+              }
+              return norm
+            })
+        }
       }
 
       touchMoveLength++

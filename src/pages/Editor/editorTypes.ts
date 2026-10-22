@@ -70,6 +70,10 @@ export interface EditorTouchState {
   touchType: string
   x: number
   y: number
+  rawX?: number
+  rawY?: number
+  velocityX?: number
+  velocityY?: number
   midX: number
   midY: number
   eventX: number
@@ -79,6 +83,7 @@ export interface EditorTouchState {
   dragX: number
   dragY: number
   force: number
+  tangentialPressure?: number
   drewSomething: boolean
   isNearRuler: boolean
   isDown: boolean
@@ -87,10 +92,13 @@ export interface EditorTouchState {
   altitudeAngle: number
   altitudeFactor: number
   azimuthAngle: number
+  twist?: number
+  hasTwist?: boolean
   rotation: number
   pathRotation: number
   stepLength: number
   speedFactor: number
+  timeStamp?: number
   canHandleStylusRotation: boolean
 }
 
@@ -160,6 +168,9 @@ interface EditorStepSnapshot {
   alpha?: number
   size?: number
   rotation?: number
+  aspectRatio?: number
+  speedFactor?: number
+  timeStamp?: number
 }
 
 export interface EditorState {
@@ -172,6 +183,7 @@ export interface EditorState {
   lastLineAdaptationTimestamp: number
   stepsSinceLastLineAdaptation: number
   pxDistanceSinceLastLineAdaptation: number
+  hasPredictedOverlay?: boolean
   fullscreenActive: boolean
   canvas: EditorCanvasState
   resizeMode: ResizeModeState
@@ -221,12 +233,17 @@ export interface PointerTouchEvent {
   clientY?: number
   force?: number
   pressure?: number
+  tangentialPressure?: number
   altitudeAngle?: number
   azimuthAngle?: number
+  twist?: number
+  hasTwist?: boolean
   rotationAngle?: number
+  timeStamp?: number
   touches?: PointerTouchEvent[]
   changedTouches?: PointerTouchEvent[]
   coalescedSamples?: PointerTouchEvent[]
+  predictedSamples?: PointerTouchEvent[]
   target?: EventTarget | null
 }
 
@@ -291,6 +308,7 @@ export const createInitialEditorState = (
     dragX: 0,
     dragY: 0,
     force: 0,
+    tangentialPressure: 0,
     drewSomething: false,
     isNearRuler: false,
     isDown: false,
@@ -299,10 +317,13 @@ export const createInitialEditorState = (
     altitudeAngle: config.defaultAltitudeAngle,
     altitudeFactor: defaultAltitudeFactor,
     azimuthAngle: 0,
+    twist: 0,
+    hasTwist: false,
     rotation: 0,
     pathRotation: 0,
     stepLength: 0,
     speedFactor: 0,
+    timeStamp: 0,
     canHandleStylusRotation: true,
   },
   lastStep: {
@@ -313,11 +334,13 @@ export const createInitialEditorState = (
     alpha: 0,
     size: 0,
     rotation: 0,
+    aspectRatio: 1,
   },
   lastAdaptedStep: {},
   lastLineAdaptationTimestamp: 0,
   stepsSinceLastLineAdaptation: 0,
   pxDistanceSinceLastLineAdaptation: 0,
+  hasPredictedOverlay: false,
   fullscreenActive: false,
   canvas: {
     width: 0,

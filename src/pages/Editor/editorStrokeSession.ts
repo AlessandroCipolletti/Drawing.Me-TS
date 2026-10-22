@@ -209,7 +209,15 @@ export const createEditorStrokeSession = (deps: StrokeSessionDeps) => {
 
     let stepData: Partial<StrokeSample> = { type: 'end' }
 
-    if (state.currentTouch.x !== state.lastStep.x || state.currentTouch.y !== state.lastStep.y) {
+    const hasMovedFromLastStep =
+      state.currentTouch.x !== state.lastStep.x || state.currentTouch.y !== state.lastStep.y
+    const hasUnfinishedMidSegment =
+      Boolean(state.currentToolProps.completeEndSegment) &&
+      typeof state.lastStep.x === 'number' &&
+      typeof state.lastStep.midX === 'number' &&
+      (state.lastStep.x !== state.lastStep.midX || state.lastStep.y !== state.lastStep.midY)
+
+    if (hasMovedFromLastStep || hasUnfinishedMidSegment) {
       const fullStep = getStepData(state.currentToolProps, state.currentTouch, state.lastStep)
       stepData = fullStep
       const thisStepHasDoneSomething = drawStepEnd(context, fullStep, state.currentToolProps)
@@ -232,15 +240,49 @@ export const createEditorStrokeSession = (deps: StrokeSessionDeps) => {
     }
   }
 
+  const renderPredictedOverlayIfNeeded = (sampleTouchEvent: PointerTouchEvent) => {
+    if (
+      !refs.layerContext ||
+      !refs.contextForLine ||
+      !refs.canvasForLine ||
+      !state.currentTouch.isDown ||
+      state.currentTouch.isNearRuler ||
+      !state.currentToolProps.usePredictedEvents ||
+      state.currentToolGCO === 'destination-out' ||
+      !sampleTouchEvent.predictedSamples?.length
+    ) {
+      return
+    }
+    const savedTouch = { ...state.currentTouch }
+    const savedLastStep = { ...state.lastStep }
+    refs.contextForLine.lastDrawCoordX = refs.layerContext.lastDrawCoordX
+    refs.contextForLine.lastDrawCoordY = refs.layerContext.lastDrawCoordY
+
+    for (const predEvent of sampleTouchEvent.predictedSamples) {
+      updateCurrentTouchData(state, predEvent, Params.eventMove)
+      const predStep = getStepData(state.currentToolProps, state.currentTouch, state.lastStep)
+      drawStepMove(refs.contextForLine, predStep, state.currentToolProps)
+      updateLastStepData(state, predStep)
+    }
+
+    state.currentTouch = savedTouch
+    state.lastStep = savedLastStep
+    state.hasPredictedOverlay = true
+  }
+
   const processSingleStepTouchMove = (sampleTouchEvent: PointerTouchEvent) => {
     if (!refs.layerContext || !refs.contextForLine || !refs.canvasForLine) return
+    if (state.hasPredictedOverlay) {
+      refs.contextForLine.clearRect(0, 0, refs.canvasForLine.width, refs.canvasForLine.height)
+      state.hasPredictedOverlay = false
+    }
     updateCurrentTouchData(state, sampleTouchEvent, Params.eventMove)
 
     if (shouldUseLineAdaptation()) {
       const adaptedStepLine = shouldThisStepMoveAdaptLine(state)
       if (adaptedStepLine) {
         state.lastStep = { ...state.lastAdaptedStep }
-        updateCurrentTouchData(state, sampleTouchEvent, Params.eventMove)
+        updateCurrentTouchData(state, sampleTouchEvent, Params.eventMove, false, false, true)
       }
       handleTouchMoveStep(
         adaptedStepLine ? refs.layerContext : refs.contextForLine,
@@ -252,9 +294,11 @@ export const createEditorStrokeSession = (deps: StrokeSessionDeps) => {
         refs.contextForLine.lastDrawCoordX = refs.layerContext.lastDrawCoordX
         refs.contextForLine.lastDrawCoordY = refs.layerContext.lastDrawCoordY
         refs.contextForLine.clearRect(0, 0, refs.canvasForLine.width, refs.canvasForLine.height)
+        renderPredictedOverlayIfNeeded(sampleTouchEvent)
       }
     } else {
       handleTouchMoveStep(refs.layerContext, true)
+      renderPredictedOverlayIfNeeded(sampleTouchEvent)
     }
   }
 
@@ -263,6 +307,7 @@ export const createEditorStrokeSession = (deps: StrokeSessionDeps) => {
     state.currentTouch = { ...initialCurrentTouch }
     state.lastStep = {}
     state.lastAdaptedStep = {}
+    state.hasPredictedOverlay = false
     updateCurrentTouchType(state, touchEvent)
 
     state.lastLineAdaptationTimestamp = Date.now()
@@ -289,6 +334,10 @@ export const createEditorStrokeSession = (deps: StrokeSessionDeps) => {
 
   const onStepTouchEnd = (e: PointerTouchEvent) => {
     if (!refs.contextForLine || !refs.canvasForLine || !refs.layerContext) return
+    if (state.hasPredictedOverlay) {
+      refs.contextForLine.clearRect(0, 0, refs.canvasForLine.width, refs.canvasForLine.height)
+      state.hasPredictedOverlay = false
+    }
     if (shouldUseLineAdaptation()) {
       refs.contextForLine.clearRect(0, 0, refs.canvasForLine.width, refs.canvasForLine.height)
       if (

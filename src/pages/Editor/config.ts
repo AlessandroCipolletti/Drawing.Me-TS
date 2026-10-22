@@ -18,12 +18,33 @@ export interface ToolConfigProps {
   sizeForceFactor: number
   sizeSpeedFactor: number
   sizeAltitudeFactor: number
+  sizeTangentialFactor: number
   alpha: number
   minAlpha: number
   maxAlpha: number
   alphaForceFactor: number
   alphaSpeedFactor: number
   alphaAltitudeFactor: number
+  alphaTangentialFactor: number
+  forceCurve: number
+  altitudeCurve: number
+  speedSmoothing: number
+  useTimeBasedSpeed: boolean
+  maxVelocityPxPerMs: number
+  stabilization: number
+  aspectRatio: number
+  minAspectRatio: number
+  maxAspectRatio: number
+  aspectAltitudeFactor: number
+  aspectForceFactor: number
+  jitterPosition: number
+  jitterSize: number
+  jitterAlpha: number
+  jitterRotation: number
+  endTaperFactor: number
+  completeEndSegment: boolean
+  preserveStampRemainder: boolean
+  usePredictedEvents: boolean
   sizeToFramesRatio: number
   minPxDistanceBetweenFrames: number
   degradeAlphaBySize: boolean
@@ -32,6 +53,7 @@ export interface ToolConfigProps {
   frameImageName: string | false
   frameImageFile: HTMLImageElement | ImageBitmap | HTMLCanvasElement | null
   handleStylusRotation: boolean
+  handleStylusTwist: boolean
   handlePathRotation: boolean
   globalCompositeOperation?: GlobalCompositeOperation
   color?: string
@@ -55,6 +77,7 @@ export const toolDefaultProps: ToolConfigProps = {
   sizeForceFactor: 0,
   sizeSpeedFactor: 0,
   sizeAltitudeFactor: 0,
+  sizeTangentialFactor: 0,
 
   alpha: 0.3,
   minAlpha: 0.01,
@@ -62,6 +85,30 @@ export const toolDefaultProps: ToolConfigProps = {
   alphaForceFactor: 0,
   alphaSpeedFactor: 0,
   alphaAltitudeFactor: 0,
+  alphaTangentialFactor: 0,
+
+  forceCurve: 1,
+  altitudeCurve: 1,
+  speedSmoothing: 0,
+  useTimeBasedSpeed: false,
+  maxVelocityPxPerMs: 2.5,
+  stabilization: 0,
+
+  aspectRatio: 1,
+  minAspectRatio: 0.2,
+  maxAspectRatio: 5,
+  aspectAltitudeFactor: 0,
+  aspectForceFactor: 0,
+
+  jitterPosition: 0,
+  jitterSize: 0,
+  jitterAlpha: 0,
+  jitterRotation: 0,
+
+  endTaperFactor: 1,
+  completeEndSegment: false,
+  preserveStampRemainder: false,
+  usePredictedEvents: false,
 
   sizeToFramesRatio: 1,
   minPxDistanceBetweenFrames: 1,
@@ -72,6 +119,7 @@ export const toolDefaultProps: ToolConfigProps = {
   frameImageName: false,
   frameImageFile: null,
   handleStylusRotation: false,
+  handleStylusTwist: false,
   handlePathRotation: false,
   cursor: false,
   maxSizeThatNeedsToAdaptLine: 75,
