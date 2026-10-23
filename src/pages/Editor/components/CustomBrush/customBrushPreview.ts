@@ -1,14 +1,20 @@
 import Params from 'main/Params'
 import { getToolPreviewTouchEvents, renderBrushPreview } from 'pages/Editor/brushPreviewPipeline'
 import { applyOneEuroFilter } from 'pages/Editor/editorStepMath'
+import { getStepsDataFromTouchEvents } from 'pages/Editor/editorUtils'
 import { CurrentToolProps, PointerTouchEvent } from 'pages/Editor/editorTypes'
-import { ExtendedCanvasContext, getNewContextForCanvas } from 'utils/canvasUtils'
+import {
+  drawMultipleStepsYielding,
+  ExtendedCanvasContext,
+  getNewContextForCanvas,
+} from 'utils/canvasUtils'
 import { getEventCoordX, getEventCoordY, preventDefault } from 'utils/domUtils'
 import { round } from 'utils/mathUtils'
 import { normalizeTouchOrPointerEvent } from 'utils/pointerEventsUtils/touchEventsUtils'
 
 export interface CustomBrushPreviewController {
   requestRender: () => void
+  requestLatestRender: () => void
   renderNow: () => void
   resetToDefaultSamples: () => void
   getSamples: () => PointerTouchEvent[]
@@ -108,6 +114,10 @@ export const createCustomBrushPreviewController = (
   let hasUserDrawnStroke = false
   let rafPending = false
   let isDrawing = false
+  let previewRendering = false
+  let previewDirty = false
+  let previewToken = 0
+  let previewTimer: ReturnType<typeof setTimeout> | null = null
 
   const syncCanvasDimensionsIfNeeded = () => {
     const rect = canvas.getBoundingClientRect?.()
@@ -139,6 +149,54 @@ export const createCustomBrushPreviewController = (
       rafPending = true
       requestAnimationFrame(renderNow)
     }
+  }
+
+  const cancelPreviewTimer = () => {
+    if (previewTimer !== null) {
+      clearTimeout(previewTimer)
+      previewTimer = null
+    }
+  }
+
+  const paintPreview = async (token: number) => {
+    if (token !== previewToken) return
+    previewDirty = false
+    syncCanvasDimensionsIfNeeded()
+    const toolProps = getToolProps()
+    const effectiveSamples = applyPreviewMotionStabilization(
+      activeSamples,
+      toolProps.stabilization || 0
+    )
+    const effectiveProps: CurrentToolProps = {
+      ...toolProps,
+      globalCompositeOperation:
+        toolProps.globalCompositeOperation === 'destination-out'
+          ? 'destination-out'
+          : 'source-over',
+    }
+    const steps = getStepsDataFromTouchEvents(effectiveSamples, effectiveProps)
+    await drawMultipleStepsYielding(ctx, steps, effectiveProps, () => token === previewToken)
+    if (token !== previewToken) return
+    if (previewDirty) {
+      previewTimer = setTimeout(() => {
+        previewTimer = null
+        void paintPreview(token)
+      }, 0)
+      return
+    }
+    previewRendering = false
+  }
+
+  const requestLatestRender = () => {
+    previewDirty = true
+    if (previewRendering) return
+    previewRendering = true
+    const token = ++previewToken
+    cancelPreviewTimer()
+    previewTimer = setTimeout(() => {
+      previewTimer = null
+      void paintPreview(token)
+    }, 0)
   }
 
   const resetToDefaultSamples = () => {
@@ -228,10 +286,15 @@ export const createCustomBrushPreviewController = (
 
   return {
     requestRender,
+    requestLatestRender,
     renderNow,
     resetToDefaultSamples,
     getSamples: () => activeSamples,
     destroy: () => {
+      previewToken += 1
+      previewRendering = false
+      previewDirty = false
+      cancelPreviewTimer()
       canvas.removeEventListener(Params.eventStart, onPointerStart)
       document.removeEventListener(Params.eventMove, onPointerMove)
       document.removeEventListener(Params.eventEnd, onPointerEnd)

@@ -321,7 +321,7 @@ export const openCustomBrushModal = async (options: OpenCustomBrushModalOptions)
           ;(draft as Record<string, unknown>)[key] = val
           setSliderVisual(entry, ctrl.slider, ctrl.cursor, ctrl.valueLabel, val)
           enforceMinMaxCoherence(entry.key)
-          previewController?.requestRender()
+          previewController?.requestLatestRender()
         },
         sliderMax,
         sliderMin,
@@ -338,7 +338,7 @@ export const openCustomBrushModal = async (options: OpenCustomBrushModalOptions)
         ;(draft as Record<string, unknown>)[key] = next
         ctrl.toggleEl?.classList.toggle('cb-switch--on', next)
         syncConditionalVisibility()
-        previewController?.requestRender()
+        previewController?.requestLatestRender()
       })
     } else if ((entry.kind === 'segmented' || entry.kind === 'select') && ctrl.row) {
       for (const [optVal, btnEl] of Object.entries(ctrl.optionButtons)) {
@@ -350,7 +350,7 @@ export const openCustomBrushModal = async (options: OpenCustomBrushModalOptions)
             b.classList.toggle('cb-segmented__btn--active', k === optVal)
           }
           syncConditionalVisibility()
-          previewController?.requestRender()
+          previewController?.requestLatestRender()
         })
       }
     }
@@ -377,7 +377,7 @@ export const openCustomBrushModal = async (options: OpenCustomBrushModalOptions)
         }
         syncConditionalVisibility()
       }
-      previewController?.requestRender()
+      previewController?.requestLatestRender()
     })
   }
 
@@ -419,7 +419,7 @@ export const openCustomBrushModal = async (options: OpenCustomBrushModalOptions)
     }
     syncFrameTilesAndImageBar()
     syncConditionalVisibility()
-    previewController?.requestRender()
+    previewController?.requestLatestRender()
   }
 
   refs.fileInput?.addEventListener('change', () => {
@@ -460,7 +460,7 @@ export const openCustomBrushModal = async (options: OpenCustomBrushModalOptions)
         if (!draft.frameImageBase64) {
           refs.fileInput?.click()
         } else {
-          previewController?.requestRender()
+          previewController?.requestLatestRender()
         }
         return
       }
@@ -471,7 +471,7 @@ export const openCustomBrushModal = async (options: OpenCustomBrushModalOptions)
       draftImageRevision++
       syncFrameTilesAndImageBar()
       syncConditionalVisibility()
-      previewController?.requestRender()
+      previewController?.requestLatestRender()
     })
   }
 

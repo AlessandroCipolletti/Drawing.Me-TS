@@ -277,6 +277,36 @@ const createDeterministicRng = (x: number, y: number, size: number, alpha: numbe
  */
 const MAX_SPRAY_STAMPS_PER_STEP = 8192
 const MAX_PARTICLE_STAMPS_PER_STEP = 8192
+const STROKE_SLICE_MS = 8
+
+let strokeSliceStart = 0
+let strokePause: (() => Promise<void>) | null = null
+let strokeCancelled = false
+
+const isThenable = <T>(value: T | Promise<T>): value is Promise<T> =>
+  !!value && typeof (value as Promise<T>).then === 'function'
+
+/** Yield the main thread during a modal preview so sliders can keep moving. */
+const pauseIfDue = (): Promise<void> | void => {
+  if (!strokePause || strokeCancelled) return
+  if (performance.now() - strokeSliceStart < STROKE_SLICE_MS) return
+  strokeSliceStart = performance.now()
+  return strokePause()
+}
+
+const eachStamp = (count: number, drawOne: () => void): void | Promise<void> => {
+  let index = 0
+  const next = (): void | Promise<void> => {
+    while (index < count) {
+      if (strokeCancelled) return
+      drawOne()
+      index += 1
+      const pause = pauseIfDue()
+      if (pause) return pause.then(next)
+    }
+  }
+  return next()
+}
 
 /**
  * Spray radius in 1..size, weighted P(i) ∝ size + 10*i (denser toward the edge).
@@ -494,7 +524,7 @@ const drawParticlesSprayCircle = (
   const sinR = hasAnisotropy && rotation ? MATH.sin(rotation) : 0
   const maxR = radiusFactor === 1 ? size : size * radiusFactor
 
-  for (let i = 0; i < count; i++) {
+  return eachStamp(count, () => {
     angle = rng() * 2 * PI
     const baseRadius = sampleSprayBaseRadius(size, rng()) + 2
     radius = radiusFactor === 1 ? baseRadius : baseRadius * radiusFactor
@@ -515,7 +545,7 @@ const drawParticlesSprayCircle = (
         h
       )
     }
-  }
+  })
 }
 
 const drawParticlesCircle = (
@@ -547,7 +577,7 @@ const drawParticlesCircle = (
   const cosR = hasAnisotropy && rotation ? MATH.cos(rotation) : 1
   const sinR = hasAnisotropy && rotation ? MATH.sin(rotation) : 0
 
-  for (let i = 0; i < count; i++) {
+  return eachStamp(count, () => {
     angle = rng() * 2 * PI
     radius = MATH.floor(rng() * (size + 1)) + 1
     width = MATH.floor(rng() * 3) + 1
@@ -566,7 +596,7 @@ const drawParticlesCircle = (
         height
       )
     }
-  }
+  })
 }
 
 const drawParticlesRect = (
@@ -597,7 +627,7 @@ const drawParticlesRect = (
   const cosR = hasAnisotropy && rotation ? MATH.cos(rotation) : 1
   const sinR = hasAnisotropy && rotation ? MATH.sin(rotation) : 0
 
-  for (let i = 0; i < count; i++) {
+  return eachStamp(count, () => {
     if (hasAnisotropy) {
       const lx = MATH.floor(rng() * (size + 1)) - s2
       const ly = (MATH.floor(rng() * (size + 1)) - s2) / aspectRatio
@@ -612,7 +642,7 @@ const drawParticlesRect = (
         1
       )
     }
-  }
+  })
 }
 
 const drawCanvasImage = (
@@ -672,7 +702,7 @@ const toolShapesDrawFns: Record<
     blur?: number,
     aspectRatio?: number,
     tool?: StrokeToolParams
-  ) => void
+  ) => void | Promise<void>
 > = {
   [TOOL_FRAME_CIRCLE]: drawCircle,
   [TOOL_FRAME_SQUARE]: drawSquare,
@@ -817,18 +847,18 @@ const invokeStampDraw = (
     blur?: number,
     aspectRatio?: number,
     tool?: StrokeToolParams
-  ) => void,
+  ) => void | Promise<void>,
   destinationContext: ExtendedCanvasContext,
   stamp: ResolvedStampDrawParams,
   tool: StrokeToolParams
-) => {
+): void | Promise<void> => {
   if (stamp.alpha <= 0 || !Number.isFinite(stamp.x) || !Number.isFinite(stamp.y)) {
     return
   }
   if (stamp.compositeOp) {
     const prevOp = destinationContext.globalCompositeOperation
     destinationContext.globalCompositeOperation = stamp.compositeOp
-    drawShape(
+    const drawn = drawShape(
       destinationContext,
       stamp.x,
       stamp.y,
@@ -840,28 +870,33 @@ const invokeStampDraw = (
       stamp.aspect,
       tool
     )
+    if (isThenable(drawn)) {
+      return drawn.then(() => {
+        destinationContext.globalCompositeOperation = prevOp
+      })
+    }
     destinationContext.globalCompositeOperation = prevOp
-  } else {
-    drawShape(
-      destinationContext,
-      stamp.x,
-      stamp.y,
-      stamp.alpha,
-      stamp.size,
-      stamp.rotation,
-      stamp.color,
-      stamp.blur,
-      stamp.aspect,
-      tool
-    )
+    return
   }
+  return drawShape(
+    destinationContext,
+    stamp.x,
+    stamp.y,
+    stamp.alpha,
+    stamp.size,
+    stamp.rotation,
+    stamp.color,
+    stamp.blur,
+    stamp.aspect,
+    tool
+  )
 }
 
 const drawCurvedFunctionLine = (
   destinationContext: ExtendedCanvasContext,
   stepData: StrokeSample,
   tool: StrokeToolParams
-): boolean => {
+): boolean | Promise<boolean> => {
   const drawShape = tool.frameType ? toolShapesDrawFns[tool.frameType] : undefined
   if (!drawShape) {
     return false
@@ -885,64 +920,90 @@ const drawCurvedFunctionLine = (
     ? Math.min(0.5, Math.max(0.1, effectiveMinDist / 2))
     : 0.5
 
-  let i = 0
   let drewSomething = false
   let evaluatedEnd = false
-  while (i <= stepLength) {
-    if (i === stepLength) evaluatedEnd = true
-    const t = getPerc(i, stepLength) / 100
-    const frameX = round(quadraticBezierValue(t, stepData.oldMidX, stepData.oldX, stepData.midX), 1)
-    const frameY = round(quadraticBezierValue(t, stepData.oldMidY, stepData.oldY, stepData.midY), 1)
-    const frameSize = round(stepData.oldSize + deltaSize * t, 1)
-    const pxDistanceBetweenFrames = isFixedSpacing
-      ? fixedSpacingPx
-      : round(Math.max(minPxDist, frameSize * sizeRatio), 1)
-    if (
-      distanceBetweenTwoPointsGreaterThan(
-        destinationContext.lastDrawCoordX,
-        destinationContext.lastDrawCoordY,
-        frameX,
-        frameY,
-        pxDistanceBetweenFrames
-      )
-    ) {
-      const frameAlpha = round(stepData.oldAlpha + deltaAlpha * t, 4)
-      const frameRotation = stepData.oldRotation + deltaRotation * t
-      const frameAspect = round(oldAspect + deltaAspect * t, 3)
-      const stamp = resolveStampDrawParams(
-        tool,
-        frameX,
-        frameY,
-        frameAlpha,
-        frameSize,
-        frameRotation,
-        frameAspect,
-        t
-      )
-      invokeStampDraw(drawShape, destinationContext, stamp, tool)
-      destinationContext.lastDrawCoordX = frameX
-      destinationContext.lastDrawCoordY = frameY
-      drewSomething = true
+
+  const bump = (cursor: number) => {
+    let next = cursor + stepInc
+    if (tool.preserveStampRemainder && !evaluatedEnd && next > stepLength && stepLength > 0) {
+      next = stepLength
     }
-    i += stepInc
-    if (tool.preserveStampRemainder && !evaluatedEnd && i > stepLength && stepLength > 0) {
-      i = stepLength
-    }
+    return next
   }
 
-  return drewSomething
+  const run = (cursor: number): boolean | Promise<boolean> => {
+    let i = cursor
+    while (i <= stepLength) {
+      if (strokeCancelled) return drewSomething
+      if (i === stepLength) evaluatedEnd = true
+      const t = getPerc(i, stepLength) / 100
+      const frameX = round(
+        quadraticBezierValue(t, stepData.oldMidX, stepData.oldX, stepData.midX),
+        1
+      )
+      const frameY = round(
+        quadraticBezierValue(t, stepData.oldMidY, stepData.oldY, stepData.midY),
+        1
+      )
+      const frameSize = round(stepData.oldSize + deltaSize * t, 1)
+      const pxDistanceBetweenFrames = isFixedSpacing
+        ? fixedSpacingPx
+        : round(Math.max(minPxDist, frameSize * sizeRatio), 1)
+      if (
+        distanceBetweenTwoPointsGreaterThan(
+          destinationContext.lastDrawCoordX,
+          destinationContext.lastDrawCoordY,
+          frameX,
+          frameY,
+          pxDistanceBetweenFrames
+        )
+      ) {
+        const frameAlpha = round(stepData.oldAlpha + deltaAlpha * t, 4)
+        const frameRotation = stepData.oldRotation + deltaRotation * t
+        const frameAspect = round(oldAspect + deltaAspect * t, 3)
+        const stamp = resolveStampDrawParams(
+          tool,
+          frameX,
+          frameY,
+          frameAlpha,
+          frameSize,
+          frameRotation,
+          frameAspect,
+          t
+        )
+        const pending = invokeStampDraw(drawShape, destinationContext, stamp, tool)
+        destinationContext.lastDrawCoordX = frameX
+        destinationContext.lastDrawCoordY = frameY
+        drewSomething = true
+        const next = bump(i)
+        const continueRun = (): boolean | Promise<boolean> => {
+          if (strokeCancelled) return drewSomething
+          const pause = pauseIfDue()
+          if (pause) return pause.then(() => run(next))
+          return run(next)
+        }
+        if (isThenable(pending)) return pending.then(continueRun)
+        const pause = pauseIfDue()
+        if (pause) return pause.then(() => run(next))
+      }
+      i = bump(i)
+    }
+    return drewSomething
+  }
+
+  return run(0)
 }
 
 /**
  * Single agnostic numeric stroke renderer used for both local pointer input
  * and remote PeerJS coworker strokes.
  */
-export const drawStrokeSample = (
+const drawStrokeSamplePausable = (
   destinationContext: ExtendedCanvasContext,
   sample: StrokeSample,
   rawTool: StrokeToolParams,
   applyCompositeOperation = false
-): boolean => {
+): boolean | Promise<boolean> => {
   const tool = normalizeToolDrawParams(rawTool)
   if (applyCompositeOperation && tool.globalCompositeOperation) {
     destinationContext.globalCompositeOperation = tool.globalCompositeOperation
@@ -963,13 +1024,28 @@ export const drawStrokeSample = (
       sample.rotation,
       sample.aspectRatio ?? 1
     )
-    invokeStampDraw(toolShapesDrawFns[tool.frameType], destinationContext, stamp, tool)
+    const pending = invokeStampDraw(
+      toolShapesDrawFns[tool.frameType],
+      destinationContext,
+      stamp,
+      tool
+    )
     destinationContext.lastDrawCoordX = sample.x
     destinationContext.lastDrawCoordY = sample.y
+    if (isThenable(pending)) return pending.then(() => true)
     return true
   }
   return drawCurvedFunctionLine(destinationContext, sample, tool)
 }
+
+/** Live and coworker strokes stay synchronous. The modal preview is the pausable path. */
+export const drawStrokeSample = (
+  destinationContext: ExtendedCanvasContext,
+  sample: StrokeSample,
+  rawTool: StrokeToolParams,
+  applyCompositeOperation = false
+): boolean =>
+  drawStrokeSamplePausable(destinationContext, sample, rawTool, applyCompositeOperation) as boolean
 
 export const fillCanvasWithImage = (
   destinationContext: CanvasRenderingContext2D,
@@ -1027,11 +1103,7 @@ export const setImageShapeIfNeeded = (
   }
 }
 
-export const drawMultipleSteps = (
-  destinationContext: ExtendedCanvasContext,
-  steps: StrokeSample[],
-  tool: StrokeToolParams
-) => {
+const beginStepBatch = (destinationContext: ExtendedCanvasContext, tool: StrokeToolParams) => {
   if (tool.frameImageName && tool.frameImageFile) {
     setImageShapeIfNeeded(destinationContext, tool.frameImageFile, tool.frameImageName, tool.color)
   }
@@ -1054,9 +1126,46 @@ export const drawMultipleSteps = (
       destinationContext.canvas.height
     )
   }
+}
 
+export const drawMultipleSteps = (
+  destinationContext: ExtendedCanvasContext,
+  steps: StrokeSample[],
+  tool: StrokeToolParams
+) => {
+  beginStepBatch(destinationContext, tool)
   for (const step of steps) {
     drawStrokeSample(destinationContext, step, tool, true)
+  }
+}
+
+/** Modal preview draw. Yields between slices so param sliders stay responsive. */
+export const drawMultipleStepsYielding = async (
+  destinationContext: ExtendedCanvasContext,
+  steps: StrokeSample[],
+  tool: StrokeToolParams,
+  isCurrent: () => boolean
+) => {
+  beginStepBatch(destinationContext, tool)
+  strokeCancelled = false
+  strokeSliceStart = performance.now()
+  strokePause = () =>
+    new Promise((resolve) => {
+      setTimeout(() => {
+        if (!isCurrent()) strokeCancelled = true
+        resolve()
+      }, 0)
+    })
+  try {
+    for (const step of steps) {
+      if (strokeCancelled || !isCurrent()) return
+      const drawn = drawStrokeSamplePausable(destinationContext, step, tool, true)
+      if (isThenable(drawn)) await drawn
+      if (strokeCancelled || !isCurrent()) return
+    }
+  } finally {
+    strokePause = null
+    strokeCancelled = false
   }
 }
 

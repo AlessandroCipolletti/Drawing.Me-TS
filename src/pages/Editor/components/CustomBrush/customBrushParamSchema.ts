@@ -84,7 +84,7 @@ export const PARAM_SECTIONS: ParamSectionMeta[] = [
   { id: 'rotation', label: 'Rotation & Stylus' },
   { id: 'predicted', label: 'Prediction' },
   { id: 'adapt', label: 'Line Adapt' },
-  { id: 'advanced', label: 'Blend', collapsible: true },
+  { id: 'advanced', label: 'Blend' },
 ]
 
 export const CUSTOM_BRUSH_PARAM_SCHEMA: CustomBrushParamSchemaEntry[] = [
