@@ -36,8 +36,6 @@ import {
 
 export { getStepData }
 
-let currentCoworkingToolName = ''
-let currentCoworkingToolVersion: number | string | false | undefined = -1
 let currentCoworkingToolProps: CurrentToolProps = {
   ...toolDefaultProps,
   color: '',
@@ -47,8 +45,6 @@ let currentCoworkingToolProps: CurrentToolProps = {
 export const initEditorUtils = (_width?: number, _height?: number) => {}
 
 export const cleanEditorUtils = () => {
-  currentCoworkingToolName = ''
-  currentCoworkingToolVersion = -1
   currentCoworkingToolProps = {
     ...toolDefaultProps,
     color: '',
@@ -81,31 +77,19 @@ export const drawMultipleCoworkingSteps = async (
     return
   }
 
-  if (currentCoworkingToolName !== tool.name || currentCoworkingToolVersion !== tool.version) {
-    currentCoworkingToolName = tool.name
-    currentCoworkingToolVersion = tool.version
-    const resolvedVersion =
-      typeof tool.version === 'number' || typeof tool.version === 'string'
-        ? Number(tool.version)
-        : false
-    currentCoworkingToolProps = {
-      ...getOneToolVersionCompleteProps(tool.name, resolvedVersion, {
-        color: tool.color || '',
-        globalCompositeOperation: tool.globalCompositeOperation,
-        frameImageName: tool.frameImageName,
-        ...tool.customProps,
-      }),
-      color: tool.color || '',
-      randomColor: false,
-    }
-  } else {
-    currentCoworkingToolProps = {
-      ...currentCoworkingToolProps,
+  const resolvedVersion =
+    typeof tool.version === 'number' || typeof tool.version === 'string'
+      ? Number(tool.version)
+      : false
+  currentCoworkingToolProps = {
+    ...getOneToolVersionCompleteProps(tool.name, resolvedVersion, {
       color: tool.color || '',
       globalCompositeOperation: tool.globalCompositeOperation,
-      frameImageName: tool.frameImageName ?? currentCoworkingToolProps.frameImageName,
+      frameImageName: tool.frameImageName,
       ...tool.customProps,
-    }
+    }),
+    color: tool.color || '',
+    randomColor: false,
   }
 
   if (currentCoworkingToolProps.frameImageName && currentCoworkingToolProps.frameImageFile) {
@@ -132,7 +116,8 @@ const getTouchEventData = (
   touchEvent: PointerTouchEvent,
   lastStep: StepLastState,
   offsetX = 0,
-  offsetY = 0
+  offsetY = 0,
+  tool?: StepToolParams
 ): StepTouchData => {
   const x = getEventCoordX(touchEvent, offsetX)
   const y = getEventCoordY(touchEvent, offsetY)
@@ -191,7 +176,12 @@ const getTouchEventData = (
     altitudeAngle,
     config.maxSupportedStylusAltitudeFactor
   )
-  const canHandleStylusRotation = altitudeFactor > config.minAltitudeFactorToHandleRotation
+  const minAltForRot =
+    typeof tool?.minAltitudeFactorToHandleRotation === 'number' &&
+    !Number.isNaN(tool.minAltitudeFactorToHandleRotation)
+      ? tool.minAltitudeFactorToHandleRotation
+      : config.minAltitudeFactorToHandleRotation
+  const canHandleStylusRotation = altitudeFactor > minAltForRot
 
   return {
     type: touchEvent.type,
@@ -223,7 +213,7 @@ export const getStepsDataFromTouchEvents = (
   const stepsData: StrokeSample[] = []
 
   for (const touchEvent of touchEvents) {
-    const touchData = getTouchEventData(touchEvent, lastStep, offsetX, offsetY)
+    const touchData = getTouchEventData(touchEvent, lastStep, offsetX, offsetY, tool)
     const stepData = getStepData(tool, touchData, lastStep)
     stepsData.push(stepData)
 
@@ -486,8 +476,12 @@ export const updateCurrentTouchData = (
     } else {
       currentTouch.altitudeFactor = rawAltitudeFactor
     }
-    currentTouch.canHandleStylusRotation =
-      currentTouch.altitudeFactor > config.minAltitudeFactorToHandleRotation
+    const minAltForRot =
+      typeof state.currentToolProps?.minAltitudeFactorToHandleRotation === 'number' &&
+      !Number.isNaN(state.currentToolProps.minAltitudeFactorToHandleRotation)
+        ? state.currentToolProps.minAltitudeFactorToHandleRotation
+        : config.minAltitudeFactorToHandleRotation
+    currentTouch.canHandleStylusRotation = currentTouch.altitudeFactor > minAltForRot
   }
 }
 

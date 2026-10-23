@@ -1,3 +1,5 @@
+export type StampSpacingMode = 'bySize' | 'fixed'
+
 export type ToolCustomPropsMap = {
   size?: number
   alpha?: number
@@ -28,6 +30,8 @@ export interface ToolConfigProps {
   alphaTangentialFactor: number
   forceCurve: number
   altitudeCurve: number
+  /** Gamma response curve (0..N, default 1) applied to pointer speedFactor when speed factors are non-zero. */
+  speedCurve: number
   speedSmoothing: number
   useTimeBasedSpeed: boolean
   maxVelocityPxPerMs: number
@@ -41,12 +45,48 @@ export interface ToolConfigProps {
   jitterSize: number
   jitterAlpha: number
   jitterRotation: number
+  /** Deterministic per-stamp relative aspect ratio jitter factor (0..N, default 0). */
+  jitterAspectRatio: number
+  /** Start-of-stroke taper factor (0..1, default 0 = no start taper). */
+  startTaperFactor: number
   endTaperFactor: number
+  /** Fractional size reduction at full taper (0..1, default 0.3). */
+  endTaperSizeAmount: number
+  /** Gamma curve applied to taper alpha interpolation (0..N, default 1 = linear). */
+  endTaperAlphaCurve: number
   completeEndSegment: boolean
   preserveStampRemainder: boolean
   usePredictedEvents: boolean
+  /** Opacity multiplier (0..1, default 1) for predicted-events overlay only. */
+  predictedEventsBlend: number
+  /** Stamp spacing mode: 'bySize' uses size * sizeToFramesRatio; 'fixed' uses stampSpacingFixedPx. */
+  stampSpacingMode: StampSpacingMode
+  /** Fixed pixel spacing between stamps when stampSpacingMode is 'fixed' (default 1). */
+  stampSpacingFixedPx: number
   sizeToFramesRatio: number
   minPxDistanceBetweenFrames: number
+  /** Soft shadow blur radius in px for circle stamps (0..32, default 0). */
+  stampBlur: number
+  /** Per-stamp X scale multiplier (default 1). */
+  stampScaleX: number
+  /** Per-stamp Y scale multiplier (default 1). */
+  stampScaleY: number
+  /** Per-stamp alpha flow multiplier (0..1, default 1). */
+  flow: number
+  /** Along-segment alpha buildup factor from t=0 to t=1 (0..1, default 0 = uniform). */
+  buildup: number
+  /** Density multiplier for particle stamps (default 1). */
+  particleDensity: number
+  /** Density multiplier for spray stamps (default 1). */
+  sprayDensity: number
+  /** Radius multiplier for spray stamps (default 1). */
+  sprayRadiusFactor: number
+  /** Deterministic per-stamp hue jitter in degrees (0..180, default 0). */
+  colorJitterHue: number
+  /** Deterministic per-stamp saturation jitter factor (0..1, default 0). */
+  colorJitterSat: number
+  /** Deterministic per-stamp lightness jitter factor (0..1, default 0). */
+  colorJitterLight: number
   degradeAlphaBySize: boolean
   showVersionPreview: boolean
   frameType: string | false
@@ -55,7 +95,17 @@ export interface ToolConfigProps {
   handleStylusRotation: boolean
   handleStylusTwist: boolean
   handlePathRotation: boolean
+  /** Weight (0..1, default 1) applied to path direction rotation when handlePathRotation is true. */
+  pathRotationWeight: number
+  /** Smoothing factor (0..1, default 0) applied to shortest-arc step rotation deltas. */
+  rotationSmoothing: number
+  /** Static rotation offset in radians added to each stamp before jitter (default 0). */
+  stampRotationOffset: number
+  /** Minimum stylus altitudeFactor required to track azimuth rotation (0..1, default 0.3). */
+  minAltitudeFactorToHandleRotation: number
   globalCompositeOperation?: GlobalCompositeOperation
+  /** Optional per-stamp composite operation override (default undefined = use stroke GCO). */
+  stampCompositeOperation?: GlobalCompositeOperation
   color?: string
   cursor: boolean
   maxSizeThatNeedsToAdaptLine: number
@@ -89,6 +139,7 @@ export const toolDefaultProps: ToolConfigProps = {
 
   forceCurve: 1,
   altitudeCurve: 1,
+  speedCurve: 1,
   speedSmoothing: 0,
   useTimeBasedSpeed: false,
   maxVelocityPxPerMs: 2.5,
@@ -104,14 +155,34 @@ export const toolDefaultProps: ToolConfigProps = {
   jitterSize: 0,
   jitterAlpha: 0,
   jitterRotation: 0,
+  jitterAspectRatio: 0,
 
+  startTaperFactor: 0,
   endTaperFactor: 1,
+  endTaperSizeAmount: 0.3,
+  endTaperAlphaCurve: 1,
   completeEndSegment: false,
   preserveStampRemainder: false,
   usePredictedEvents: false,
+  predictedEventsBlend: 1,
 
+  stampSpacingMode: 'bySize',
+  stampSpacingFixedPx: 1,
   sizeToFramesRatio: 1,
   minPxDistanceBetweenFrames: 1,
+
+  stampBlur: 0,
+  stampScaleX: 1,
+  stampScaleY: 1,
+  flow: 1,
+  buildup: 0,
+  particleDensity: 1,
+  sprayDensity: 1,
+  sprayRadiusFactor: 1,
+
+  colorJitterHue: 0,
+  colorJitterSat: 0,
+  colorJitterLight: 0,
 
   degradeAlphaBySize: false,
   showVersionPreview: false,
@@ -121,6 +192,11 @@ export const toolDefaultProps: ToolConfigProps = {
   handleStylusRotation: false,
   handleStylusTwist: false,
   handlePathRotation: false,
+  pathRotationWeight: 1,
+  rotationSmoothing: 0,
+  stampRotationOffset: 0,
+  minAltitudeFactorToHandleRotation: 0.3,
+  stampCompositeOperation: undefined,
   cursor: false,
   maxSizeThatNeedsToAdaptLine: 75,
   pxToAdaptLine: 15,

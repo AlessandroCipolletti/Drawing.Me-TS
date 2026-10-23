@@ -5,8 +5,14 @@ import {
   distanceBetweenTwoPointsGreaterThan,
   getPerc,
 } from './mathUtils'
-import { colorStringToRgb, compareRgbColorsWithinTollerance, RgbaColor } from './colorsUtils'
+import {
+  colorStringToRgb,
+  compareRgbColorsWithinTollerance,
+  applyDeterministicColorJitter,
+  RgbaColor,
+} from './colorsUtils'
 import { deepCopy, waitWorkerMessage } from './jsUtils'
+import type { StampSpacingMode, ToolConfigProps } from 'pages/Editor/config'
 
 import {
   TOOL_FRAME_CIRCLE,
@@ -56,6 +62,9 @@ export interface StrokeToolParams {
   frameImageFile?: HTMLImageElement | ImageBitmap | HTMLCanvasElement | null
   color?: string
   globalCompositeOperation?: GlobalCompositeOperation
+  stampCompositeOperation?: GlobalCompositeOperation
+  stampSpacingMode?: StampSpacingMode
+  stampSpacingFixedPx?: number
   minPxDistanceBetweenFrames: number
   sizeToFramesRatio: number
   size?: number
@@ -63,7 +72,155 @@ export interface StrokeToolParams {
   jitterSize?: number
   jitterAlpha?: number
   jitterRotation?: number
+  jitterAspectRatio?: number
+  stampRotationOffset?: number
+  stampBlur?: number
+  stampScaleX?: number
+  stampScaleY?: number
+  flow?: number
+  buildup?: number
+  particleDensity?: number
+  sprayDensity?: number
+  sprayRadiusFactor?: number
+  colorJitterHue?: number
+  colorJitterSat?: number
+  colorJitterLight?: number
   preserveStampRemainder?: boolean
+}
+
+const VALID_COMPOSITE_OPERATIONS = new Set<GlobalCompositeOperation>([
+  'source-over',
+  'source-in',
+  'source-out',
+  'source-atop',
+  'destination-over',
+  'destination-in',
+  'destination-out',
+  'destination-atop',
+  'lighter',
+  'copy',
+  'xor',
+  'multiply',
+  'screen',
+  'overlay',
+  'darken',
+  'lighten',
+  'color-dodge',
+  'color-burn',
+  'hard-light',
+  'soft-light',
+  'difference',
+  'exclusion',
+  'hue',
+  'saturation',
+  'color',
+  'luminosity',
+])
+
+const finiteOr = (val: unknown, fallback: number): number =>
+  typeof val === 'number' && Number.isFinite(val) ? val : fallback
+
+const clampNum = (val: number, min: number, max: number): number =>
+  val < min ? min : val > max ? max : val
+
+export const sanitizeToolCustomProps = (raw: unknown): Record<string, unknown> => {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return {}
+  }
+  const safe: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (key === '__proto__' || key === 'constructor' || key === 'prototype') {
+      continue
+    }
+    if (typeof value === 'number' && !Number.isFinite(value)) {
+      continue
+    }
+    safe[key] = value
+  }
+  return safe
+}
+
+export const normalizeToolDrawParams = <T extends Partial<ToolConfigProps> & StrokeToolParams>(
+  tool: T
+): T => {
+  const mode: StampSpacingMode = tool.stampSpacingMode === 'fixed' ? 'fixed' : 'bySize'
+  const validStampGCO: GlobalCompositeOperation | undefined =
+    typeof tool.stampCompositeOperation === 'string' &&
+    VALID_COMPOSITE_OPERATIONS.has(tool.stampCompositeOperation as GlobalCompositeOperation)
+      ? (tool.stampCompositeOperation as GlobalCompositeOperation)
+      : undefined
+  const rawScaleX = finiteOr(tool.stampScaleX, 1)
+  const rawScaleY = finiteOr(tool.stampScaleY, 1)
+  const rawSprayRad = finiteOr(tool.sprayRadiusFactor, 1)
+
+  const normalized: T = {
+    ...tool,
+    minPxDistanceBetweenFrames: Math.max(0.05, finiteOr(tool.minPxDistanceBetweenFrames, 1)),
+    sizeToFramesRatio: Math.max(0.001, finiteOr(tool.sizeToFramesRatio, 1)),
+    stampSpacingMode: mode,
+    stampSpacingFixedPx: Math.max(0.1, finiteOr(tool.stampSpacingFixedPx, 1)),
+    jitterPosition: Math.max(0, finiteOr(tool.jitterPosition, 0)),
+    jitterSize: Math.max(0, finiteOr(tool.jitterSize, 0)),
+    jitterAlpha: Math.max(0, finiteOr(tool.jitterAlpha, 0)),
+    jitterRotation: Math.max(0, finiteOr(tool.jitterRotation, 0)),
+    jitterAspectRatio: Math.max(0, finiteOr(tool.jitterAspectRatio, 0)),
+    stampRotationOffset: finiteOr(tool.stampRotationOffset, 0),
+    stampBlur: clampNum(finiteOr(tool.stampBlur, 0), 0, 32),
+    stampScaleX: clampNum(rawScaleX > 0 ? rawScaleX : 1, 0.05, 20),
+    stampScaleY: clampNum(rawScaleY > 0 ? rawScaleY : 1, 0.05, 20),
+    flow: clampNum(finiteOr(tool.flow, 1), 0, 1),
+    buildup: clampNum(finiteOr(tool.buildup, 0), 0, 1),
+    particleDensity: clampNum(finiteOr(tool.particleDensity, 1), 0, 10),
+    sprayDensity: clampNum(finiteOr(tool.sprayDensity, 1), 0, 10),
+    sprayRadiusFactor: clampNum(rawSprayRad > 0 ? rawSprayRad : 1, 0.05, 10),
+    colorJitterHue: clampNum(finiteOr(tool.colorJitterHue, 0), 0, 180),
+    colorJitterSat: clampNum(finiteOr(tool.colorJitterSat, 0), 0, 1),
+    colorJitterLight: clampNum(finiteOr(tool.colorJitterLight, 0), 0, 1),
+    stampCompositeOperation: validStampGCO,
+  }
+
+  if ('pathRotationWeight' in tool) {
+    normalized.pathRotationWeight = clampNum(finiteOr(tool.pathRotationWeight, 1), 0, 1)
+  }
+  if ('rotationSmoothing' in tool) {
+    normalized.rotationSmoothing = clampNum(finiteOr(tool.rotationSmoothing, 0), 0, 1)
+  }
+  if ('minAltitudeFactorToHandleRotation' in tool) {
+    normalized.minAltitudeFactorToHandleRotation = clampNum(
+      finiteOr(tool.minAltitudeFactorToHandleRotation, 0.3),
+      0,
+      1
+    )
+  }
+  if ('startTaperFactor' in tool) {
+    normalized.startTaperFactor = clampNum(finiteOr(tool.startTaperFactor, 0), 0, 1)
+  }
+  if ('endTaperFactor' in tool) {
+    normalized.endTaperFactor = clampNum(finiteOr(tool.endTaperFactor, 1), 0, 1)
+  }
+  if ('endTaperSizeAmount' in tool) {
+    normalized.endTaperSizeAmount = clampNum(finiteOr(tool.endTaperSizeAmount, 0.3), 0, 1)
+  }
+  if ('endTaperAlphaCurve' in tool) {
+    const c = finiteOr(tool.endTaperAlphaCurve, 1)
+    normalized.endTaperAlphaCurve = c > 0 ? c : 1
+  }
+  if ('speedCurve' in tool) {
+    const c = finiteOr(tool.speedCurve, 1)
+    normalized.speedCurve = c > 0 ? c : 1
+  }
+  if ('predictedEventsBlend' in tool) {
+    normalized.predictedEventsBlend = clampNum(finiteOr(tool.predictedEventsBlend, 1), 0, 1)
+  }
+  if ('size' in tool && typeof tool.size !== 'undefined') {
+    const s = finiteOr(tool.size, 25)
+    normalized.size = s > 0 ? s : 25
+  }
+  if ('alpha' in tool && typeof tool.alpha !== 'undefined') {
+    normalized.alpha = clampNum(finiteOr(tool.alpha, 0.3), 0, 1)
+  }
+
+  return normalized
 }
 
 export interface ExtendedCanvasContext extends CanvasRenderingContext2D {
@@ -173,6 +330,10 @@ const drawCircle = (
     destinationContext.arc(x, y, size / 2, 0, 2 * PI, true)
   }
   destinationContext.fill()
+  if (blur) {
+    destinationContext.shadowColor = ''
+    destinationContext.shadowBlur = 0
+  }
 }
 
 const drawParticlesSprayCircle = (
@@ -184,7 +345,8 @@ const drawParticlesSprayCircle = (
   rotation: number,
   color = '#000000',
   _blur = 0,
-  aspectRatio = 1
+  aspectRatio = 1,
+  tool?: StrokeToolParams
 ) => {
   destinationContext.lastDrawCoordX = x
   destinationContext.lastDrawCoordY = y
@@ -200,17 +362,21 @@ const drawParticlesSprayCircle = (
   const variability = 2
   const rng = createDeterministicRng(x, y, size, alpha)
 
-  const rawCount = size * 4
+  const density = tool?.sprayDensity ?? 1
+  const radiusFactor = tool?.sprayRadiusFactor ?? 1
+  const rawCount = density === 1 ? size * 4 : Math.max(0, round(size * 4 * density, 0))
   const count = Math.min(rawCount, MAX_SPRAY_STAMPS_PER_STEP)
   const stampScale = rawCount > count ? MATH.sqrt(rawCount / count) : 1
   const hasAnisotropy = MATH.abs(aspectRatio - 1) > 0.001
   const cosR = hasAnisotropy && rotation ? MATH.cos(rotation) : 1
   const sinR = hasAnisotropy && rotation ? MATH.sin(rotation) : 0
+  const maxR = radiusFactor === 1 ? size : size * radiusFactor
 
   for (let i = 0; i < count; i++) {
     angle = rng() * 2 * PI
-    radius = sizeList[MATH.floor(rng() * sizeListL)] + 2
-    destinationContext.globalAlpha = Math.max(alpha * (1 - radius / size), 0)
+    const baseRadius = sizeList[MATH.floor(rng() * sizeListL)] + 2
+    radius = radiusFactor === 1 ? baseRadius : baseRadius * radiusFactor
+    destinationContext.globalAlpha = Math.max(alpha * (1 - radius / maxR), 0)
     const w = round((MATH.floor(rng() * (variability + 1)) + 1) * stampScale, 1)
     const h = round((MATH.floor(rng() * (variability + 1)) + 1) * stampScale, 1)
     if (hasAnisotropy) {
@@ -239,7 +405,8 @@ const drawParticlesCircle = (
   rotation: number,
   color = '#000000',
   _blur = 0,
-  aspectRatio = 1
+  aspectRatio = 1,
+  tool?: StrokeToolParams
 ) => {
   destinationContext.lastDrawCoordX = x
   destinationContext.lastDrawCoordY = y
@@ -251,7 +418,8 @@ const drawParticlesCircle = (
   let width: number
   const rng = createDeterministicRng(x, y, size, alpha)
 
-  const rawCount = size * size
+  const density = tool?.particleDensity ?? 1
+  const rawCount = density === 1 ? size * size : Math.max(0, round(size * size * density, 0))
   const count = Math.min(rawCount, MAX_PARTICLE_STAMPS_PER_STEP)
   const stampScale = rawCount > count ? MATH.sqrt(rawCount / count) : 1
   const hasAnisotropy = MATH.abs(aspectRatio - 1) > 0.001
@@ -294,7 +462,8 @@ const drawParticlesRect = (
   rotation: number,
   color = '#000000',
   _blur = 0,
-  aspectRatio = 1
+  aspectRatio = 1,
+  tool?: StrokeToolParams
 ) => {
   destinationContext.lastDrawCoordX = x
   destinationContext.lastDrawCoordY = y
@@ -304,7 +473,9 @@ const drawParticlesRect = (
   const s2 = size / 2
   const rng = createDeterministicRng(x, y, size, alpha)
 
-  const rawCount = size * (size + 1)
+  const density = tool?.particleDensity ?? 1
+  const rawCount =
+    density === 1 ? size * (size + 1) : Math.max(0, round(size * (size + 1) * density, 0))
   const count = Math.min(rawCount, MAX_PARTICLE_STAMPS_PER_STEP)
   const dotSize = rawCount > count ? round(MATH.sqrt(rawCount / count), 1) : 1
   const hasAnisotropy = MATH.abs(aspectRatio - 1) > 0.001
@@ -336,10 +507,19 @@ const drawCanvasImage = (
   alpha: number,
   size: number,
   rotation: number,
-  _color?: string,
+  color?: string,
   _blur?: number,
-  aspectRatio = 1
+  aspectRatio = 1,
+  tool?: StrokeToolParams
 ) => {
+  if (
+    color &&
+    tool?.frameImageFile &&
+    tool?.frameImageName &&
+    destinationContext.toolImageShape.color !== color
+  ) {
+    setImageShapeIfNeeded(destinationContext, tool.frameImageFile, tool.frameImageName, color)
+  }
   const image = destinationContext.toolImageShape.canvas
   destinationContext.lastDrawCoordX = x
   destinationContext.lastDrawCoordY = y
@@ -375,7 +555,8 @@ const toolShapesDrawFns: Record<
     rotation: number,
     color?: string,
     blur?: number,
-    aspectRatio?: number
+    aspectRatio?: number,
+    tool?: StrokeToolParams
   ) => void
 > = {
   [TOOL_FRAME_CIRCLE]: drawCircle,
@@ -391,21 +572,31 @@ const applyDeterministicStampJitter = (
   y: number,
   alpha: number,
   size: number,
-  rotation: number
-): [number, number, number, number, number] => {
+  rotation: number,
+  aspectRatio = 1
+): [number, number, number, number, number, number, string | undefined] => {
   const jPos = tool.jitterPosition || 0
   const jSize = tool.jitterSize || 0
   const jAlpha = tool.jitterAlpha || 0
   const jRot = tool.jitterRotation || 0
-  if (jPos === 0 && jSize === 0 && jAlpha === 0 && jRot === 0) {
-    return [x, y, alpha, size, rotation]
+  const jAspect = tool.jitterAspectRatio || 0
+  const rotOffset = tool.stampRotationOffset || 0
+  const cHue = tool.colorJitterHue || 0
+  const cSat = tool.colorJitterSat || 0
+  const cLight = tool.colorJitterLight || 0
+  const hasColorJitter = Boolean(tool.color && (cHue !== 0 || cSat !== 0 || cLight !== 0))
+
+  let drawRotation = rotOffset !== 0 ? round(rotation + rotOffset, 4) : rotation
+  if (jPos === 0 && jSize === 0 && jAlpha === 0 && jRot === 0 && jAspect === 0 && !hasColorJitter) {
+    return [x, y, alpha, size, drawRotation, aspectRatio, tool.color]
   }
   const rng = createDeterministicRng(x, y, size, alpha)
   let drawX = x
   let drawY = y
   let drawAlpha = alpha
   let drawSize = size
-  let drawRotation = rotation
+  let drawAspect = aspectRatio
+  let drawColor = tool.color
 
   if (jPos !== 0) {
     const dist = (rng() - 0.5) * 2 * jPos * size
@@ -420,9 +611,133 @@ const applyDeterministicStampJitter = (
     drawAlpha = Math.max(0.001, Math.min(1, round(alpha * (1 + (rng() - 0.5) * 2 * jAlpha), 4)))
   }
   if (jRot !== 0) {
-    drawRotation = round(rotation + (rng() - 0.5) * 2 * jRot, 4)
+    drawRotation = round(drawRotation + (rng() - 0.5) * 2 * jRot, 4)
   }
-  return [drawX, drawY, drawAlpha, drawSize, drawRotation]
+  if (jAspect !== 0) {
+    drawAspect = Math.max(0.1, round(aspectRatio * (1 + (rng() - 0.5) * 2 * jAspect), 3))
+  }
+  if (hasColorJitter) {
+    drawColor = applyDeterministicColorJitter(drawColor, cHue, cSat, cLight, rng(), rng(), rng())
+  }
+  return [drawX, drawY, drawAlpha, drawSize, drawRotation, drawAspect, drawColor]
+}
+
+interface ResolvedStampDrawParams {
+  x: number
+  y: number
+  alpha: number
+  size: number
+  rotation: number
+  aspect: number
+  color: string | undefined
+  blur: number
+  compositeOp: GlobalCompositeOperation | undefined
+}
+
+const resolveStampDrawParams = (
+  tool: StrokeToolParams,
+  frameX: number,
+  frameY: number,
+  frameAlpha: number,
+  frameSize: number,
+  frameRotation: number,
+  frameAspect: number,
+  segmentT?: number
+): ResolvedStampDrawParams => {
+  const [drawX, drawY, jitteredAlpha, jitteredSize, drawRotation, jitteredAspect, drawColor] =
+    applyDeterministicStampJitter(
+      tool,
+      frameX,
+      frameY,
+      frameAlpha,
+      frameSize,
+      frameRotation,
+      frameAspect
+    )
+
+  let alpha = jitteredAlpha
+  const flow = tool.flow ?? 1
+  if (flow !== 1) {
+    alpha = flow <= 0 ? 0 : Math.max(0.001, Math.min(1, round(alpha * flow, 4)))
+  }
+  const buildup = tool.buildup || 0
+  if (buildup > 0 && typeof segmentT === 'number') {
+    const buildupScale = 1 - buildup * (1 - segmentT)
+    alpha = Math.max(0.001, Math.min(1, round(alpha * buildupScale, 4)))
+  }
+
+  let size = jitteredSize
+  let aspect = jitteredAspect
+  const scaleX = tool.stampScaleX ?? 1
+  const scaleY = tool.stampScaleY ?? 1
+  if (scaleX !== 1 || scaleY !== 1) {
+    size = Math.max(1, round(size * scaleX, 1))
+    aspect = Math.max(0.05, round(aspect * (scaleX / scaleY), 3))
+  }
+
+  return {
+    x: drawX,
+    y: drawY,
+    alpha,
+    size,
+    rotation: drawRotation,
+    aspect,
+    color: drawColor,
+    blur: tool.stampBlur || 0,
+    compositeOp: tool.stampCompositeOperation,
+  }
+}
+
+const invokeStampDraw = (
+  drawShape: (
+    ctx: ExtendedCanvasContext,
+    x: number,
+    y: number,
+    alpha: number,
+    size: number,
+    rotation: number,
+    color?: string,
+    blur?: number,
+    aspectRatio?: number,
+    tool?: StrokeToolParams
+  ) => void,
+  destinationContext: ExtendedCanvasContext,
+  stamp: ResolvedStampDrawParams,
+  tool: StrokeToolParams
+) => {
+  if (stamp.alpha <= 0 || !Number.isFinite(stamp.x) || !Number.isFinite(stamp.y)) {
+    return
+  }
+  if (stamp.compositeOp) {
+    const prevOp = destinationContext.globalCompositeOperation
+    destinationContext.globalCompositeOperation = stamp.compositeOp
+    drawShape(
+      destinationContext,
+      stamp.x,
+      stamp.y,
+      stamp.alpha,
+      stamp.size,
+      stamp.rotation,
+      stamp.color,
+      stamp.blur,
+      stamp.aspect,
+      tool
+    )
+    destinationContext.globalCompositeOperation = prevOp
+  } else {
+    drawShape(
+      destinationContext,
+      stamp.x,
+      stamp.y,
+      stamp.alpha,
+      stamp.size,
+      stamp.rotation,
+      stamp.color,
+      stamp.blur,
+      stamp.aspect,
+      tool
+    )
+  }
 }
 
 const drawCurvedFunctionLine = (
@@ -441,10 +756,17 @@ const drawCurvedFunctionLine = (
   const newAspect = stepData.aspectRatio ?? 1
   const deltaAspect = newAspect - oldAspect
   const stepLength = stepData.stepLength
+  if (!Number.isFinite(stepLength) || stepLength < 0) {
+    return false
+  }
   const minPxDist = tool.minPxDistanceBetweenFrames
   const sizeRatio = tool.sizeToFramesRatio
-  const color = tool.color
-  const stepInc = tool.preserveStampRemainder ? Math.min(0.5, Math.max(0.1, minPxDist / 2)) : 0.5
+  const isFixedSpacing = tool.stampSpacingMode === 'fixed'
+  const fixedSpacingPx = round(Math.max(minPxDist, tool.stampSpacingFixedPx || 1), 1)
+  const effectiveMinDist = isFixedSpacing ? fixedSpacingPx : minPxDist
+  const stepInc = tool.preserveStampRemainder
+    ? Math.min(0.5, Math.max(0.1, effectiveMinDist / 2))
+    : 0.5
 
   let i = 0
   let drewSomething = false
@@ -455,7 +777,9 @@ const drawCurvedFunctionLine = (
     const frameX = round(quadraticBezierValue(t, stepData.oldMidX, stepData.oldX, stepData.midX), 1)
     const frameY = round(quadraticBezierValue(t, stepData.oldMidY, stepData.oldY, stepData.midY), 1)
     const frameSize = round(stepData.oldSize + deltaSize * t, 1)
-    const pxDistanceBetweenFrames = round(Math.max(minPxDist, frameSize * sizeRatio), 1)
+    const pxDistanceBetweenFrames = isFixedSpacing
+      ? fixedSpacingPx
+      : round(Math.max(minPxDist, frameSize * sizeRatio), 1)
     if (
       distanceBetweenTwoPointsGreaterThan(
         destinationContext.lastDrawCoordX,
@@ -468,25 +792,17 @@ const drawCurvedFunctionLine = (
       const frameAlpha = round(stepData.oldAlpha + deltaAlpha * t, 4)
       const frameRotation = stepData.oldRotation + deltaRotation * t
       const frameAspect = round(oldAspect + deltaAspect * t, 3)
-      const [drawX, drawY, drawAlpha, drawSize, drawRotation] = applyDeterministicStampJitter(
+      const stamp = resolveStampDrawParams(
         tool,
         frameX,
         frameY,
         frameAlpha,
         frameSize,
-        frameRotation
+        frameRotation,
+        frameAspect,
+        t
       )
-      drawShape(
-        destinationContext,
-        drawX,
-        drawY,
-        drawAlpha,
-        drawSize,
-        drawRotation,
-        color,
-        0,
-        frameAspect
-      )
+      invokeStampDraw(drawShape, destinationContext, stamp, tool)
       destinationContext.lastDrawCoordX = frameX
       destinationContext.lastDrawCoordY = frameY
       drewSomething = true
@@ -507,9 +823,10 @@ const drawCurvedFunctionLine = (
 export const drawStrokeSample = (
   destinationContext: ExtendedCanvasContext,
   sample: StrokeSample,
-  tool: StrokeToolParams,
+  rawTool: StrokeToolParams,
   applyCompositeOperation = false
 ): boolean => {
+  const tool = normalizeToolDrawParams(rawTool)
   if (applyCompositeOperation && tool.globalCompositeOperation) {
     destinationContext.globalCompositeOperation = tool.globalCompositeOperation
   }
@@ -520,25 +837,16 @@ export const drawStrokeSample = (
     setImageShapeIfNeeded(destinationContext, tool.frameImageFile, tool.frameImageName, tool.color)
   }
   if (sample.type === 'start') {
-    const [drawX, drawY, drawAlpha, drawSize, drawRotation] = applyDeterministicStampJitter(
+    const stamp = resolveStampDrawParams(
       tool,
       sample.x,
       sample.y,
       sample.alpha,
       sample.size,
-      sample.rotation
-    )
-    toolShapesDrawFns[tool.frameType](
-      destinationContext,
-      drawX,
-      drawY,
-      drawAlpha,
-      drawSize,
-      drawRotation,
-      tool.color,
-      0,
+      sample.rotation,
       sample.aspectRatio ?? 1
     )
+    invokeStampDraw(toolShapesDrawFns[tool.frameType], destinationContext, stamp, tool)
     destinationContext.lastDrawCoordX = sample.x
     destinationContext.lastDrawCoordY = sample.y
     return true

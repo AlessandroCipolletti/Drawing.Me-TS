@@ -1,11 +1,22 @@
 import { describe, it, expect, vi } from 'vitest'
-import { drawStrokeSample, StrokeSample, ExtendedCanvasContext } from 'utils/canvasUtils'
+import baselineFixture from './fixtures/toolDefaultsBaseline.json'
+import {
+  drawStrokeSample,
+  normalizeToolDrawParams,
+  sanitizeToolCustomProps,
+  StrokeSample,
+  ExtendedCanvasContext,
+} from 'utils/canvasUtils'
+import { getOneToolVersionCompleteProps } from 'pages/Editor/components/Tools/toolsPersistence'
 import {
   getStepData,
+  getStepsDataFromTouchEvents,
   updateLastStepData,
   updateCurrentTouchData,
   initCanvasOffset,
 } from 'pages/Editor/editorUtils'
+import { addTouchStepDataKeys, removeTouchStepDataKeys } from 'pages/Editor/editorCoworkingBridge'
+import { toolDefaultProps } from 'pages/Editor/config'
 import {
   applyOneEuroFilter,
   applyResponseCurve,
@@ -27,6 +38,7 @@ import {
   TOOL_FRAME_SPRAY_CIRCLE,
   TOOL_FRAME_PARTICLES_CIRCLE,
   TOOL_FRAME_PARTICLES_RECT,
+  TOOL_FRAME_IMAGE,
 } from 'pages/Editor/constants'
 import Params from 'main/Params'
 
@@ -924,5 +936,452 @@ describe('Unified Numeric Stroke Kernel (Local & PeerJS Coworking)', () => {
 
     expect(localCtx.ops.some((o) => o.op === 'ellipse')).toBe(true)
     expect(remoteCtx.ops).toEqual(localCtx.ops)
+  })
+
+  it('preserves pre-change baseline for default presets (samples and canvas ops)', () => {
+    const presets: Array<{ tool: string; version: number | false }> = [
+      { tool: 'marker', version: false },
+      { tool: 'pencil', version: 0 },
+      { tool: 'pencil', version: 1 },
+      { tool: 'pencil', version: 2 },
+      { tool: 'highlighter', version: 0 },
+      { tool: 'brush', version: 0 },
+      { tool: 'brush', version: 5 },
+      { tool: 'spray', version: false },
+      { tool: 'eraser', version: false },
+    ]
+    const touches = [
+      {
+        type: 'start',
+        touchType: TOUCH_TYPE_STYLUS,
+        x: 40,
+        y: 50,
+        midX: 40,
+        midY: 50,
+        force: 0.45,
+        altitudeFactor: 0.5,
+        speedFactor: 0.2,
+        azimuthAngle: 0.4,
+        twist: 0.2,
+        hasTwist: true,
+        pathRotation: 0,
+        stepLength: 0,
+        canHandleStylusRotation: true,
+      },
+      {
+        type: 'move',
+        touchType: TOUCH_TYPE_STYLUS,
+        x: 68,
+        y: 74,
+        midX: 54,
+        midY: 62,
+        force: 0.65,
+        altitudeFactor: 0.55,
+        speedFactor: 0.35,
+        azimuthAngle: 0.5,
+        twist: 0.25,
+        hasTwist: true,
+        pathRotation: 0.71,
+        stepLength: 36.8,
+        canHandleStylusRotation: true,
+      },
+      {
+        type: 'end',
+        touchType: TOUCH_TYPE_STYLUS,
+        x: 92,
+        y: 96,
+        midX: 80,
+        midY: 85,
+        force: 0.2,
+        altitudeFactor: 0.55,
+        speedFactor: 0.18,
+        azimuthAngle: 0.52,
+        twist: 0.25,
+        hasTwist: true,
+        pathRotation: 0.74,
+        stepLength: 32.5,
+        canHandleStylusRotation: true,
+      },
+    ]
+
+    const results: Record<
+      string,
+      { samples: StrokeSample[]; opsCount: number; firstOps: any[]; lastOps: any[] }
+    > = {}
+    for (const { tool, version } of presets) {
+      const props = getOneToolVersionCompleteProps(tool, version, { color: '#336699' })
+      const state: any = { lastStep: {} }
+      const samples: StrokeSample[] = []
+      const mock = createMockCanvasContext()
+      ;(mock.ctx.toolImageShape as any).canvas = { id: 'stamp-img', width: 32, height: 32 }
+      for (const t of touches) {
+        const s = getStepData(props, t as any, state.lastStep)
+        samples.push(s)
+        drawStrokeSample(mock.ctx, s, props, true)
+        updateLastStepData(state, s)
+      }
+      const key = `${tool}:${String(version)}`
+      results[key] = {
+        samples,
+        opsCount: mock.ops.length,
+        firstOps: mock.ops.slice(0, 8),
+        lastOps: mock.ops.slice(-8),
+      }
+    }
+    expect(results).toEqual(baselineFixture)
+  })
+
+  it('normalizes invalid/extreme customProps and preserves defaults as identity', () => {
+    const clean = normalizeToolDrawParams({ ...toolDefaultProps })
+    expect(clean.stampSpacingMode).toBe('bySize')
+    expect(clean.flow).toBe(1)
+    expect(clean.buildup).toBe(0)
+    expect(clean.stampBlur).toBe(0)
+    expect(clean.stampScaleX).toBe(1)
+    expect(clean.stampScaleY).toBe(1)
+    expect(clean.pathRotationWeight).toBe(1)
+    expect(clean.rotationSmoothing).toBe(0)
+    expect(clean.endTaperSizeAmount).toBe(0.3)
+
+    const dirty = normalizeToolDrawParams({
+      ...toolDefaultProps,
+      frameType: TOOL_FRAME_CIRCLE,
+      stampSpacingMode: 'invalid-mode' as any,
+      stampSpacingFixedPx: -5,
+      stampBlur: 999,
+      stampScaleX: -2,
+      stampScaleY: Number.NaN,
+      flow: 5,
+      buildup: -1,
+      particleDensity: 500,
+      sprayDensity: Number.NaN,
+      sprayRadiusFactor: 0,
+      colorJitterHue: 400,
+      colorJitterSat: -0.5,
+      colorJitterLight: 3,
+      pathRotationWeight: 2,
+      rotationSmoothing: -0.5,
+      minAltitudeFactorToHandleRotation: Number.NaN,
+      startTaperFactor: 2,
+      endTaperSizeAmount: Number.NaN,
+      endTaperAlphaCurve: -1,
+      speedCurve: 0,
+      predictedEventsBlend: 9,
+      stampCompositeOperation: '' as any,
+    })
+
+    expect(dirty.stampSpacingMode).toBe('bySize')
+    expect(dirty.stampSpacingFixedPx).toBe(0.1)
+    expect(dirty.stampBlur).toBe(32)
+    expect(dirty.stampScaleX).toBe(1)
+    expect(dirty.stampScaleY).toBe(1)
+    expect(dirty.flow).toBe(1)
+    expect(dirty.buildup).toBe(0)
+    expect(dirty.particleDensity).toBe(10)
+    expect(dirty.sprayDensity).toBe(1)
+    expect(dirty.sprayRadiusFactor).toBe(1)
+    expect(dirty.colorJitterHue).toBe(180)
+    expect(dirty.colorJitterSat).toBe(0)
+    expect(dirty.colorJitterLight).toBe(1)
+    expect(dirty.pathRotationWeight).toBe(1)
+    expect(dirty.rotationSmoothing).toBe(0)
+    expect(dirty.minAltitudeFactorToHandleRotation).toBe(0.3)
+    expect(dirty.startTaperFactor).toBe(1)
+    expect(dirty.endTaperSizeAmount).toBe(0.3)
+    expect(dirty.endTaperAlphaCurve).toBe(1)
+    expect(dirty.speedCurve).toBe(1)
+    expect(dirty.predictedEventsBlend).toBe(1)
+    expect(dirty.stampCompositeOperation).toBeUndefined()
+
+    const bogusGco = normalizeToolDrawParams({
+      ...toolDefaultProps,
+      frameType: TOOL_FRAME_CIRCLE,
+      stampCompositeOperation: 'not-a-valid-gco' as any,
+    })
+    expect(bogusGco.stampCompositeOperation).toBeUndefined()
+
+    const sanitized = sanitizeToolCustomProps(
+      JSON.parse('{"__proto__":{"polluted":1},"size":30,"badNum":null}')
+    )
+    expect((sanitized as any).polluted).toBeUndefined()
+    expect(sanitized.size).toBe(30)
+
+    // Corrupted/NaN stepLength or flow=0 safely no-ops without infinite loop or canvas ops
+    const safeMock = createMockCanvasContext()
+    const badMove: StrokeSample = {
+      type: 'move',
+      x: 10,
+      y: 10,
+      midX: 10,
+      midY: 10,
+      size: 20,
+      alpha: 0.5,
+      rotation: 0,
+      oldSize: 20,
+      oldAlpha: 0.5,
+      oldRotation: 0,
+      oldMidX: 0,
+      oldMidY: 0,
+      oldX: 0,
+      oldY: 0,
+      stepLength: Number.NaN,
+    }
+    expect(drawStrokeSample(safeMock.ctx, badMove, clean, true)).toBe(false)
+    expect(safeMock.ops).toHaveLength(0)
+  })
+
+  it('evaluates extended step math (speedCurve, pathRotationWeight, rotationSmoothing, start/end taper, ruler freeze, per-tool minAltitude)', () => {
+    const baseTouch = {
+      type: 'move' as const,
+      touchType: TOUCH_TYPE_STYLUS,
+      x: 50,
+      y: 50,
+      midX: 30,
+      midY: 30,
+      force: 0.5,
+      speedFactor: 0.25,
+      altitudeFactor: 0.4,
+      azimuthAngle: 0.4,
+      pathRotation: 1.0,
+      stepLength: 25,
+      canHandleStylusRotation: true,
+    }
+    const baseTool = {
+      ...toolDefaultProps,
+      size: 40,
+      sizeSpeedFactor: 0.5,
+      alpha: 0.4,
+      minAlpha: 0.05,
+      maxAlpha: 1,
+      alphaSpeedFactor: 0.4,
+      handleStylusRotation: false,
+      handlePathRotation: true,
+    }
+
+    // speedCurve=0.5 boosts speedFactor=0.25 -> 0.5
+    const linearSize = getStepSize({ ...baseTool, speedCurve: 1 }, baseTouch)
+    const curvedSize = getStepSize({ ...baseTool, speedCurve: 0.5 }, baseTouch)
+    expect(curvedSize).toBeGreaterThan(linearSize)
+
+    const linearAlpha = getStepAlpha({ ...baseTool, speedCurve: 1 }, baseTouch, linearSize)
+    const curvedAlpha = getStepAlpha({ ...baseTool, speedCurve: 0.5 }, baseTouch, linearSize)
+    expect(curvedAlpha).toBeGreaterThan(linearAlpha)
+
+    // pathRotationWeight scales path contribution; rotationSmoothing damps delta
+    const fullRot = getStepRotation(
+      { ...baseTool, pathRotationWeight: 1, rotationSmoothing: 0 },
+      baseTouch,
+      { rotation: 0 }
+    )
+    const halfWeightRot = getStepRotation(
+      { ...baseTool, pathRotationWeight: 0.5, rotationSmoothing: 0 },
+      baseTouch,
+      { rotation: 0 }
+    )
+    const smoothedRot = getStepRotation(
+      { ...baseTool, pathRotationWeight: 1, rotationSmoothing: 0.5 },
+      baseTouch,
+      { rotation: 0 }
+    )
+    expect(fullRot).toBeCloseTo(1.0, 4)
+    expect(halfWeightRot).toBeCloseTo(0.5, 4)
+    expect(smoothedRot).toBeCloseTo(0.5, 4)
+
+    // Near ruler freezes rotation regardless of pathRotationWeight
+    const rulerRot = getStepRotation(
+      { ...baseTool, pathRotationWeight: 0.8 },
+      { ...baseTouch, isNearRuler: true },
+      { rotation: 0.33 }
+    )
+    expect(rulerRot).toBeCloseTo(0.33, 4)
+
+    // startTaperFactor reduces start step size and alpha
+    const noStartTaper = getStepData(
+      { ...baseTool, startTaperFactor: 0, endTaperSizeAmount: 0.5 },
+      { ...baseTouch, type: 'start', stepLength: 0 },
+      {}
+    )
+    const withStartTaper = getStepData(
+      { ...baseTool, startTaperFactor: 0.6, endTaperSizeAmount: 0.5, endTaperAlphaCurve: 1.5 },
+      { ...baseTouch, type: 'start', stepLength: 0 },
+      {}
+    )
+    expect(withStartTaper.size).toBeLessThan(noStartTaper.size)
+    expect(withStartTaper.alpha).toBeLessThan(noStartTaper.alpha)
+
+    // endTaperSizeAmount and endTaperAlphaCurve customize end step taper
+    const endSmallShrink = getStepData(
+      { ...baseTool, endTaperFactor: 0.5, endTaperSizeAmount: 0.1, endTaperAlphaCurve: 0.5 },
+      { ...baseTouch, type: 'end' },
+      noStartTaper
+    )
+    const endLargeShrink = getStepData(
+      { ...baseTool, endTaperFactor: 0.5, endTaperSizeAmount: 0.8, endTaperAlphaCurve: 2.0 },
+      { ...baseTouch, type: 'end' },
+      noStartTaper
+    )
+    expect(endLargeShrink.size).toBeLessThan(endSmallShrink.size)
+    expect(endLargeShrink.alpha).not.toBe(endSmallShrink.alpha)
+
+    // Per-tool minAltitudeFactorToHandleRotation in getStepsDataFromTouchEvents (preview path)
+    const previewEvents: any[] = [
+      {
+        type: 'start',
+        touchType: TOUCH_TYPE_STYLUS,
+        pageX: 10,
+        pageY: 10,
+        altitudeAngle: 1.15,
+        azimuthAngle: 0.9,
+      },
+      {
+        type: 'move',
+        touchType: TOUCH_TYPE_STYLUS,
+        pageX: 40,
+        pageY: 40,
+        altitudeAngle: 1.15,
+        azimuthAngle: 0.9,
+      },
+    ]
+    const stepsStrictAlt = getStepsDataFromTouchEvents(previewEvents, {
+      ...baseTool,
+      handleStylusRotation: true,
+      handlePathRotation: false,
+      minAltitudeFactorToHandleRotation: 0.95,
+    })
+    const stepsPermissiveAlt = getStepsDataFromTouchEvents(previewEvents, {
+      ...baseTool,
+      handleStylusRotation: true,
+      handlePathRotation: false,
+      minAltitudeFactorToHandleRotation: 0.05,
+    })
+    expect(stepsPermissiveAlt[1].rotation).toBeCloseTo(0.9, 4)
+    expect(stepsStrictAlt[1].rotation).toBeCloseTo(stepsStrictAlt[0].rotation, 4)
+  })
+
+  it('maintains local vs coworking wire parity and determinism across all frame types with extended rendering parameters', () => {
+    const customOverrides = {
+      pathRotationWeight: 0.65,
+      rotationSmoothing: 0.25,
+      stampRotationOffset: 0.35,
+      jitterPosition: 0.04,
+      jitterSize: 0.05,
+      jitterAlpha: 0.06,
+      jitterRotation: 0.12,
+      jitterAspectRatio: 0.15,
+      stampSpacingMode: 'fixed' as const,
+      stampSpacingFixedPx: 3.5,
+      stampBlur: 6,
+      stampScaleX: 1.3,
+      stampScaleY: 0.85,
+      flow: 0.75,
+      buildup: 0.3,
+      particleDensity: 0.6,
+      sprayDensity: 0.7,
+      sprayRadiusFactor: 1.25,
+      colorJitterHue: 25,
+      colorJitterSat: 0.15,
+      colorJitterLight: 0.1,
+      stampCompositeOperation: 'source-atop' as GlobalCompositeOperation,
+    }
+
+    const frameTypes = [
+      TOOL_FRAME_CIRCLE,
+      TOOL_FRAME_IMAGE,
+      TOOL_FRAME_PARTICLES_RECT,
+      TOOL_FRAME_PARTICLES_CIRCLE,
+      TOOL_FRAME_SPRAY_CIRCLE,
+    ]
+
+    for (const frameType of frameTypes) {
+      const localTool = getOneToolVersionCompleteProps('marker', false, {
+        color: '#4488cc',
+        frameType,
+        frameImageName: frameType === TOOL_FRAME_IMAGE ? 'brush-1' : false,
+        frameImageFile: frameType === TOOL_FRAME_IMAGE ? ({ width: 32, height: 32 } as any) : null,
+        handlePathRotation: true,
+        ...customOverrides,
+      })
+
+      const remoteTool = getOneToolVersionCompleteProps('marker', false, {
+        color: '#4488cc',
+        frameType,
+        frameImageName: frameType === TOOL_FRAME_IMAGE ? 'brush-1' : false,
+        frameImageFile: frameType === TOOL_FRAME_IMAGE ? ({ width: 32, height: 32 } as any) : null,
+        handlePathRotation: true,
+        ...customOverrides,
+      })
+
+      const touchStart = {
+        type: 'start' as const,
+        touchType: TOUCH_TYPE_STYLUS,
+        x: 20,
+        y: 30,
+        midX: 20,
+        midY: 30,
+        force: 0.5,
+        altitudeFactor: 0.4,
+        speedFactor: 0.2,
+        azimuthAngle: 0.3,
+        pathRotation: 0,
+        stepLength: 0,
+        canHandleStylusRotation: true,
+      }
+      const touchMove = {
+        ...touchStart,
+        type: 'move' as const,
+        x: 60,
+        y: 70,
+        midX: 40,
+        midY: 50,
+        pathRotation: 0.78,
+        stepLength: 42,
+      }
+
+      const state: any = { lastStep: {} }
+      const s1 = getStepData(localTool, touchStart, state.lastStep)
+      updateLastStepData(state, s1)
+      const s2 = getStepData(localTool, touchMove, state.lastStep)
+
+      const wireSteps = [s1, s2].map((s) =>
+        addTouchStepDataKeys(JSON.parse(JSON.stringify(removeTouchStepDataKeys(s))))
+      )
+
+      const makeInstrumentedCtx = () => {
+        const mock = createMockCanvasContext()
+        ;(mock.ctx.toolImageShape as any) = {
+          frameImageName: '',
+          color: '',
+          canvas: { id: 'stamp-img', width: 32, height: 32 },
+          context: {
+            fillStyle: '',
+            globalCompositeOperation: 'source-over',
+            fillRect: () => {},
+            drawImage: () => {},
+          },
+        }
+        return mock
+      }
+
+      const localMock = makeInstrumentedCtx()
+      const localRepeatMock = makeInstrumentedCtx()
+      const remoteMock = makeInstrumentedCtx()
+
+      drawStrokeSample(localMock.ctx, s1, localTool, true)
+      drawStrokeSample(localMock.ctx, s2, localTool, true)
+
+      drawStrokeSample(localRepeatMock.ctx, s1, localTool, true)
+      drawStrokeSample(localRepeatMock.ctx, s2, localTool, true)
+
+      for (const ws of wireSteps) {
+        drawStrokeSample(remoteMock.ctx, ws, remoteTool, true)
+      }
+
+      expect(localMock.ops.length).toBeGreaterThan(2)
+      expect(localRepeatMock.ops).toEqual(localMock.ops)
+      expect(remoteMock.ops).toEqual(localMock.ops)
+      // Ensure stampBlur and stampCompositeOperation do not leak after drawing
+      expect(localMock.ctx.shadowBlur).toBeFalsy()
+      expect(localMock.ctx.globalCompositeOperation).toBe('source-over')
+    }
   })
 })

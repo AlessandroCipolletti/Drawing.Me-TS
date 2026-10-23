@@ -3,6 +3,7 @@ import { editorFacade } from 'pages/Editor/editorFacade'
 import { ToolConfigProps, ToolCustomPropsMap, ToolVersionDefinition } from 'pages/Editor/config'
 import { CurrentToolProps } from 'pages/Editor/editorTypes'
 import { getImageFromUrl } from 'utils/imageUtils'
+import { normalizeToolDrawParams, sanitizeToolCustomProps } from 'utils/canvasUtils'
 import {
   config,
   initToolsConfig,
@@ -89,21 +90,28 @@ export const getOneToolVersionCompleteProps = (
   const resolvedVersionIndex =
     versionIndex === false ? state.selectedVersions?.[tool] : versionIndex
 
+  const safeHigherProps = sanitizeToolCustomProps(higherProps) as Partial<CurrentToolProps>
+  const baseTool = activeConfig[tool] || activeConfig.marker
   let toolProps: ResolvedToolVersionProps
-  if (activeConfig[tool].versions.length && resolvedVersionIndex >= 0) {
+  if (
+    baseTool.versions.length &&
+    typeof resolvedVersionIndex === 'number' &&
+    resolvedVersionIndex >= 0 &&
+    baseTool.versions[resolvedVersionIndex]
+  ) {
     toolProps = {
-      ...activeConfig[tool],
-      ...activeConfig[tool].versions[resolvedVersionIndex].props,
-      ...activeConfig[tool].versions[resolvedVersionIndex].customProps,
-      name: activeConfig[tool].name,
-      versionName: activeConfig[tool].versions[resolvedVersionIndex].name,
-      ...higherProps,
+      ...baseTool,
+      ...baseTool.versions[resolvedVersionIndex].props,
+      ...sanitizeToolCustomProps(baseTool.versions[resolvedVersionIndex].customProps),
+      name: baseTool.name,
+      versionName: baseTool.versions[resolvedVersionIndex].name,
+      ...safeHigherProps,
     }
   } else {
     toolProps = {
-      ...activeConfig[tool],
-      ...activeConfig[tool].customProps,
-      ...higherProps,
+      ...baseTool,
+      ...sanitizeToolCustomProps(baseTool.customProps),
+      ...safeHigherProps,
     }
   }
 
@@ -112,7 +120,7 @@ export const getOneToolVersionCompleteProps = (
 
   delete (toolProps as { customProps?: unknown }).customProps
   delete (toolProps as { versions?: unknown }).versions
-  return toolProps
+  return normalizeToolDrawParams(toolProps)
 }
 
 export const getCurrentSelectedTool = (): SelectedToolDescriptor => ({
@@ -160,13 +168,13 @@ export const mergeCustomProps = (toolsCustomProps: PersistedToolCustomProps[] = 
       const customTool = toolsCustomProps.find((e) => e.name === tool.name)
       const legacyVersions = tool.name === 'brush' ? legacyHardBrushVersions : undefined
       if (customTool || legacyVersions) {
-        tool.customProps = customTool?.customProps || {}
+        tool.customProps = sanitizeToolCustomProps(customTool?.customProps)
         if (tool.versions?.length > 0) {
           tool.versions.forEach((version) => {
-            version.customProps =
+            version.customProps = sanitizeToolCustomProps(
               customTool?.versions?.find((v) => v.name === version.name)?.customProps ||
-              legacyVersions?.find((v) => v.name === version.name)?.customProps ||
-              {}
+                legacyVersions?.find((v) => v.name === version.name)?.customProps
+            )
           })
         }
       }

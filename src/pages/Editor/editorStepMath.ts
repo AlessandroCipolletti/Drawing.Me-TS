@@ -18,16 +18,23 @@ export interface StepToolParams {
   alphaTangentialFactor?: number
   forceCurve?: number
   altitudeCurve?: number
+  speedCurve?: number
   aspectRatio?: number
   minAspectRatio?: number
   maxAspectRatio?: number
   aspectAltitudeFactor?: number
   aspectForceFactor?: number
+  startTaperFactor?: number
   endTaperFactor?: number
+  endTaperSizeAmount?: number
+  endTaperAlphaCurve?: number
   degradeAlphaBySize?: boolean
   handleStylusRotation?: boolean
   handleStylusTwist?: boolean
   handlePathRotation?: boolean
+  pathRotationWeight?: number
+  rotationSmoothing?: number
+  minAltitudeFactorToHandleRotation?: number
 }
 
 export interface StepTouchData {
@@ -107,7 +114,11 @@ export const applyOneEuroFilter = (
 export const getStepSize = (toolProps: StepToolParams, touchData: StepTouchData): number => {
   const force = applyResponseCurve(touchData.force || 0, toolProps.forceCurve)
   const altitude = applyResponseCurve(touchData.altitudeFactor || 0, toolProps.altitudeCurve)
-  const speed = touchData.speedFactor || 0
+  const rawSpeed = touchData.speedFactor || 0
+  const speed =
+    toolProps.sizeSpeedFactor && toolProps.speedCurve && toolProps.speedCurve !== 1
+      ? applyResponseCurve(rawSpeed, toolProps.speedCurve)
+      : rawSpeed
   const tangential = touchData.tangentialPressure || 0
 
   return Math.max(
@@ -129,7 +140,11 @@ export const getStepAlpha = (
 ): number => {
   const force = applyResponseCurve(touchData.force || 0, toolsProps.forceCurve)
   const altitude = applyResponseCurve(touchData.altitudeFactor || 0, toolsProps.altitudeCurve)
-  const speed = touchData.speedFactor || 0
+  const rawSpeed = touchData.speedFactor || 0
+  const speed =
+    toolsProps.alphaSpeedFactor && toolsProps.speedCurve && toolsProps.speedCurve !== 1
+      ? applyResponseCurve(rawSpeed, toolsProps.speedCurve)
+      : rawSpeed
   const tangential = touchData.tangentialPressure || 0
 
   let alpha =
@@ -167,6 +182,11 @@ export const getStepRotation = (
   lastStep: StepLastState
 ): number => {
   let rotation = lastStep.rotation || 0
+  const pathWeight =
+    typeof toolsProps.pathRotationWeight === 'number' &&
+    !Number.isNaN(toolsProps.pathRotationWeight)
+      ? getNumberInBetween(0, 1, toolsProps.pathRotationWeight, 4)
+      : 1
 
   if (!touchData.isNearRuler) {
     if (touchData.type === TOUCH_TYPE_STYLUS || touchData.touchType === TOUCH_TYPE_STYLUS) {
@@ -186,10 +206,11 @@ export const getStepRotation = (
         rotation += touchData.twist || 0
       }
       if (toolsProps.handlePathRotation) {
-        rotation += touchData.pathRotation || 0
+        rotation += (touchData.pathRotation || 0) * pathWeight
       }
     } else if (toolsProps.handlePathRotation) {
-      rotation = -(touchData.pathRotation || 0)
+      const weightedPath = (touchData.pathRotation || 0) * pathWeight
+      rotation = weightedPath === 0 ? 0 : -weightedPath
     }
   }
 
@@ -200,7 +221,14 @@ export const getStepRotation = (
   } else if (deltaRotation < -Math.PI) {
     deltaRotation += Math.PI * 2
   }
-  rotation = lastRotation + deltaRotation
+  const smoothing =
+    typeof toolsProps.rotationSmoothing === 'number' &&
+    !Number.isNaN(toolsProps.rotationSmoothing) &&
+    toolsProps.rotationSmoothing > 0
+      ? getNumberInBetween(0, 1, toolsProps.rotationSmoothing, 4)
+      : 0
+  rotation =
+    smoothing > 0 ? lastRotation + deltaRotation * (1 - smoothing) : lastRotation + deltaRotation
 
   return round(rotation, 4)
 }
@@ -209,7 +237,34 @@ const getStepStartLineData = (
   toolProps: StepToolParams,
   touchData: StepTouchData
 ): ['start', number, number, number, number] => {
-  const size = getStepSize(toolProps, touchData)
+  const rawSize = getStepSize(toolProps, touchData)
+  const startTaper =
+    typeof toolProps.startTaperFactor === 'number' &&
+    !Number.isNaN(toolProps.startTaperFactor) &&
+    toolProps.startTaperFactor > 0
+      ? getNumberInBetween(0, 1, toolProps.startTaperFactor, 3)
+      : 0
+  const taperSizeAmount =
+    typeof toolProps.endTaperSizeAmount === 'number' && !Number.isNaN(toolProps.endTaperSizeAmount)
+      ? getNumberInBetween(0, 1, toolProps.endTaperSizeAmount, 4)
+      : 0.3
+  const size =
+    startTaper > 0 ? Math.max(1, Math.round(rawSize * (1 - startTaper * taperSizeAmount))) : rawSize
+  const rawAlpha = getStepAlpha(toolProps, touchData, size)
+  const curvedStartTaper =
+    startTaper > 0 && toolProps.endTaperAlphaCurve && toolProps.endTaperAlphaCurve !== 1
+      ? applyResponseCurve(startTaper, toolProps.endTaperAlphaCurve)
+      : startTaper
+  const alpha =
+    startTaper <= 0
+      ? rawAlpha
+      : startTaper >= 1
+        ? toolProps.minAlpha
+        : getNumberInBetween(
+            toolProps.minAlpha,
+            round(rawAlpha * (1 - curvedStartTaper) + toolProps.minAlpha * curvedStartTaper, 3),
+            toolProps.maxAlpha
+          )
   const hasStylusTwist = Boolean(
     toolProps.handleStylusTwist &&
     (touchData.hasTwist || (typeof touchData.twist === 'number' && touchData.twist !== 0))
@@ -221,13 +276,7 @@ const getStepStartLineData = (
   if (hasStylusTwist) {
     startRotation += touchData.twist || 0
   }
-  return [
-    'start',
-    size,
-    getStepAlpha(toolProps, touchData, size),
-    round(startRotation, 4),
-    getStepAspectRatio(toolProps, touchData),
-  ]
+  return ['start', size, alpha, round(startRotation, 4), getStepAspectRatio(toolProps, touchData)]
 }
 
 const getStepMoveLineData = (
@@ -252,16 +301,25 @@ const getStepEndLineData = (
 ): ['end', number, number, number, number] => {
   const rawSize = getStepSize(toolProps, touchData)
   const taper = getNumberInBetween(0, 1, toolProps.endTaperFactor ?? 1, 3)
-  const size = taper < 1 ? Math.max(1, Math.round(rawSize * (1 - taper * 0.3))) : rawSize
+  const taperSizeAmount =
+    typeof toolProps.endTaperSizeAmount === 'number' && !Number.isNaN(toolProps.endTaperSizeAmount)
+      ? getNumberInBetween(0, 1, toolProps.endTaperSizeAmount, 4)
+      : 0.3
+  const size =
+    taper < 1 ? Math.max(1, Math.round(rawSize * (1 - taper * taperSizeAmount))) : rawSize
   const moveAlpha = getStepAlpha(toolProps, touchData, size)
   const prevAlpha =
     typeof lastStep.alpha === 'number' && lastStep.alpha > 0 ? lastStep.alpha : moveAlpha
+  const curvedTaper =
+    toolProps.endTaperAlphaCurve && toolProps.endTaperAlphaCurve !== 1
+      ? applyResponseCurve(taper, toolProps.endTaperAlphaCurve)
+      : taper
   const alpha =
     taper >= 1
       ? toolProps.minAlpha
       : getNumberInBetween(
           toolProps.minAlpha,
-          round(prevAlpha * (1 - taper) + toolProps.minAlpha * taper, 3),
+          round(prevAlpha * (1 - curvedTaper) + toolProps.minAlpha * curvedTaper, 3),
           toolProps.maxAlpha
         )
   return [

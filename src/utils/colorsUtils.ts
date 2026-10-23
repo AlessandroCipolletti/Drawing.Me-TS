@@ -181,3 +181,24 @@ export const getSuggestedColors = (colorHex: string): string[] => {
 
   return colors
 }
+
+export const applyDeterministicColorJitter = (
+  color: string | undefined,
+  hueJitterDeg: number,
+  satJitter: number,
+  lightJitter: number,
+  uHue: number,
+  uSat: number,
+  uLight: number
+): string | undefined => {
+  if (!color || (hueJitterDeg === 0 && satJitter === 0 && lightJitter === 0)) {
+    return color
+  }
+  const rgb = colorStringToRgb(color)
+  const hsl = rgbaToHsla(rgb.r, rgb.g, rgb.b, rgb.a)
+  const h = (((hsl.h + (uHue - 0.5) * 2 * hueJitterDeg) % 360) + 360) % 360
+  const s = Math.max(0, Math.min(100, round(hsl.s + (uSat - 0.5) * 2 * satJitter * 100, 0)))
+  const l = Math.max(0, Math.min(100, round(hsl.l + (uLight - 0.5) * 2 * lightJitter * 100, 0)))
+  const jittered = hslaToRgba(h, s, l, rgb.a)
+  return rgbToHex(jittered.r, jittered.g, jittered.b)
+}

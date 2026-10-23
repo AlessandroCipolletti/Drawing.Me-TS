@@ -254,6 +254,21 @@ export const createEditorStrokeSession = (deps: StrokeSessionDeps) => {
     ) {
       return
     }
+    const predBlend =
+      typeof state.currentToolProps.predictedEventsBlend === 'number' &&
+      !Number.isNaN(state.currentToolProps.predictedEventsBlend)
+        ? state.currentToolProps.predictedEventsBlend
+        : 1
+    if (predBlend <= 0) {
+      return
+    }
+    const predToolProps =
+      predBlend === 1
+        ? state.currentToolProps
+        : {
+            ...state.currentToolProps,
+            flow: (state.currentToolProps.flow ?? 1) * predBlend,
+          }
     const savedTouch = { ...state.currentTouch }
     const savedLastStep = { ...state.lastStep }
     refs.contextForLine.lastDrawCoordX = refs.layerContext.lastDrawCoordX
@@ -262,7 +277,7 @@ export const createEditorStrokeSession = (deps: StrokeSessionDeps) => {
     for (const predEvent of sampleTouchEvent.predictedSamples) {
       updateCurrentTouchData(state, predEvent, Params.eventMove)
       const predStep = getStepData(state.currentToolProps, state.currentTouch, state.lastStep)
-      drawStepMove(refs.contextForLine, predStep, state.currentToolProps)
+      drawStepMove(refs.contextForLine, predStep, predToolProps)
       updateLastStepData(state, predStep)
     }
 
