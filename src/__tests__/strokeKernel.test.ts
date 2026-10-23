@@ -181,7 +181,7 @@ describe('Unified Numeric Stroke Kernel (Local & PeerJS Coworking)', () => {
     expect(remoteCanvas.ops).toEqual(localCanvas.ops)
   })
 
-  it('paints deterministic particle and spray stamps across local and remote coworker canvases with Retina stamp downsampling', () => {
+  it('paints deterministic fine spray and particle stamps for local and remote coworker canvases', () => {
     for (const frameType of [
       TOOL_FRAME_SPRAY_CIRCLE,
       TOOL_FRAME_PARTICLES_CIRCLE,
@@ -222,8 +222,17 @@ describe('Unified Numeric Stroke Kernel (Local & PeerJS Coworking)', () => {
       drawStrokeSample(localCanvas.ctx, sampleStart, tool, true)
       drawStrokeSample(remoteCanvas.ctx, { ...sampleStart }, tool, true)
 
-      expect(localCanvas.ops.length).toBeGreaterThan(10)
-      expect(localCanvas.ops.length).toBeLessThanOrEqual(200)
+      const rects = localCanvas.ops.filter((op) => op.op === 'fillRect')
+      expect(rects.length).toBeGreaterThan(200)
+      for (const rect of rects) {
+        expect(rect.args[2]).toBeGreaterThanOrEqual(1)
+        expect(rect.args[2]).toBeLessThanOrEqual(3)
+        expect(rect.args[3]).toBeGreaterThanOrEqual(1)
+        expect(rect.args[3]).toBeLessThanOrEqual(3)
+      }
+      if (frameType === TOOL_FRAME_SPRAY_CIRCLE) {
+        expect(rects.length).toBe(120 * 4)
+      }
       expect(remoteCanvas.ops).toEqual(localCanvas.ops)
     }
   })

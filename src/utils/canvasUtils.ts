@@ -250,8 +250,6 @@ const initialState = {
   bucketColorsHistory: [] as RgbaColor[],
 }
 
-const particlesLists: Record<number, { numbers: number[]; length: number }> = {}
-
 /**
  * Deterministic fast PRNG (mulberry32) seeded from the numeric StrokeSample parameters.
  * Guarantees that local and remote coworker canvases paint 100% identical particle and
@@ -273,20 +271,31 @@ const createDeterministicRng = (x: number, y: number, size: number, alpha: numbe
   }
 }
 
-const MAX_SPRAY_STAMPS_PER_STEP = 200
-const MAX_PARTICLE_STAMPS_PER_STEP = 160
+/**
+ * Safety valve for extreme custom density. Droplets stay 1–3px either way:
+ * enlarging them to stand in for missing stamps reads as a pixelated zoom.
+ */
+const MAX_SPRAY_STAMPS_PER_STEP = 8192
+const MAX_PARTICLE_STAMPS_PER_STEP = 8192
 
-const initParticlesListFor = (size: number) => {
-  particlesLists[size] = {
-    numbers: [],
-    length: 0,
+/**
+ * Spray radius in 1..size, weighted P(i) ∝ size + 10*i (denser toward the edge).
+ * Integer search matches the old expanded table exactly, without an O(size²) allocation
+ * that hitched the first time a large size was used.
+ */
+const sampleSprayBaseRadius = (size: number, unit: number): number => {
+  const total = 6 * size * size + 5 * size
+  const k = MATH.min(total - 1, MATH.floor(unit * total))
+  const b = size + 5
+  const cum = (i: number) => 5 * i * i + b * i
+  let lo = 1
+  let hi = size
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1
+    if (cum(mid) <= k) lo = mid + 1
+    else hi = mid
   }
-  for (let i = 1; i <= size; i++) {
-    for (let j = 0, l = size + 10 * i; j < l; j++) {
-      particlesLists[size].numbers.push(i)
-    }
-  }
-  particlesLists[size].length = particlesLists[size].numbers.length
+  return lo
 }
 
 const drawCircle = (
@@ -471,11 +480,6 @@ const drawParticlesSprayCircle = (
   destinationContext.lastDrawCoordY = y
   size = Math.max(1, round(size))
   destinationContext.fillStyle = color
-  if (!particlesLists[size]) {
-    initParticlesListFor(size)
-  }
-  const sizeList = particlesLists[size].numbers
-  const sizeListL = particlesLists[size].length
   let angle: number
   let radius: number
   const variability = 2
@@ -485,7 +489,6 @@ const drawParticlesSprayCircle = (
   const radiusFactor = tool?.sprayRadiusFactor ?? 1
   const rawCount = density === 1 ? size * 4 : Math.max(0, round(size * 4 * density, 0))
   const count = Math.min(rawCount, MAX_SPRAY_STAMPS_PER_STEP)
-  const stampScale = rawCount > count ? MATH.sqrt(rawCount / count) : 1
   const hasAnisotropy = MATH.abs(aspectRatio - 1) > 0.001
   const cosR = hasAnisotropy && rotation ? MATH.cos(rotation) : 1
   const sinR = hasAnisotropy && rotation ? MATH.sin(rotation) : 0
@@ -493,11 +496,11 @@ const drawParticlesSprayCircle = (
 
   for (let i = 0; i < count; i++) {
     angle = rng() * 2 * PI
-    const baseRadius = sizeList[MATH.floor(rng() * sizeListL)] + 2
+    const baseRadius = sampleSprayBaseRadius(size, rng()) + 2
     radius = radiusFactor === 1 ? baseRadius : baseRadius * radiusFactor
     destinationContext.globalAlpha = Math.max(alpha * (1 - radius / maxR), 0)
-    const w = round((MATH.floor(rng() * (variability + 1)) + 1) * stampScale, 1)
-    const h = round((MATH.floor(rng() * (variability + 1)) + 1) * stampScale, 1)
+    const w = MATH.floor(rng() * (variability + 1)) + 1
+    const h = MATH.floor(rng() * (variability + 1)) + 1
     if (hasAnisotropy) {
       const lx = radius * MATH.cos(angle)
       const ly = (radius * MATH.sin(angle)) / aspectRatio
@@ -540,7 +543,6 @@ const drawParticlesCircle = (
   const density = tool?.particleDensity ?? 1
   const rawCount = density === 1 ? size * size : Math.max(0, round(size * size * density, 0))
   const count = Math.min(rawCount, MAX_PARTICLE_STAMPS_PER_STEP)
-  const stampScale = rawCount > count ? MATH.sqrt(rawCount / count) : 1
   const hasAnisotropy = MATH.abs(aspectRatio - 1) > 0.001
   const cosR = hasAnisotropy && rotation ? MATH.cos(rotation) : 1
   const sinR = hasAnisotropy && rotation ? MATH.sin(rotation) : 0
@@ -555,18 +557,13 @@ const drawParticlesCircle = (
       const ly = (radius * MATH.sin(angle)) / aspectRatio
       const ox = rotation ? lx * cosR - ly * sinR : lx
       const oy = rotation ? lx * sinR + ly * cosR : ly
-      destinationContext.fillRect(
-        round(x + ox, 1),
-        round(y + oy, 1),
-        round(width * stampScale, 1),
-        round(height * stampScale, 1)
-      )
+      destinationContext.fillRect(round(x + ox, 1), round(y + oy, 1), width, height)
     } else {
       destinationContext.fillRect(
         round(x + radius * MATH.cos(angle), 1),
         round(y + radius * MATH.sin(angle), 1),
-        round(width * stampScale, 1),
-        round(height * stampScale, 1)
+        width,
+        height
       )
     }
   }
@@ -596,7 +593,6 @@ const drawParticlesRect = (
   const rawCount =
     density === 1 ? size * (size + 1) : Math.max(0, round(size * (size + 1) * density, 0))
   const count = Math.min(rawCount, MAX_PARTICLE_STAMPS_PER_STEP)
-  const dotSize = rawCount > count ? round(MATH.sqrt(rawCount / count), 1) : 1
   const hasAnisotropy = MATH.abs(aspectRatio - 1) > 0.001
   const cosR = hasAnisotropy && rotation ? MATH.cos(rotation) : 1
   const sinR = hasAnisotropy && rotation ? MATH.sin(rotation) : 0
@@ -607,13 +603,13 @@ const drawParticlesRect = (
       const ly = (MATH.floor(rng() * (size + 1)) - s2) / aspectRatio
       const ox = rotation ? lx * cosR - ly * sinR : lx
       const oy = rotation ? lx * sinR + ly * cosR : ly
-      destinationContext.fillRect(round(x + ox, 1), round(y + oy, 1), dotSize, dotSize)
+      destinationContext.fillRect(round(x + ox, 1), round(y + oy, 1), 1, 1)
     } else {
       destinationContext.fillRect(
         round(x + MATH.floor(rng() * (size + 1)) - s2, 1),
         round(y + MATH.floor(rng() * (size + 1)) - s2, 1),
-        dotSize,
-        dotSize
+        1,
+        1
       )
     }
   }
