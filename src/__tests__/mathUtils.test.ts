@@ -33,6 +33,14 @@ describe('mathUtils', () => {
   it('snaps rotation angles near step intervals', () => {
     expect(roundAngleForSteps(44, 2.5, 45)).toBe(45)
     expect(roundAngleForSteps(30, 2.5, 45)).toBe(30)
+    expect(roundAngleForSteps(43.5, 1.5, 45)).toBe(45)
+    expect(roundAngleForSteps(46.5, 1.5, 45)).toBe(45)
+    expect(roundAngleForSteps(43.4, 1.5, 45)).toBe(43.4)
+    expect(roundAngleForSteps(46.6, 1.5, 45)).toBe(46.6)
+    expect(roundAngleForSteps(-1.5, 1.5, 45)).toBe(0)
+    expect(roundAngleForSteps(-43.5, 1.5, 45)).toBe(-45)
+    expect(roundAngleForSteps(-46.5, 1.5, 45)).toBe(-45)
+    expect(roundAngleForSteps(-46.6, 1.5, 45)).toBe(-46.6)
   })
 
   it('inverts scale and rotation around an origin', () => {

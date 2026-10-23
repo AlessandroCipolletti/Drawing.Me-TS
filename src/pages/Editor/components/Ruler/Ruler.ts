@@ -25,13 +25,14 @@ import {
 import {
   clearRulerTouchState,
   onButtonsTouchEnd,
+  isHeldByFingers,
   onButtonsTouchStart,
   onTouchStart,
   RulerStrokeEvents,
   setRulerStrokeCallbacks,
 } from './rulerTouch'
 
-export { show, hide, lock, unlock, checkCoordNearRuler, getCoordsNearRuler }
+export { show, hide, lock, unlock, checkCoordNearRuler, getCoordsNearRuler, isHeldByFingers }
 
 const onRotate = () => {
   initRulerDimensionAndPosition()
@@ -52,8 +53,8 @@ const initDom = async (moduleContainer: HTMLElement) => {
   config.rulerHeight = spacing.RULER_HEIGHT
 
   refs.ruler?.addEventListener(Params.eventStart, onTouchStart)
-  refs.rulerLevelValue?.addEventListener(Params.eventStart, onButtonsTouchStart)
-  refs.rulerLevelValue?.addEventListener(Params.eventEnd, onButtonsTouchEnd)
+  refs.rulerLevel?.addEventListener(Params.eventStart, onButtonsTouchStart)
+  refs.rulerLevel?.addEventListener(Params.eventEnd, onButtonsTouchEnd)
   if (!Params.isMobile) {
     toggleDragMode()
   }

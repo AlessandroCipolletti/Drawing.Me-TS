@@ -16,7 +16,7 @@ export const config = {
   rulerMinOffset: 50,
   rulerWidth: 2.5,
   rulerHeight: 0,
-  rulerRotationStep: 3,
+  rulerRotationStep: 1.5,
   rulerRotationInterval: 45,
   rulerMarginToDraw: 40,
 }
@@ -149,7 +149,11 @@ export const refreshRulerBoundsCache = () => {
 export const show = () => {
   if (refs.ruler) fadeInElements(refs.ruler)
   state.isVisible = true
-  requestAnimationFrame(refreshRulerBoundsCache)
+  ensureRulerStartOriginInitialized()
+  requestAnimationFrame(() => {
+    ensureRulerStartOriginInitialized()
+    refreshRulerBoundsCache()
+  })
 }
 
 export const hide = () => {
@@ -241,15 +245,34 @@ export const getCoordsNearRuler = (() => {
 })()
 
 export const ensureRulerStartOriginInitialized = () => {
-  if (state.startOriginX === 0 && refs.rulerOrigin) {
+  if (state.startOriginX === 0 && refs.rulerOrigin && refs.rulerCenter) {
     const rulerOriginCoord = refs.rulerOrigin.getBoundingClientRect()
+    const rulerCenterCoord = refs.rulerCenter.getBoundingClientRect()
     if (rulerOriginCoord.left !== 0 || rulerOriginCoord.top !== 0) {
       state.startOriginX = round(rulerOriginCoord.left, 1)
       state.startOriginY = round(rulerOriginCoord.top, 1)
-      state.startCenterX = state.startOriginX + state.rulerWidth / 2
-      state.startCenterY = state.startOriginY + config.rulerHeight / 2
+      state.startCenterX = round(rulerCenterCoord.left + rulerCenterCoord.width / 2, 1)
+      state.startCenterY = round(rulerCenterCoord.top + rulerCenterCoord.height / 2, 1)
     }
   }
+}
+
+export const syncRulerCenterTransformOrigin = () => {
+  if (!refs.rulerCenter || !refs.ruler) return
+  ensureRulerStartOriginInitialized()
+  if (state.rulerTransformOrigin !== '') {
+    const rulerCenterCoord = refs.rulerCenter.getBoundingClientRect()
+    const centerX = rulerCenterCoord.left + rulerCenterCoord.width / 2
+    const centerY = rulerCenterCoord.top + rulerCenterCoord.height / 2
+    if (state.startCenterX !== 0 || state.startCenterY !== 0) {
+      state.dragCurrentX = round(centerX - state.startCenterX, 1)
+      state.dragCurrentY = round(centerY - state.startCenterY, 1)
+      state.dragLastX = state.dragCurrentX
+      state.dragLastY = state.dragCurrentY
+    }
+    state.rulerTransformOrigin = ''
+  }
+  refs.ruler.style.transformOrigin = '50% 50%'
 }
 
 export const toggleDragMode = () => {
@@ -259,19 +282,17 @@ export const toggleDragMode = () => {
     state.dragMode = 'rotate'
     refs.rulerLevel.classList.add('editor__tool-ruler-level-selected')
     refs.rulerLevel.classList.remove('editor__tool-ruler-level')
-    const rulerOriginCoord = refs.rulerCenter.getBoundingClientRect()
-    if (state.startCenterX !== 0 || state.startCenterY !== 0) {
-      state.dragCurrentX = round(rulerOriginCoord.left - state.startCenterX, 1)
-      state.dragCurrentY = round(rulerOriginCoord.top - state.startCenterY, 1)
-    }
-    state.rulerTransformOrigin = ''
-    refs.ruler.style.transformOrigin = '50% 50%'
+    syncRulerCenterTransformOrigin()
     refs.ruler.style.transform = `translate3d(${state.dragCurrentX}px, ${state.dragCurrentY}px, 0px) rotateZ(${state.currentRotation}deg)`
   } else {
     state.dragMode = 'drag'
     refs.rulerLevel.classList.add('editor__tool-ruler-level')
     refs.rulerLevel.classList.remove('editor__tool-ruler-level-selected')
   }
+  state.dragLastX = state.dragCurrentX
+  state.dragLastY = state.dragCurrentY
+  state.dragStartX = state.dragStartY = state.gestureOriginX = state.gestureOriginY = -1
+  state.startAngle = 0
   refreshRulerBoundsCache()
 }
 
@@ -280,7 +301,7 @@ export const rotate = (perpendicular: boolean) => {
   ensureRulerStartOriginInitialized()
   if (perpendicular) {
     state.currentRotation = roundAngleForSteps(
-      (state.currentRotation + 90) % 360,
+      round((state.currentRotation + 90) % 360, 2),
       config.rulerRotationStep,
       config.rulerRotationInterval
     )
@@ -289,18 +310,12 @@ export const rotate = (perpendicular: boolean) => {
       return
     }
     state.currentRotation = roundAngleForSteps(
-      180 - state.currentRotation,
+      round(180 - state.currentRotation, 2),
       config.rulerRotationStep,
       config.rulerRotationInterval
     )
   }
-  const rulerOriginCoord = refs.rulerCenter.getBoundingClientRect()
-  if (state.startCenterX !== 0 || state.startCenterY !== 0) {
-    state.dragCurrentX = round(rulerOriginCoord.left - state.startCenterX, 1)
-    state.dragCurrentY = round(rulerOriginCoord.top - state.startCenterY, 1)
-  }
-  state.rulerTransformOrigin = ''
-  refs.ruler.style.transformOrigin = '50% 50%'
+  syncRulerCenterTransformOrigin()
   refs.rulerLevel.style.transform = `rotateZ(${-state.currentRotation}deg)`
   refs.rulerLevelValue.innerHTML = `${rotationToLabel(state.currentRotation)}&#186;`
   refs.ruler.style.transform = `translate3d(${state.dragCurrentX}px, ${state.dragCurrentY}px, 0px) rotateZ(${state.currentRotation}deg)`
@@ -317,7 +332,11 @@ export const initRulerDimensionAndPosition = () => {
   refs.ruler.style.width = `${state.rulerWidth}px`
   refs.ruler.style.marginLeft = `${-state.rulerWidth / 2}px`
   state.touchDown = false
-  state.startOriginX = state.startOriginY = 0
+  state.translated = false
+  state.dragged = false
+  state.rulerTransformOrigin = ''
+  refs.ruler.style.transformOrigin = '50% 50%'
+  state.startOriginX = state.startOriginY = state.startCenterX = state.startCenterY = 0
   state.dragCurrentX =
     state.dragCurrentY =
     state.currentRotation =

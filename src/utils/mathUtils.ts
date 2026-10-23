@@ -234,17 +234,10 @@ export const getDistanceBetweenThreePoints = (
   )
 }
 
-export const roundAngleForSteps = (deg: number, step = 3, interval = 45): number => {
-  const delta = deg % interval
-  if (Math.abs(Math.trunc(delta)) < step) {
-    return deg - delta
-  }
-  if (Math.abs(Math.trunc(delta)) > interval - step) {
-    if (delta > 0) {
-      return Math.round(deg + interval - delta)
-    } else {
-      return Math.round(deg - interval - delta)
-    }
+export const roundAngleForSteps = (deg: number, step = 1.5, interval = 45): number => {
+  const nearest = Math.round(deg / interval) * interval
+  if (Math.abs(deg - nearest) <= step) {
+    return Object.is(nearest, -0) ? 0 : nearest
   }
   return deg
 }

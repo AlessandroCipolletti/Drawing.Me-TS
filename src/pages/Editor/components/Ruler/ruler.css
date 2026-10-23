@@ -76,6 +76,9 @@
   height: 5.8rem;
   top: 50%;
   left: 50%;
+  margin-top: -2.95rem;
+  margin-left: -2.95rem;
+  border: 1.5px solid rgba(15, 23, 42, 0.22);
   background-color: rgba(255, 255, 255, 0.94);
   box-shadow: 0 2px 8px rgba(15, 23, 42, 0.12);
   position: absolute;
@@ -89,27 +92,14 @@
 .drawith__PHONE .editor__tool-ruler-level-selected {
   width: 4rem;
   height: 4rem;
-}
-.editor__tool-ruler-level {
-  margin-top: -2.95rem;
-  margin-left: -2.95rem;
-  border: 1.5px solid rgba(15, 23, 42, 0.22);
-}
-.drawith__PHONE .editor__tool-ruler-level {
   margin-top: -2.05rem;
   margin-left: -2.05rem;
 }
 .editor__tool-ruler-level-selected {
-  margin-top: -3.05rem;
-  margin-left: -3.05rem;
-  border: 2px solid var(--accent-ink-strong);
+  border-color: var(--accent-ink-strong);
   box-shadow:
     0 0 0 3px var(--accent-ink-ring),
     0 2px 8px rgba(15, 23, 42, 0.14);
-}
-.drawith__PHONE .editor__tool-ruler-level-selected {
-  margin-top: -2.15rem;
-  margin-left: -2.15rem;
 }
 
 .editor__tool-ruler-level-value {

@@ -81,6 +81,7 @@ export interface StrokeSessionDeps {
 
 export const createEditorStrokeSession = (deps: StrokeSessionDeps) => {
   const { state, initialCurrentTouch, refs, coordsAreInsideLayer, setToolColor } = deps
+  let nearRulerLocked = false
 
   const saveStepHistory = () => {
     Layers.addLayerHistoryContentChangedStep()
@@ -314,8 +315,9 @@ export const createEditorStrokeSession = (deps: StrokeSessionDeps) => {
     state.stepsSinceLastLineAdaptation = 0
 
     updateCurrentTouchData(state, touchEvent, Params.eventStart)
-    if (state.currentTouch.isNearRuler) {
+    if (state.currentTouch.isNearRuler && !Ruler.isHeldByFingers()) {
       Ruler.lock()
+      nearRulerLocked = true
     }
     handleTouchStartStep(refs.layerContext)
 
@@ -352,8 +354,9 @@ export const createEditorStrokeSession = (deps: StrokeSessionDeps) => {
       }
     }
 
-    if (state.currentTouch.isNearRuler) {
+    if (nearRulerLocked) {
       Ruler.unlock()
+      nearRulerLocked = false
     }
     updateCurrentTouchData(state, e, Params.eventEnd)
     handleTouchEndStep(refs.layerContext)
