@@ -37,6 +37,7 @@ export const config = {
     'highlighter',
     'brush',
     'spray',
+    'customBrush',
     'bucket',
     'eraser',
     'ruler',
@@ -45,7 +46,7 @@ export const config = {
     'paper',
     'clear',
   ],
-  writingTools: ['pencil', 'marker', 'highlighter', 'brush', 'spray'],
+  writingTools: ['pencil', 'marker', 'highlighter', 'brush', 'spray', 'customBrush'],
   toolsDisabledByDefault: ['undo', 'redo'],
   versionsCloseDelay: 7 * 1000,
   papers: ['white', 'squares', 'lines', 'points'],
@@ -53,6 +54,7 @@ export const config = {
     pencil: 0,
     highlighter: 0,
     brush: 0,
+    customBrush: 0,
   } as Record<string, number>,
 }
 

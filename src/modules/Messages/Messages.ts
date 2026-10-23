@@ -89,7 +89,7 @@ const show = (mandatory = false, closeDelay = config.defaultCloseDelay) => {
   addGlobalStatus('drawith__MESSAGE-OPEN')
   if (mandatory) {
     addGlobalStatus('drawith__MESSAGE-MANDATORY-OPEN')
-    if (refs.overlay) fadeInElements(refs.overlay)
+    if (refs.overlay && !state.panelIsVisible) fadeInElements(refs.overlay)
   } else {
     autoCloseTimeout = setTimeout(hide, closeDelay)
   }
@@ -100,7 +100,7 @@ const hide = (preventNextMessage = false) => {
   removeGlobalStatus('drawith__MESSAGE-OPEN')
   if (state.currentIsMandatory) {
     removeGlobalStatus('drawith__MESSAGE-MANDATORY-OPEN')
-    if (refs.overlay) fadeOutElements(refs.overlay)
+    if (refs.overlay && !state.panelIsVisible) fadeOutElements(refs.overlay)
     state.currentIsMandatory = false
   }
   if (autoCloseTimeout) {

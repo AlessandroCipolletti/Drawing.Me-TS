@@ -150,6 +150,14 @@
   mask-image: url('../../../../static/icons/svg/tool-spray.svg');
   -webkit-mask-image: url('../../../../static/icons/svg/tool-spray.svg');
 }
+.editor-tools__tool-customBrush::after {
+  mask-image: url('../../../../static/icons/svg/tool-custom-brush.svg');
+  -webkit-mask-image: url('../../../../static/icons/svg/tool-custom-brush.svg');
+}
+.drawith__PHONE .editor-tools__tool-customBrush,
+.drawith__PHONE .editor-tools__versions-customBrush {
+  display: none !important;
+}
 .editor-tools__tool-pencil::after {
   mask-image: url('../../../../static/icons/svg/tool-pencil.svg');
   -webkit-mask-image: url('../../../../static/icons/svg/tool-pencil.svg');
@@ -265,4 +273,17 @@
   width: 100%;
   height: 100%;
   font-family: 'Poppins-Medium', sans-serif;
+}
+.editor-tools__versions-button-add {
+  border-style: dashed;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.editor-tools__versions-button-add > p {
+  font-size: 1.9rem;
+  line-height: 1;
+  width: auto;
+  height: auto;
+  margin: 0;
 }

@@ -6,7 +6,16 @@ import * as Ruler from 'pages/Editor/components/Ruler'
 import * as Layers from 'pages/Editor/components/Layers'
 import { preventDefault } from 'utils/domUtils'
 import { addRotationHandler, removeRotationHandler, cleanRefs } from 'utils/moduleUtils'
+import { addListScrollClickAndPressHandlers } from 'utils/uiUtils'
 import { mount } from 'ui/mount'
+import {
+  getCustomBrushes,
+  getCustomBrushCount,
+  getSelectedCustomBrushIndex,
+  isCustomBrushSupported,
+  loadCustomBrushes,
+  openCustomBrushModal,
+} from 'pages/Editor/components/CustomBrush'
 
 import { ToolsView } from './ToolsView'
 import {
@@ -121,6 +130,18 @@ const toolsFunctions: Record<string, (selected?: boolean) => unknown> = {
   marker: (selected) => (selected ? toggleVersions('marker') : selectTool('marker')),
   pencil: (selected) => (selected ? toggleVersions('pencil') : selectTool('pencil')),
   spray: (selected) => (selected ? toggleVersions('spray') : selectTool('spray')),
+  customBrush: (selected) => {
+    if (!isCustomBrushSupported()) return
+    if (getCustomBrushCount() === 0) {
+      openCreateCustomBrush()
+      return
+    }
+    if (selected) {
+      toggleVersions('customBrush')
+    } else {
+      selectTool('customBrush')
+    }
+  },
   highlighter: (selected) => (selected ? toggleVersions('highlighter') : selectTool('highlighter')),
   brush: (selected) => (selected ? toggleVersions('brush') : selectTool('brush')),
   eraser: (selected) => (selected ? toggleVersions('eraser') : selectTool('eraser')),
@@ -204,7 +225,11 @@ const selectInitialTools = (selectedTool: SelectedToolDescriptor | false = false
   state.openVersionsEl = null
 
   const initialTool = resolveSelectedTool(selectedTool)
-  if (initialTool && config.tools.includes(initialTool.name)) {
+  if (
+    initialTool &&
+    config.tools.includes(initialTool.name) &&
+    (initialTool.name !== 'customBrush' || isCustomBrushSupported())
+  ) {
     selectTool(initialTool.name, initialTool.version, false)
   } else {
     selectTool(state.selectedTool, false, false)
@@ -305,9 +330,107 @@ const onToolsScrollTouchEnd = async (e: Event) => {
   }
 }
 
+const renderCustomBrushVersions = () => {
+  const container = refs.toolsVersions.customBrush
+  if (!container) return
+  const brushes = getCustomBrushes()
+  const selectedIdx = state.selectedVersions.customBrush ?? getSelectedCustomBrushIndex()
+  container.innerHTML = ''
+
+  brushes.forEach((brush, idx) => {
+    const btn = document.createElement('div')
+    btn.className = `editor-tools__versions-button${
+      idx === selectedIdx ? ' editor-tools__versions-button-selected' : ''
+    }`
+    btn.setAttribute('data-versionsIndex', String(idx))
+    btn.setAttribute('data-brush-id', brush.id)
+    btn.setAttribute('data-tool', 'customBrush')
+    const p = document.createElement('p')
+    p.textContent = String(idx + 1)
+    btn.appendChild(p)
+    container.appendChild(btn)
+  })
+
+  const addBtn = document.createElement('div')
+  addBtn.className = 'editor-tools__versions-button editor-tools__versions-button-add'
+  addBtn.setAttribute('data-action', 'add')
+  addBtn.setAttribute('data-tool', 'customBrush')
+  const addP = document.createElement('p')
+  addP.textContent = '+'
+  addBtn.appendChild(addP)
+  container.appendChild(addBtn)
+}
+
+const findCustomBrushVersionTarget = (e: Event): HTMLElement | null => {
+  let node = (e.target as HTMLElement | null) || null
+  while (node && node !== refs.toolsVersions.customBrush) {
+    if (node.classList?.contains('editor-tools__versions-button')) {
+      return node
+    }
+    node = node.parentNode as HTMLElement | null
+  }
+  return null
+}
+
+const openCreateCustomBrush = () => {
+  closeVersions()
+  void openCustomBrushModal({
+    mode: 'create',
+    onSaved: (newIndex) => {
+      renderCustomBrushVersions()
+      selectTool('customBrush', newIndex, false)
+    },
+  })
+}
+
+const onCustomBrushVersionsClick = (e: Event) => {
+  const target = findCustomBrushVersionTarget(e)
+  if (!target) return
+  if (state.versionsTimeout) clearTimeout(state.versionsTimeout)
+  state.versionsTimeout = setTimeout(closeVersions, config.versionsCloseDelay)
+
+  if (target.getAttribute('data-action') === 'add') {
+    openCreateCustomBrush()
+    return
+  }
+
+  const versionIdx = target.getAttribute('data-versionsIndex')
+  if (versionIdx !== null) {
+    setEditorToolByVersion('customBrush', versionIdx)
+  }
+}
+
+const onCustomBrushVersionsLongPress = (e: Event) => {
+  const target = findCustomBrushVersionTarget(e)
+  if (!target || target.getAttribute('data-action') === 'add') return
+  const brushId = target.getAttribute('data-brush-id')
+  if (!brushId) return
+  if (state.versionsTimeout) clearTimeout(state.versionsTimeout)
+  void openCustomBrushModal({
+    mode: 'edit',
+    brushId,
+    onSaved: (updatedIndex) => {
+      renderCustomBrushVersions()
+      selectTool('customBrush', updatedIndex, false)
+    },
+    onDeleted: (nextIndex) => {
+      renderCustomBrushVersions()
+      if (nextIndex !== false && nextIndex >= 0) {
+        selectTool('customBrush', nextIndex, false)
+      } else {
+        setEditorToolByVersion('customBrush', 0)
+        toggleVersions('customBrush')
+      }
+    },
+  })
+}
+
 const initDom = async (moduleContainer: HTMLElement) => {
   if (!toolsConfig) return
-  const toolsData = config.tools.map((name) => ({
+  const visibleTools = config.tools.filter(
+    (name) => name !== 'customBrush' || isCustomBrushSupported()
+  )
+  const toolsData = visibleTools.map((name) => ({
     name,
     disabled: config.toolsDisabledByDefault.includes(name),
     versions: toolsConfig?.[name] ? toolsConfig[name].versions : (false as const),
@@ -317,8 +440,18 @@ const initDom = async (moduleContainer: HTMLElement) => {
   refs.toolsVersions = {}
   mount(moduleContainer, ToolsView({ toolsData, refs }))
 
-  for (const tool of config.tools) {
-    if (toolsConfig[tool]?.versions?.length) {
+  for (const tool of visibleTools) {
+    if (tool === 'customBrush') {
+      const customVerEl = refs.toolsVersions.customBrush
+      if (customVerEl) {
+        renderCustomBrushVersions()
+        addListScrollClickAndPressHandlers(
+          customVerEl,
+          onCustomBrushVersionsClick,
+          onCustomBrushVersionsLongPress
+        )
+      }
+    } else if (toolsConfig[tool]?.versions?.length) {
       const verEl = refs.toolsVersions[tool]
       if (verEl) {
         verEl.addEventListener(Params.eventStart, (e) => onVersionsTouchStart(verEl, e), true)
@@ -337,8 +470,13 @@ export const init = async (
 ) => {
   initToolsConfig()
   mergeCustomProps(toolsCustomProps)
-  await initDom(moduleContainer)
+  await loadCustomBrushes()
   resetToolsState()
+  const savedCustomIdx = getSelectedCustomBrushIndex()
+  if (savedCustomIdx >= 0) {
+    state.selectedVersions.customBrush = savedCustomIdx
+  }
+  await initDom(moduleContainer)
   selectInitialTools(selectedTool)
   addRotationHandler(onRotate)
 }

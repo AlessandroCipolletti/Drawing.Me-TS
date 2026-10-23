@@ -142,7 +142,31 @@ const getTouchEventData = (
     if (touchEvent.type === Params.eventEnd || touchEvent.type === 'end') {
       speedFactor = (lastStep.speedFactor || 0) / 2
     } else {
-      speedFactor = Math.min(config.maxSpeedFactorLength, stepLength) / config.maxSpeedFactorLength
+      const distSpeed =
+        Math.min(config.maxSpeedFactorLength, stepLength) / config.maxSpeedFactorLength
+      const eventTimeStamp = touchEvent.timeStamp || 0
+      const prevTimeStamp = lastStep.timeStamp || 0
+      const dtMs =
+        eventTimeStamp > 0 && prevTimeStamp > 0 && eventTimeStamp > prevTimeStamp
+          ? eventTimeStamp - prevTimeStamp
+          : 0
+      let rawSpeed = distSpeed
+      const toolAny = tool as {
+        useTimeBasedSpeed?: boolean
+        maxVelocityPxPerMs?: number
+        speedSmoothing?: number
+      }
+      if (toolAny?.useTimeBasedSpeed && dtMs > 0) {
+        const maxVel = Math.max(0.1, (toolAny.maxVelocityPxPerMs || 2.5) * Params.pxScale)
+        rawSpeed = getNumberInBetween(0, 1, stepLength / dtMs / maxVel, 4)
+      }
+      const smoothing = getNumberInBetween(0, 0.95, toolAny?.speedSmoothing || 0, 2)
+      if (smoothing > 0) {
+        const prevSpeed = lastStep.speedFactor ?? 0
+        speedFactor = round(prevSpeed * smoothing + rawSpeed * (1 - smoothing), 4)
+      } else {
+        speedFactor = rawSpeed
+      }
     }
   }
 
@@ -226,6 +250,9 @@ export const getStepsDataFromTouchEvents = (
     lastStep.rotation = stepData.rotation
     lastStep.aspectRatio = stepData.aspectRatio
     lastStep.speedFactor = touchData.speedFactor
+    if (touchEvent.timeStamp) {
+      lastStep.timeStamp = touchEvent.timeStamp
+    }
   }
 
   return stepsData

@@ -1,4 +1,6 @@
 export const TOOL_FRAME_CIRCLE = 'circle'
+export const TOOL_FRAME_SQUARE = 'square'
+export const TOOL_FRAME_TRIANGLE = 'triangle'
 export const TOOL_FRAME_PARTICLES_RECT = 'particlesRect'
 export const TOOL_FRAME_PARTICLES_CIRCLE = 'particlesCircle'
 export const TOOL_FRAME_SPRAY_CIRCLE = 'sprayCircle'

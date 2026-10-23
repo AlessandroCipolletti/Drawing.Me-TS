@@ -30,8 +30,8 @@ import {
   PreviewTouchSample,
 } from './toolbarUtils'
 import { fadeOutElements } from 'utils/animationsUtils'
-import { getNewContextForCanvas, drawMultipleSteps } from 'utils/canvasUtils'
-import { getStepsDataFromTouchEvents } from 'pages/Editor/editorUtils'
+import { getNewContextForCanvas } from 'utils/canvasUtils'
+import { renderBrushPreview } from 'pages/Editor/brushPreviewPipeline'
 import { timing, spacing } from 'main/Theme'
 
 const config = {
@@ -133,9 +133,8 @@ const updateToolPreview = () => {
   state.toolPreviewTouchEvents =
     state.toolPreviewTouchEvents ||
     getToolPreviewTouchEvents(state.toolPreviewCanvasSize * Params.pxScale)
-  const previewSteps = getStepsDataFromTouchEvents(state.toolPreviewTouchEvents, toolsProps)
 
-  drawMultipleSteps(refs.toolPreviewContext, previewSteps, toolsProps)
+  renderBrushPreview(refs.toolPreviewContext, toolsProps, state.toolPreviewTouchEvents)
 }
 
 const openPreviewPopups = () => {

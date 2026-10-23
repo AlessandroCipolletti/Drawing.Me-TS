@@ -21,7 +21,7 @@
   right: 1.5rem;
   transition: transform var(--slide-transition) cubic-bezier(0.22, 1, 0.36, 1);
   transform: translate3d(0rem, -130%, 0px);
-  z-index: 1000;
+  z-index: 1200;
   overflow: hidden;
   background-color: var(--surface-glass-strong);
   backdrop-filter: blur(16px);

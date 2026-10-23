@@ -16,6 +16,8 @@ import type { StampSpacingMode, ToolConfigProps } from 'pages/Editor/config'
 
 import {
   TOOL_FRAME_CIRCLE,
+  TOOL_FRAME_SQUARE,
+  TOOL_FRAME_TRIANGLE,
   TOOL_FRAME_PARTICLES_RECT,
   TOOL_FRAME_PARTICLES_CIRCLE,
   TOOL_FRAME_SPRAY_CIRCLE,
@@ -336,6 +338,123 @@ const drawCircle = (
   }
 }
 
+const drawSquare = (
+  destinationContext: ExtendedCanvasContext,
+  x: number,
+  y: number,
+  alpha: number,
+  size: number,
+  rotation: number,
+  color = '#000000',
+  blur = 0,
+  aspectRatio = 1
+) => {
+  destinationContext.fillStyle = color
+  destinationContext.globalAlpha = alpha
+  destinationContext.lastDrawCoordX = x
+  destinationContext.lastDrawCoordY = y
+
+  if (blur) {
+    destinationContext.shadowColor = color
+    destinationContext.shadowBlur = blur
+  } else {
+    destinationContext.shadowColor = ''
+    destinationContext.shadowBlur = 0
+  }
+
+  const width = size
+  const height =
+    MATH.abs(aspectRatio - 1) > 0.001 ? MATH.max(1, round(size / aspectRatio, 2)) : size
+
+  if (rotation) {
+    destinationContext.translate(x, y)
+    destinationContext.rotate(rotation)
+    destinationContext.fillRect(
+      round(-width / 2, 1),
+      round(-height / 2, 1),
+      round(width, 1),
+      round(height, 1)
+    )
+    destinationContext.rotate(-rotation)
+    destinationContext.translate(-x, -y)
+  } else {
+    destinationContext.fillRect(
+      round(x - width / 2, 1),
+      round(y - height / 2, 1),
+      round(width, 1),
+      round(height, 1)
+    )
+  }
+
+  if (blur) {
+    destinationContext.shadowColor = ''
+    destinationContext.shadowBlur = 0
+  }
+}
+
+const COS_PI_6 = 0.8660254037844386
+const SIN_PI_6 = 0.5
+
+const drawEquilateralTriangle = (
+  destinationContext: ExtendedCanvasContext,
+  x: number,
+  y: number,
+  alpha: number,
+  size: number,
+  rotation: number,
+  color = '#000000',
+  blur = 0,
+  aspectRatio = 1
+) => {
+  destinationContext.beginPath()
+  destinationContext.fillStyle = color
+  destinationContext.globalAlpha = alpha
+  destinationContext.lineJoin = 'round'
+  destinationContext.lineCap = 'round'
+  destinationContext.lastDrawCoordX = x
+  destinationContext.lastDrawCoordY = y
+
+  if (blur) {
+    destinationContext.shadowColor = color
+    destinationContext.shadowBlur = blur
+  } else {
+    destinationContext.shadowColor = ''
+    destinationContext.shadowBlur = 0
+  }
+
+  const rx = size / 2
+  const ry =
+    MATH.abs(aspectRatio - 1) > 0.001 ? MATH.max(0.5, round(size / (2 * aspectRatio), 2)) : rx
+
+  const localVertices: Array<[number, number]> = [
+    [0, -ry],
+    [rx * COS_PI_6, ry * SIN_PI_6],
+    [-rx * COS_PI_6, ry * SIN_PI_6],
+  ]
+  const cosR = rotation ? MATH.cos(rotation) : 1
+  const sinR = rotation ? MATH.sin(rotation) : 0
+
+  for (let i = 0; i < localVertices.length; i++) {
+    const [lx, ly] = localVertices[i]
+    const ox = rotation ? lx * cosR - ly * sinR : lx
+    const oy = rotation ? lx * sinR + ly * cosR : ly
+    const vx = round(x + ox, 1)
+    const vy = round(y + oy, 1)
+    if (i === 0) {
+      destinationContext.moveTo(vx, vy)
+    } else {
+      destinationContext.lineTo(vx, vy)
+    }
+  }
+  destinationContext.closePath()
+  destinationContext.fill()
+
+  if (blur) {
+    destinationContext.shadowColor = ''
+    destinationContext.shadowBlur = 0
+  }
+}
+
 const drawParticlesSprayCircle = (
   destinationContext: ExtendedCanvasContext,
   x: number,
@@ -560,6 +679,8 @@ const toolShapesDrawFns: Record<
   ) => void
 > = {
   [TOOL_FRAME_CIRCLE]: drawCircle,
+  [TOOL_FRAME_SQUARE]: drawSquare,
+  [TOOL_FRAME_TRIANGLE]: drawEquilateralTriangle,
   [TOOL_FRAME_PARTICLES_RECT]: drawParticlesRect,
   [TOOL_FRAME_PARTICLES_CIRCLE]: drawParticlesCircle,
   [TOOL_FRAME_SPRAY_CIRCLE]: drawParticlesSprayCircle,

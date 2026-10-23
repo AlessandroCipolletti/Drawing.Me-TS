@@ -12,6 +12,11 @@ import { EditorView, EditorRefs } from 'pages/Editor/EditorView'
 import { ToolbarView, ToolbarRefs } from 'pages/Editor/components/Toolbar/ToolbarView'
 import { ToolsView, ToolsRefs } from 'pages/Editor/components/Tools/ToolsView'
 import {
+  CustomBrushModalView,
+  CustomBrushModalRefs,
+  getDefaultCustomBrushDraft,
+} from 'pages/Editor/components/CustomBrush'
+import {
   ColorPickerView,
   ColorPickerRefs,
 } from 'pages/Editor/components/ColorPicker/ColorPickerView'
@@ -487,14 +492,67 @@ describe('Shell Pages Smoke Tests (Messages, NotSupported, Info, Folder)', () =>
       ToolsView({
         toolsData: [
           { name: 'marker', disabled: false, versions: [{ name: 'v1', props: {} }] },
+          { name: 'customBrush', disabled: false, versions: [] },
           { name: 'undo', disabled: true, versions: false },
         ],
         refs: toolsRefs,
       })
     )
     expect(toolsRefs.toolsButtons.marker).toBeDefined()
+    expect(toolsRefs.toolsButtons.customBrush).toBeDefined()
     expect(toolsRefs.toolsButtons.undo.classList.contains('disabled')).toBe(true)
     expect(toolsRefs.toolsVersions.marker).toBeDefined()
+    expect(toolsRefs.toolsVersions.customBrush).toBeDefined()
+
+    const customModalRefs: CustomBrushModalRefs = {
+      root: null,
+      paramsPane: null,
+      previewPane: null,
+      previewCanvas: null,
+      resetPreviewBtn: null,
+      frameButtons: {},
+      fileInput: null,
+      imageThumbWrap: null,
+      imageThumbImg: null,
+      reuploadImageBtn: null,
+      redrawFrameBtn: null,
+      sectionContainers: {},
+      sectionBodies: {},
+      sectionToggleHeaders: {},
+      controls: {},
+      deleteBtn: null,
+      cancelBtn: null,
+      saveBtn: null,
+      frameEditor: {
+        overlay: null,
+        canvas: null,
+        sizeSlider: null,
+        sizeCursor: null,
+        sizeValueLabel: null,
+        opacitySlider: null,
+        opacityCursor: null,
+        opacityValueLabel: null,
+        clearBtn: null,
+        cancelBtn: null,
+        saveBtn: null,
+      },
+    }
+    mount(
+      editorRefs.container!,
+      CustomBrushModalView({
+        mode: 'edit',
+        brushNumber: 2,
+        draft: getDefaultCustomBrushDraft(),
+        refs: customModalRefs,
+      })
+    )
+    expect(customModalRefs.root).not.toBeNull()
+    expect(customModalRefs.previewCanvas).not.toBeNull()
+    expect(customModalRefs.deleteBtn?.classList.contains('displayNone')).toBe(false)
+    expect(customModalRefs.frameEditor.canvas).not.toBeNull()
+    expect(customModalRefs.controls.size?.slider).not.toBeNull()
+    expect(customModalRefs.controls.speedCurve?.slider).not.toBeNull()
+    expect(customModalRefs.controls.useTimeBasedSpeed?.toggleEl).not.toBeNull()
 
     const colorPickerRefs = {} as ColorPickerRefs
     mount(

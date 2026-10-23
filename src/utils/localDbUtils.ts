@@ -45,6 +45,25 @@ const ensureDb = (): DrawingMeDatabase => {
         '++localDbId, folderId, title, state, wasSavedAsDraft, gpsCoordinates, createTimestamp, updateTimestamp, createdAt, updatedAt, base64, bitmap, minX, minY, maxX, maxY, width, height, canvasWidth, canvasHeight, mainColor, dashboardCoordinates, selectedTool, selectedColorId, colors, layers, appVersions, toolsCustomProps',
       AppData: '++id, coworkerWaitingId',
     })
+    LocalDatabase.version(2)
+      .stores({
+        Drawings:
+          '++localDbId, folderId, title, state, wasSavedAsDraft, gpsCoordinates, createTimestamp, updateTimestamp, createdAt, updatedAt, base64, bitmap, minX, minY, maxX, maxY, width, height, canvasWidth, canvasHeight, mainColor, dashboardCoordinates, selectedTool, selectedColorId, colors, layers, appVersions, toolsCustomProps',
+        AppData: '++id, coworkerWaitingId',
+      })
+      .upgrade(async (tx) => {
+        const appData = tx.table('AppData')
+        const rows = await appData.toArray()
+        if (rows[0]?.id) {
+          await appData
+            .where('id')
+            .equals(rows[0].id)
+            .modify({
+              customBrushes: Array.isArray(rows[0].customBrushes) ? rows[0].customBrushes : [],
+              selectedCustomBrushId: rows[0].selectedCustomBrushId || false,
+            })
+        }
+      })
   }
   return LocalDatabase
 }
@@ -54,7 +73,12 @@ export const initLocalDb = securizeAsyncFn(
     const db = ensureDb()
     const appDataCount = await db.AppData.count()
     if (appDataCount === 0) {
-      await db.AppData.add({ id: 1, coworkerWaitingId: false })
+      await db.AppData.add({
+        id: 1,
+        coworkerWaitingId: false,
+        customBrushes: [],
+        selectedCustomBrushId: false,
+      })
     }
     await deleteUnsavedDrawings()
 
@@ -62,6 +86,56 @@ export const initLocalDb = securizeAsyncFn(
   },
   DEFAULT_LOCAL_DB_ERROR_MSG,
   'initLocalDb'
+)
+
+export const getCustomBrushesAppData = securizeAsyncFn(
+  async (): Promise<{
+    customBrushes: Array<Record<string, any>>
+    selectedCustomBrushId: string | false
+  }> => {
+    const first = (await ensureDb().AppData.toArray())[0]
+    return {
+      customBrushes: Array.isArray(first?.customBrushes) ? first.customBrushes : [],
+      selectedCustomBrushId:
+        typeof first?.selectedCustomBrushId === 'string' && first.selectedCustomBrushId
+          ? first.selectedCustomBrushId
+          : false,
+    }
+  },
+  DEFAULT_LOCAL_DB_ERROR_MSG,
+  'getCustomBrushesAppData',
+  false
+)
+
+export const saveCustomBrushesAppData = securizeAsyncFn(
+  async (payload: {
+    customBrushes?: Array<Record<string, any>>
+    selectedCustomBrushId?: string | false
+  }) => {
+    const db = ensureDb()
+    const first = (await db.AppData.toArray())[0]
+    const update: Record<string, any> = {}
+    if (payload.customBrushes !== undefined) {
+      update.customBrushes = payload.customBrushes
+    }
+    if (payload.selectedCustomBrushId !== undefined) {
+      update.selectedCustomBrushId = payload.selectedCustomBrushId
+    }
+    if (first?.id) {
+      await db.AppData.where('id').equals(first.id).modify(update)
+    } else {
+      await db.AppData.add({
+        id: 1,
+        coworkerWaitingId: false,
+        customBrushes: payload.customBrushes || [],
+        selectedCustomBrushId: payload.selectedCustomBrushId || false,
+      })
+    }
+    return true
+  },
+  DEFAULT_LOCAL_DB_ERROR_MSG,
+  'saveCustomBrushesAppData',
+  false
 )
 
 export const addCoworkerWaitingId = securizeAsyncFn(

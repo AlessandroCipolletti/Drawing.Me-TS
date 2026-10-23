@@ -35,6 +35,8 @@ import { spacing, init as initTheme } from 'main/Theme'
 import { TOUCH_TYPE_STYLUS } from 'main/constants'
 import {
   TOOL_FRAME_CIRCLE,
+  TOOL_FRAME_SQUARE,
+  TOOL_FRAME_TRIANGLE,
   TOOL_FRAME_SPRAY_CIRCLE,
   TOOL_FRAME_PARTICLES_CIRCLE,
   TOOL_FRAME_PARTICLES_RECT,
@@ -1383,5 +1385,91 @@ describe('Unified Numeric Stroke Kernel (Local & PeerJS Coworking)', () => {
       expect(localMock.ctx.shadowBlur).toBeFalsy()
       expect(localMock.ctx.globalCompositeOperation).toBe('source-over')
     }
+  })
+
+  it('draws TOOL_FRAME_SQUARE and TOOL_FRAME_TRIANGLE stamps respecting rotation and aspectRatio', () => {
+    const startSample: StrokeSample = {
+      type: 'start',
+      x: 50,
+      y: 60,
+      midX: 50,
+      midY: 60,
+      size: 24,
+      alpha: 0.75,
+      rotation: 0.4,
+      oldSize: 24,
+      oldAlpha: 0.75,
+      oldRotation: 0,
+      oldMidX: 50,
+      oldMidY: 60,
+      oldX: 50,
+      oldY: 60,
+      stepLength: 0,
+      aspectRatio: 1.5,
+      oldAspectRatio: 1.5,
+    }
+    const moveSample: StrokeSample = {
+      ...startSample,
+      type: 'move',
+      x: 80,
+      y: 90,
+      midX: 65,
+      midY: 75,
+      stepLength: 21,
+    }
+
+    const squareMock = createMockCanvasContext()
+    drawStrokeSample(
+      squareMock.ctx,
+      startSample,
+      {
+        frameType: TOOL_FRAME_SQUARE,
+        minPxDistanceBetweenFrames: 2,
+        sizeToFramesRatio: 0.2,
+        color: '#224466',
+      },
+      true
+    )
+    drawStrokeSample(
+      squareMock.ctx,
+      moveSample,
+      {
+        frameType: TOOL_FRAME_SQUARE,
+        minPxDistanceBetweenFrames: 2,
+        sizeToFramesRatio: 0.2,
+        color: '#224466',
+      },
+      true
+    )
+    expect(squareMock.ops.some((o) => o.op === 'fillRect')).toBe(true)
+    expect(squareMock.ops.some((o) => o.op === 'rotate')).toBe(true)
+
+    const triMock = createMockCanvasContext()
+    drawStrokeSample(
+      triMock.ctx,
+      startSample,
+      {
+        frameType: TOOL_FRAME_TRIANGLE,
+        minPxDistanceBetweenFrames: 2,
+        sizeToFramesRatio: 0.2,
+        color: '#664422',
+      },
+      true
+    )
+    drawStrokeSample(
+      triMock.ctx,
+      moveSample,
+      {
+        frameType: TOOL_FRAME_TRIANGLE,
+        minPxDistanceBetweenFrames: 2,
+        sizeToFramesRatio: 0.2,
+        color: '#664422',
+      },
+      true
+    )
+    expect(triMock.ops.some((o) => o.op === 'moveTo')).toBe(true)
+    expect(triMock.ops.filter((o) => o.op === 'lineTo').length).toBeGreaterThanOrEqual(2)
+    expect(triMock.ops.some((o) => o.op === 'closePath')).toBe(true)
+    expect(triMock.ops.some((o) => o.op === 'fill')).toBe(true)
   })
 })

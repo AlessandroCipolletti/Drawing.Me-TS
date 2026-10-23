@@ -39,14 +39,14 @@ export const ToolsView = ({ toolsData, refs }: { toolsData: ToolItemData[]; refs
       }}
     >
       {toolsData.map((tool) =>
-        tool.versions && tool.versions.length > 0 ? (
+        (tool.versions && tool.versions.length > 0) || tool.name === 'customBrush' ? (
           <div
             class={`editor-tools__versions editor-tools__versions-${tool.name}`}
             ref={(el) => {
               refs.toolsVersions[tool.name] = el
             }}
           >
-            {tool.versions.map((ver, idx) => (
+            {(tool.versions || []).map((ver, idx) => (
               <div
                 class={`editor-tools__versions-button${ver.props.image ? ' editor-tools__versions-button-image' : ''}`}
                 data-versionsIndex={String(idx)}
