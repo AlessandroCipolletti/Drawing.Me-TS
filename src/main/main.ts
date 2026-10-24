@@ -119,6 +119,9 @@ const addEnviromentGlobalStatus = () => {
       addGlobalStatus('drawith__PHONE')
     } else if (Params.isTablet) {
       addGlobalStatus('drawith__TABLET')
+      if (!Params.isHighPerformanceTablet) {
+        addGlobalStatus('drawith__COMPACT')
+      }
     }
   } else {
     addGlobalStatus('drawith__DESKTOP')

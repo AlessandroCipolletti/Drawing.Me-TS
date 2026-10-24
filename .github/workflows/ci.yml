@@ -12,7 +12,7 @@ on:
 
 jobs:
   ci:
-    name: Typecheck, Lint & Knip
+    name: Typecheck, Lint, Knip & Circular
     runs-on: ubuntu-latest
 
     steps:

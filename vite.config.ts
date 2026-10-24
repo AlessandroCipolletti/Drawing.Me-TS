@@ -35,5 +35,13 @@ export default defineConfig(({ command }) => ({
     outDir: 'dist',
     emptyOutDir: true,
     target: 'es2022',
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('node_modules/dexie/')) return 'dexie'
+          if (id.includes('node_modules/peerjs/')) return 'peerjs'
+        },
+      },
+    },
   },
 }))

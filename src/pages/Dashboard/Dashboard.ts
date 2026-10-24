@@ -5,7 +5,6 @@ import Params from 'main/Params'
 import * as GPS from './modules/GPS'
 import * as Cache from './modules/Cache'
 import * as Messages from 'modules/Messages'
-import * as Editor from 'pages/Editor'
 import { spacing } from 'main/Theme'
 import { goToPage } from 'app/navigation'
 import { round, getNumberInBetween } from 'utils/mathUtils'
@@ -294,7 +293,9 @@ const initDom = async () => {
 export const open = async (drawingId?: number | string | false) => {
   state = deepCopy(initialState)
   const resolvedId =
-    drawingId && drawingId !== 'false' ? Number(drawingId) : Editor.getLastActiveDrawingId()
+    drawingId && drawingId !== 'false'
+      ? Number(drawingId)
+      : (await import('pages/Editor')).getLastActiveDrawingId()
   state.targetDrawingId = resolvedId || false
   state.width = Params.width
   state.height = Params.height - spacing.HEADER_HEIGHT

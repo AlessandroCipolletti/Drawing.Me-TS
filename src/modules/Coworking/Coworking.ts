@@ -5,11 +5,9 @@ import { goToPage, openPageFolder, getCurrentPage } from 'app/navigation'
 import { emitCoworkingEvent } from 'app/coworkingBus'
 import * as Messages from 'modules/Messages'
 import { delay } from 'utils/jsUtils'
-import { drawCoworkingMultipleStepsData, getCanvasPxSizes } from 'pages/Editor'
-import * as Layers from 'pages/Editor/components/Layers'
 import { editorEvents, SOCKET_CONNECTED_STATUS } from './constants'
 import { addGlobalStatus, removeGlobalStatus } from 'utils/moduleUtils'
-import { StrokeSample } from 'utils/canvasUtils'
+import type { StrokeSample } from 'utils/canvasUtils'
 import {
   addCoworkerWaitingId,
   getCoworkerWaitingId,
@@ -20,7 +18,7 @@ let peerClient: PeerSocket | null = null
 const config = {
   maxConcurrentConnections: 1,
 }
-export const state = {
+const state = {
   userId: uuidv4(),
   isOpen: false,
   connectedUserId: '',
@@ -56,48 +54,87 @@ const labels = {
 }
 
 export const isOnline = () => Boolean(peerClient?.online)
-export const isConnectedWithSomeone = () => Boolean(peerClient?.connected)
 export const isOpen = () => Boolean(state.isOpen)
 export const getSocketId = () => peerClient?.id || ''
 export const getUserId = () => state.userId
 export const getCoworkerUserId = () => state.connectedUserId
 export const isHostingCoworking = () => state.isOpen && !state.iAskedForCoworking
 
-const receiveNewLayer = async (layer: any) => {
-  await waitForEditorToBeReady()
-  layer.minX = Infinity
-  layer.minY = Infinity
-  layer.maxX = -Infinity
-  layer.maxY = -Infinity
-  Layers.addNewLayerFromCoworker(layer)
+type EditorModule = typeof import('pages/Editor')
+type LayersModule = typeof import('pages/Editor/components/Layers')
+
+let editorModules: Promise<{ editor: EditorModule; layers: LayersModule }> | null = null
+let editorQueue: Promise<void> = Promise.resolve()
+
+const loadEditorModules = () => {
+  editorModules ??= Promise.all([
+    import('pages/Editor'),
+    import('pages/Editor/components/Layers'),
+  ]).then(([editor, layers]) => ({ editor, layers }))
+  return editorModules
+}
+
+const withEditor = (fn: (modules: { editor: EditorModule; layers: LayersModule }) => unknown) => {
+  const run = async () => {
+    await fn(await loadEditorModules())
+  }
+  editorQueue = editorQueue.then(run, run)
+}
+
+const receiveNewLayer = (layer: any) => {
+  withEditor(async ({ layers }) => {
+    await waitForEditorToBeReady(layers)
+    layer.minX = Infinity
+    layer.minY = Infinity
+    layer.maxX = -Infinity
+    layer.maxY = -Infinity
+    await layers.addNewLayerFromCoworker(layer)
+  })
 }
 
 const peerMessageHandlers: Record<string, (data: any) => void> = {
-  [editorEvents.coworkingSteps]: (data) => drawCoworkingMultipleStepsData(data),
+  [editorEvents.coworkingSteps]: (data) =>
+    withEditor(({ editor }) => editor.drawCoworkingMultipleStepsData(data)),
   [editorEvents.newLayer]: (data) => receiveNewLayer(data.layer),
   [editorEvents.clientEnvironment]: (data) => checkCoworkerEnvironment(data),
-  [editorEvents.selectedLayer]: (data) => Layers.selectCoworkerLayer(data.layerId),
-  [editorEvents.undo]: (data) => Layers.doUndoForUser(data.userId),
-  [editorEvents.redo]: (data) => Layers.doRedoForUser(data.userId),
+  [editorEvents.selectedLayer]: (data) =>
+    withEditor(({ layers }) => layers.selectCoworkerLayer(data.layerId)),
+  [editorEvents.undo]: (data) => withEditor(({ layers }) => layers.doUndoForUser(data.userId)),
+  [editorEvents.redo]: (data) => withEditor(({ layers }) => layers.doRedoForUser(data.userId)),
   [editorEvents.deleteLayer]: (data) =>
-    Layers.deleteLayerFromCoworker(data.layerId, data.nextSelectedId),
-  [editorEvents.renameLayer]: (data) => Layers.renameLayerFromCoworker(data.layerId, data.newName),
+    withEditor(({ layers }) => layers.deleteLayerFromCoworker(data.layerId, data.nextSelectedId)),
+  [editorEvents.renameLayer]: (data) =>
+    withEditor(({ layers }) => layers.renameLayerFromCoworker(data.layerId, data.newName)),
   [editorEvents.duplicateLayer]: (data) =>
-    Layers.duplicateLayerFromCoworker(data.layerId, data.newId),
+    withEditor(({ layers }) => layers.duplicateLayerFromCoworker(data.layerId, data.newId)),
   [editorEvents.mergeLayers]: (data) =>
-    Layers.mergeLayersFromCoworker(data.layerOneId, data.layerTwoId, data.newLayerId),
+    withEditor(({ layers }) =>
+      layers.mergeLayersFromCoworker(data.layerOneId, data.layerTwoId, data.newLayerId)
+    ),
   [editorEvents.opacityLayer]: (data) =>
-    Layers.updateLayerOpacityFromCoworker(data.layerId, data.newValue, data.oldValue),
-  [editorEvents.enableLayer]: (data) => Layers.enableLayerFromCoworker(data.layerId),
-  [editorEvents.disableLayer]: (data) => Layers.disableLayerFromCoworker(data.layerId),
+    withEditor(({ layers }) =>
+      layers.updateLayerOpacityFromCoworker(data.layerId, data.newValue, data.oldValue)
+    ),
+  [editorEvents.enableLayer]: (data) =>
+    withEditor(({ layers }) => layers.enableLayerFromCoworker(data.layerId)),
+  [editorEvents.disableLayer]: (data) =>
+    withEditor(({ layers }) => layers.disableLayerFromCoworker(data.layerId)),
   [editorEvents.orderDragLayer]: (data) =>
-    Layers.layerDragChangeFromCoworker(data.layerId, data.newOrder, data.oldOrder),
+    withEditor(({ layers }) =>
+      layers.layerDragChangeFromCoworker(data.layerId, data.newOrder, data.oldOrder)
+    ),
   [editorEvents.flipLayer]: (data) =>
-    Layers.receiveFlipLayerFromCoworker(data.layerId, data.horizontally),
+    withEditor(({ layers }) =>
+      layers.receiveFlipLayerFromCoworker(data.layerId, data.horizontally)
+    ),
   [editorEvents.resizeLayer]: (data) =>
-    Layers.receiveResizeLayerFromCoworker(data.layerId, data.x, data.y, data.w, data.h, data.r),
-  [editorEvents.clearLayer]: (data) => Layers.clearLayerFromCoworker(data.layerId),
-  [editorEvents.transferLayer]: (data) => Layers.receiveLayerFromCoworker(data.layerId),
+    withEditor(({ layers }) =>
+      layers.receiveResizeLayerFromCoworker(data.layerId, data.x, data.y, data.w, data.h, data.r)
+    ),
+  [editorEvents.clearLayer]: (data) =>
+    withEditor(({ layers }) => layers.clearLayerFromCoworker(data.layerId)),
+  [editorEvents.transferLayer]: (data) =>
+    withEditor(({ layers }) => layers.receiveLayerFromCoworker(data.layerId)),
 }
 
 const handlePeerMessage = (message: any) => {
@@ -282,9 +319,10 @@ const startCoworkingSession = async (userId: string) => {
   goToPage(`/editor/open/false/${JSON.stringify(editorOptions)}`)
 }
 
-export const updateClientEnvironment = () => {
+export const updateClientEnvironment = async () => {
   if (isOnline()) {
-    const [canvasWidth, canvasHeight] = getCanvasPxSizes(true)
+    const { editor } = await loadEditorModules()
+    const [canvasWidth, canvasHeight] = editor.getCanvasPxSizes(true)
     state.clientData.userId = state.userId
     state.clientData.codeVersion = Params.appVersion
     state.clientData.deviceType = Params.deviceType
@@ -370,7 +408,7 @@ export const stop = () => {
 const handlePeerClientOnline = async (_id: string) => {
   state.isWaitingPeerConnection = false
   addGlobalStatus(SOCKET_CONNECTED_STATUS)
-  updateClientEnvironment()
+  await updateClientEnvironment()
   await completePendingCoworkerJoinIfNeeded()
 }
 
@@ -405,11 +443,11 @@ const handleConnectionClosed = () => {
   state.iAskedForCoworking = false
 }
 
-const waitForEditorToBeReady = async () => {
+const waitForEditorToBeReady = async (layers: LayersModule) => {
   let attempts = 0
   const maxAttempts = 100
 
-  while (getCurrentPage() !== 'editor' || !Layers.areLayersReady()) {
+  while (getCurrentPage() !== 'editor' || !layers.areLayersReady()) {
     if (attempts > maxAttempts) {
       throw new Error('waitForEditorToBeReady timeout')
     }

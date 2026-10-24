@@ -13,12 +13,7 @@ import {
 } from 'mobile-device-detect'
 import { securizeAsyncFn } from 'utils/jsUtils'
 import { config as notSupportedConfig } from 'pages/NotSupported/config'
-import * as NotSupported from 'pages/NotSupported'
-import * as Dashboard from 'pages/Dashboard'
 import * as Coworking from 'modules/Coworking'
-import * as Editor from 'pages/Editor'
-import * as Folder from 'pages/Folder'
-import * as Info from 'pages/Info'
 import { PageModule, registerNavigator } from 'app/navigation'
 import { notifyMenuRouteChanged } from 'app/shellState'
 import { initialRouteFromLocation } from 'modules/initialRoute'
@@ -26,15 +21,37 @@ import { iosVersionToCheck, scoreOsVersion } from 'modules/iosVersion'
 
 const DEFAULT_ERROR_MSG = 'Routing error: refresh the page.'
 
-const PAGES: Record<string, PageModule> = {
-  editor: Editor,
-  folder: Folder,
-  dashboard: Dashboard,
-  coworking: Coworking,
-  notsupported: NotSupported,
-  info: Info,
+const PAGE_LOADERS: Record<string, () => Promise<PageModule>> = {
+  editor: () => import('pages/Editor'),
+  folder: () => import('pages/Folder'),
+  dashboard: () => import('pages/Dashboard'),
+  coworking: () => Promise.resolve(Coworking),
+  notsupported: () => import('pages/NotSupported'),
+  info: () => import('pages/Info'),
 }
 const DEFAULT_PAGE = 'folder'
+const pageLoads = new Map<string, Promise<PageModule>>()
+
+const loadPage = (page: string): Promise<PageModule> => {
+  let pending = pageLoads.get(page)
+  if (!pending) {
+    pending = PAGE_LOADERS[page]()
+    pageLoads.set(page, pending)
+  }
+  return pending
+}
+
+const prefetchEditor = () => {
+  if (pageLoads.has('editor')) return
+  const run = () => {
+    void loadPage('editor')
+  }
+  if ('requestIdleCallback' in window) {
+    window.requestIdleCallback(run)
+  } else {
+    setTimeout(run, 400)
+  }
+}
 
 let currentRoute = ''
 let routingQueue: Promise<any> = Promise.resolve()
@@ -48,12 +65,10 @@ const goToPage = securizeAsyncFn(
     const parts = cleanPath.split('/').filter((e: string) => e !== '')
     let page = (parts[0] || DEFAULT_PAGE).toLowerCase()
     let method = parts[1] || ''
-    let module = PAGES[page]
     let params: any[] = parts.slice(2)
 
-    if (!module) {
+    if (!PAGE_LOADERS[page]) {
       page = DEFAULT_PAGE
-      module = PAGES[DEFAULT_PAGE]
       method = ''
       params = []
     }
@@ -76,12 +91,14 @@ const goToPage = securizeAsyncFn(
 
     const runTransition = async () => {
       const previousRoute = currentRoute
+      const module = await loadPage(page)
       currentRoute = page
       notifyMenuRouteChanged(page)
 
       if (previousRoute !== page || force) {
-        if (previousRoute && PAGES[previousRoute]?.close) {
-          await PAGES[previousRoute].close!()
+        if (previousRoute) {
+          const previousModule = await pageLoads.get(previousRoute)
+          await previousModule?.close?.()
         }
 
         if (method === 'open') {
@@ -95,6 +112,10 @@ const goToPage = securizeAsyncFn(
       if (method && method !== 'open' && typeof module[method] === 'function') {
         const actionFn = module[method] as (...args: any[]) => Promise<void> | void
         await actionFn(...params)
+      }
+
+      if (page !== 'editor' && page !== 'notsupported') {
+        prefetchEditor()
       }
     }
 
@@ -111,7 +132,7 @@ export const openCurrentUrlPage = async () => {
   const nextPage = initialRouteFromLocation(
     document.location.pathname,
     document.location.search,
-    new Set(Object.keys(PAGES))
+    new Set(Object.keys(PAGE_LOADERS))
   )
   await goToPage(nextPage, nextPage !== `/${DEFAULT_PAGE}`)
 }

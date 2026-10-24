@@ -1,0 +1,18 @@
+---
+description: Never open a browser or dev server to test this app. The user tests the site.
+alwaysApply: true
+---
+
+# No browser testing
+
+Do not test this site in a browser. The user tests it.
+
+Never open the IDE browser, navigate to the app, take screenshots of it, click through it, or start a dev server (`vite`, `pnpm dev`, `pnpm start`, preview) in order to check a change.
+
+Finish the code change and stop. Say what changed. Do not claim you verified it in the browser.
+
+```text
+❌ Start Vite, open the custom-brush modal, click through portrait and landscape.
+
+✅ Update the modal layout, then summarize the change. The user will test it.
+```
