@@ -11,6 +11,9 @@ import { editorFacade } from 'pages/Editor/editorFacade'
 import { handleElementsListDragAndDrop } from 'utils/uiUtils'
 import { shiftArrayElement, deepCopy } from 'utils/jsUtils'
 import { ColorPickerRefs } from './ColorPickerView'
+import { PaletteColor } from './paletteColor'
+
+export type { PaletteColor }
 
 export const INITIAL_COLORS = [
   '#000000',
@@ -40,13 +43,6 @@ export const INITIAL_COLORS = [
   '#808080',
   '#778899',
 ]
-
-export interface PaletteColor {
-  id: number
-  initialHex: string
-  brightness: number
-  finalHex: string
-}
 
 export const config: {
   initialColors: PaletteColor[]

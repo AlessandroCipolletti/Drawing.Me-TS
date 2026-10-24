@@ -1,7 +1,8 @@
 import './layers.css'
 
 import Params from 'main/Params'
-import * as Toolbar from 'pages/Editor/components/Toolbar'
+import { editorCalls, registerEditorCalls } from 'pages/Editor/editorCalls'
+import { registerEditorCoworkingPort } from 'app/editorCoworkingPort'
 import { preventDefault, createDom } from 'utils/domUtils'
 import { mount } from 'ui/mount'
 import { cleanRefs, getRealScreenMaxSize } from 'utils/moduleUtils'
@@ -18,6 +19,7 @@ import {
   getMagnetismCoords,
   hardDeleteLayer,
   areLayersReady,
+  LayerRecord,
   initHistories,
   isYourLayerEmpty,
   markLayersReady,
@@ -81,35 +83,17 @@ export {
   getLayerContext,
   addLayerHistoryContentChangedStep,
   setLayerCoordsAfterDragResize,
-  doUndoForUser,
   undoLayers,
-  doRedoForUser,
   redoLayers,
   exportLayers,
   exportWholeCanvasData,
   isYourLayerEmpty,
-  clearLayerFromCoworker,
   clearCurrentLayer,
   closeParams,
-  selectCoworkerLayer,
-  addNewLayerFromCoworker,
-  deleteLayerFromCoworker,
-  receiveLayerFromCoworker,
-  renameLayerFromCoworker,
-  duplicateLayerFromCoworker,
-  mergeLayersFromCoworker,
-  enableLayerFromCoworker,
-  disableLayerFromCoworker,
   updateCanvasContent,
   updateMagnetismCoords,
   getMagnetismCoords,
-  receiveResizeLayerFromCoworker,
   closeResizeModeIfNeeded,
-  updateCurrentTool,
-  receiveFlipLayerFromCoworker,
-  updateLayerOpacityFromCoworker,
-  layerDragChangeFromCoworker,
-  areLayersReady,
 }
 
 const initDom = async (moduleContainer: HTMLElement) => {
@@ -162,7 +146,7 @@ const initDom = async (moduleContainer: HTMLElement) => {
       Params.isDesktop && refs.canvasPanButton
         ? [refs.canvasPanButton, refs.resizeButton, refs.gcoButton]
         : [refs.resizeButton, refs.gcoButton]
-    Toolbar.addOptionButtonsGroup(groupButtons)
+    editorCalls.addOptionButtonsGroup(groupButtons)
   }
 }
 
@@ -211,3 +195,30 @@ export const remove = (isSavingLayers = false) => {
   cleanRefs(refs)
   resetLayersState()
 }
+
+registerEditorCalls({
+  closeResizeModeIfNeeded,
+  updateCurrentTool,
+  undoLayers,
+  redoLayers,
+})
+
+registerEditorCoworkingPort({
+  areLayersReady,
+  addNewLayerFromCoworker: (layer) => addNewLayerFromCoworker(layer as LayerRecord),
+  selectCoworkerLayer,
+  doUndoForUser,
+  doRedoForUser,
+  deleteLayerFromCoworker,
+  renameLayerFromCoworker,
+  duplicateLayerFromCoworker,
+  mergeLayersFromCoworker,
+  updateLayerOpacityFromCoworker,
+  enableLayerFromCoworker,
+  disableLayerFromCoworker,
+  layerDragChangeFromCoworker,
+  receiveFlipLayerFromCoworker,
+  receiveResizeLayerFromCoworker,
+  clearLayerFromCoworker,
+  receiveLayerFromCoworker,
+})

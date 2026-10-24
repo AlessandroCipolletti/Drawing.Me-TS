@@ -1,5 +1,5 @@
 import { ExtendedCanvasContext } from 'utils/canvasUtils'
-import { PaletteColor } from './components/ColorPicker/ColorPicker'
+import { PaletteColor } from './components/ColorPicker/paletteColor'
 import { CurrentToolProps } from './editorTypes'
 
 export interface EditorFacade {

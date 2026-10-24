@@ -2,8 +2,7 @@ import './tools.css'
 
 import Params from 'main/Params'
 import { editorFacade } from 'pages/Editor/editorFacade'
-import * as Ruler from 'pages/Editor/components/Ruler'
-import * as Layers from 'pages/Editor/components/Layers'
+import { editorCalls, registerEditorCalls } from 'pages/Editor/editorCalls'
 import { preventDefault } from 'utils/domUtils'
 import { addRotationHandler, removeRotationHandler, cleanRefs } from 'utils/moduleUtils'
 import { addListScrollClickAndPressHandlers } from 'utils/uiUtils'
@@ -32,22 +31,14 @@ import {
 import {
   getCurrentSelectedTool,
   getCurrentToolCustomProps,
-  getOneToolVersionCompleteProps,
   getToolsCustomProps,
   initToolsImages,
   mergeCustomProps,
-  setCurrentToolCustomProps,
   setEditorToolByVersion,
 } from './toolsPersistence'
 
 export type { PersistedToolCustomProps, SelectedToolDescriptor }
-export {
-  setCurrentToolCustomProps,
-  getCurrentToolCustomProps,
-  getOneToolVersionCompleteProps,
-  getCurrentSelectedTool,
-  getToolsCustomProps,
-}
+export { getCurrentToolCustomProps, getCurrentSelectedTool, getToolsCustomProps }
 
 const PushNewActionPromise = async (promise: () => Promise<unknown>) => {
   state.actionsPromises.push(promise)
@@ -79,7 +70,7 @@ export const closeVersions = () => {
 }
 
 const toggleVersions = (tool: string) => {
-  Layers.closeResizeModeIfNeeded()
+  editorCalls.closeResizeModeIfNeeded()
   const versions = refs.toolsVersions[tool]
   if (versions) {
     if (versions.classList.contains('editor-tools__versions-open')) {
@@ -106,8 +97,8 @@ const selectTool = (
   versionIndex: number | string | false = false,
   showToolChange = true
 ) => {
-  Layers.closeResizeModeIfNeeded()
-  Layers.updateCurrentTool(tool === 'eraser')
+  editorCalls.closeResizeModeIfNeeded()
+  editorCalls.updateCurrentTool(tool === 'eraser')
   if (
     state.lastUsedTool !== state.selectedTool &&
     config.writingTools.includes(state.selectedTool)
@@ -149,9 +140,9 @@ const toolsFunctions: Record<string, (selected?: boolean) => unknown> = {
   pipette: () => selectTool('pipette'),
   ruler: () => {
     if (toggleActiveTool('ruler')) {
-      Ruler.show()
+      editorCalls.showRuler()
     } else {
-      Ruler.hide()
+      editorCalls.hideRuler()
     }
   },
   paper: () => {
@@ -163,14 +154,14 @@ const toolsFunctions: Record<string, (selected?: boolean) => unknown> = {
     )
     editorFacade.changePaper(state.currentPaper)
   },
-  undo: () => PushNewActionPromise(Layers.undoLayers),
-  redo: () => PushNewActionPromise(Layers.redoLayers),
+  undo: () => PushNewActionPromise(editorCalls.undoLayers),
+  redo: () => PushNewActionPromise(editorCalls.redoLayers),
   clear: () => {
     editorFacade.clear()
   },
 }
 
-export const toggleButton = (tool: string, enabled: boolean) => {
+const toggleButton = (tool: string, enabled: boolean) => {
   if (config.tools.indexOf(tool) >= 0) {
     const button = refs.toolsButtons[tool]
     if (button) {
@@ -183,7 +174,7 @@ export const toggleButton = (tool: string, enabled: boolean) => {
   }
 }
 
-export const clickButton = (tool: string) => {
+const clickButton = (tool: string) => {
   if (Object.prototype.hasOwnProperty.call(toolsFunctions, tool)) {
     toolsFunctions[tool]()
   }
@@ -490,3 +481,9 @@ export const remove = () => {
   clearToolsConfig()
   cleanRefs(refs)
 }
+
+registerEditorCalls({
+  toggleButton,
+  clickButton,
+  selectLastUsedTool,
+})

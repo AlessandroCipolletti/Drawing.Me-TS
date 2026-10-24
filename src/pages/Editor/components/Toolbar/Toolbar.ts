@@ -4,8 +4,7 @@ import Params from 'main/Params'
 import { editorFacade } from 'pages/Editor/editorFacade'
 import { CurrentToolProps } from 'pages/Editor/editorTypes'
 import { toolDefaultProps } from 'pages/Editor/config'
-import * as Tools from 'pages/Editor/components/Tools'
-import * as Layers from 'pages/Editor/components/Layers'
+import { editorCalls, registerEditorCalls } from 'pages/Editor/editorCalls'
 import { cleanRefs } from 'utils/moduleUtils'
 import { deepCopy } from 'utils/jsUtils'
 import {
@@ -186,7 +185,7 @@ const updateSize = (perc: number, inProgress: boolean) => {
     openPreviewPopups()
   } else {
     closePreviewPopups()
-    Tools.setCurrentToolCustomProps({
+    editorCalls.setCurrentToolCustomProps({
       size: sizeValue,
     })
   }
@@ -208,7 +207,7 @@ const updateAlpha = (perc: number, inProgress: boolean) => {
     openPreviewPopups()
   } else {
     closePreviewPopups()
-    Tools.setCurrentToolCustomProps({
+    editorCalls.setCurrentToolCustomProps({
       alpha: alphaValue,
     })
   }
@@ -237,7 +236,7 @@ const onAlphaSingleTap = () => {
 const onSizeTouchStart = (e: Event) => {
   preventDefault(e)
   if (!refs.sizeButton?.classList.contains('disabled')) {
-    Layers.closeResizeModeIfNeeded()
+    editorCalls.closeResizeModeIfNeeded()
     cursorButtonTouchStart(
       state.sizePerc,
       getEventCoordX(e),
@@ -251,7 +250,7 @@ const onSizeTouchStart = (e: Event) => {
 const onAlphaTouchStart = (e: Event) => {
   preventDefault(e)
   if (!refs.alphaButton?.classList.contains('disabled')) {
-    Layers.closeResizeModeIfNeeded()
+    editorCalls.closeResizeModeIfNeeded()
     cursorButtonTouchStart(
       state.alphaPerc,
       getEventCoordX(e),
@@ -298,7 +297,7 @@ export const enableSaveCopy = () => {
   if (refs.saveCopyButton) enableElements(refs.saveCopyButton)
 }
 
-export const addOptionButtonsGroup = (
+const addOptionButtonsGroup = (
   buttons: HTMLElement[] = [],
   side: 'left' | 'center' | 'right' = 'center'
 ) => {
@@ -372,3 +371,7 @@ export const remove = async () => {
   previewRafPending = false
   cleanRefs(refs)
 }
+
+registerEditorCalls({
+  addOptionButtonsGroup,
+})

@@ -29,8 +29,7 @@ import {
   LayerPreviewCanvas,
   LayerRecord,
 } from './layersState'
-import { disableLayer, enableLayer } from './layersActions'
-import { updateEditorCanvas } from './layersListUi'
+import { layersBridge, registerLayersBridge } from './layersBridge'
 
 export interface ExportableLayerCopy {
   id: string
@@ -54,7 +53,7 @@ export interface ExportableLayerCopy {
   gco?: unknown
 }
 
-export const layerDeepCopy = (
+const layerDeepCopy = (
   layer: LayerRecord,
   {
     exportBitmap = false,
@@ -204,7 +203,7 @@ export const exportWholeCanvasData = async (
   return data
 }
 
-export const prepareLayerFromDb = async (rawLayer: LayerRecord & { base64: string }) => {
+const prepareLayerFromDb = async (rawLayer: LayerRecord & { base64: string }) => {
   const layer = layerDeepCopy(rawLayer, { deepCopyCanvas: false }) as unknown as LayerRecord
   layer.modified = false
   layer.owner = Coworking.getUserId()
@@ -217,9 +216,7 @@ export const prepareLayerFromDb = async (rawLayer: LayerRecord & { base64: strin
   return layer
 }
 
-export const updateLayerRealCoords = async (
-  layerId: string | false = state.currentSelectedLayerId
-) => {
+const updateLayerRealCoords = async (layerId: string | false = state.currentSelectedLayerId) => {
   if (!layerId || !state.layers[layerId]) return
   state.layers[layerId] = {
     ...state.layers[layerId],
@@ -227,7 +224,7 @@ export const updateLayerRealCoords = async (
   }
 }
 
-export const updateLayerPreview = (layerId: string | false = state.currentSelectedLayerId) => {
+const updateLayerPreview = (layerId: string | false = state.currentSelectedLayerId) => {
   const layer = state.layers[layerId || '']
   if (!layer || !layer.previewRef || !layer.previewRef.context) return
 
@@ -280,7 +277,7 @@ const createNewLayerListElementDom = (layerId: string, withAnimation = true) => 
   }
 }
 
-export const createNewLayerDom = async (layerId: string, withAnimation = false) => {
+const createNewLayerDom = async (layerId: string, withAnimation = false) => {
   createNewLayerListElementDom(layerId, withAnimation)
   const layer = state.layers[layerId]
 
@@ -288,9 +285,9 @@ export const createNewLayerDom = async (layerId: string, withAnimation = false) 
   layer.canvas.style.opacity = String(layer.opacity)
 
   if (state.layers[layerId].active) {
-    enableLayer(layerId)
+    layersBridge.enableLayer(layerId)
   } else {
-    disableLayer(layerId)
+    layersBridge.disableLayer(layerId)
   }
 
   updateLayerPreview(layerId)
@@ -307,7 +304,7 @@ export const createNewLayerDom = async (layerId: string, withAnimation = false) 
   }
 }
 
-export const reorderLayersList = () => {
+const reorderLayersList = () => {
   Object.values(state.layers)
     .sort((l1, l2) => (l1.order > l2.order ? 1 : -1))
     .forEach((layer, i) => {
@@ -335,10 +332,10 @@ export const reorderLayersList = () => {
       )
       .forEach((node) => refs.layersList?.appendChild(node))
   }
-  updateEditorCanvas()
+  layersBridge.updateEditorCanvas()
 }
 
-export const restoreDeletedLayer = async (layerId: string, withAnimation = true) => {
+const restoreDeletedLayer = async (layerId: string, withAnimation = true) => {
   const layer = state.deletedLayers[layerId]
   if (!layer) return
   Object.values(state.layers).forEach((l) => {
@@ -355,11 +352,21 @@ export const restoreDeletedLayer = async (layerId: string, withAnimation = true)
   layer.canvas.style.opacity = String(layer.opacity)
 
   if (state.layers[layerId].active) {
-    enableLayer(layerId)
+    layersBridge.enableLayer(layerId)
   } else {
-    disableLayer(layerId)
+    layersBridge.disableLayer(layerId)
   }
 
   editorFacade.appendLayer(layer.canvas)
   await updateLayerPreview(layerId)
 }
+
+registerLayersBridge({
+  createNewLayerDom,
+  layerDeepCopy,
+  prepareLayerFromDb,
+  reorderLayersList,
+  updateLayerPreview,
+  updateLayerRealCoords,
+  restoreDeletedLayer,
+})

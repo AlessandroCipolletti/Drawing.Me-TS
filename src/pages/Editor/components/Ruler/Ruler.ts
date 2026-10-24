@@ -1,7 +1,7 @@
 import './ruler.css'
 
 import Params from 'main/Params'
-import * as Tools from 'pages/Editor/components/Tools'
+import { editorCalls, registerEditorCalls } from 'pages/Editor/editorCalls'
 import { preventDefault } from 'utils/domUtils'
 import { cleanRefs, addRotationHandler, removeRotationHandler } from 'utils/moduleUtils'
 import { spacing } from 'main/Theme'
@@ -9,9 +9,7 @@ import { mount } from 'ui/mount'
 
 import { RulerView } from './RulerView'
 import {
-  checkCoordNearRuler,
   config,
-  getCoordsNearRuler,
   hide,
   initRulerDimensionAndPosition,
   lock,
@@ -32,12 +30,12 @@ import {
   setRulerStrokeCallbacks,
 } from './rulerTouch'
 
-export { show, hide, lock, unlock, checkCoordNearRuler, getCoordsNearRuler, isHeldByFingers }
+export { hide, lock, unlock, isHeldByFingers }
 
 const onRotate = () => {
   initRulerDimensionAndPosition()
   if (state.isVisible) {
-    Tools.clickButton('ruler')
+    editorCalls.clickButton('ruler')
   }
 }
 
@@ -84,3 +82,8 @@ export const remove = () => {
   resetRulerState()
   cleanRefs(refs)
 }
+
+registerEditorCalls({
+  showRuler: show,
+  hideRuler: hide,
+})

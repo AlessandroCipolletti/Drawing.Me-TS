@@ -1,6 +1,4 @@
 import * as Coworking from 'modules/Coworking'
-import * as ColorPicker from 'pages/Editor/components/ColorPicker'
-import * as Tools from 'pages/Editor/components/Tools'
 import { editorFacade } from 'pages/Editor/editorFacade'
 import { preventDefault } from 'utils/domUtils'
 import { round, convertAngleDegToRad } from 'utils/mathUtils'
@@ -17,16 +15,10 @@ import {
   layerCanBeResized,
   updateMagnetismCoords,
 } from './layersState'
-import {
-  addLayerHistoryContentChangedStep,
-  addLayerHistoryOpacityStep,
-  addLayerHistoryOrderStep,
-  updateUndoRedoButtons,
-} from './layersHistory'
-import { reorderLayersList } from './layersExport'
-import { selectLayer, toggleEnableLayer } from './layersActions'
+import { layersBridge, registerLayersBridge } from './layersBridge'
+import { editorCalls } from 'pages/Editor/editorCalls'
 
-export const paramsAreClosed = () => state.paramsTimeout === false
+const paramsAreClosed = () => state.paramsTimeout === false
 
 const toggleParams = () => {
   if (refs.paramsContainer?.classList.contains('params-container-visible')) {
@@ -36,7 +28,7 @@ const toggleParams = () => {
   }
 }
 
-export const openParams = async () => {
+const openParams = async () => {
   if (state.paramsTimeout !== false) {
     clearTimeout(state.paramsTimeout)
   }
@@ -53,7 +45,7 @@ export const closeParams = async () => {
   }
 }
 
-export const updateEditorCanvas = () => {
+const updateEditorCanvas = () => {
   if (state.currentSelectedLayerId && state.layers[state.currentSelectedLayerId]) {
     editorFacade.updateEditorLayer(
       parseInt(state.layers[state.currentSelectedLayerId].canvas.style.zIndex, 10),
@@ -72,7 +64,7 @@ const updateCanvasPanMode = (selected: boolean) => {
   }
 }
 
-export const updateResizeMode = (selected: boolean, active: boolean) => {
+const updateResizeMode = (selected: boolean, active: boolean) => {
   refs.resizeButton?.classList.toggle('disabled', !active)
   if (selected !== state.resizeMode) {
     state.resizeMode = selected
@@ -80,7 +72,7 @@ export const updateResizeMode = (selected: boolean, active: boolean) => {
   }
 }
 
-export const updateGcoMode = (selected: boolean, active: boolean) => {
+const updateGcoMode = (selected: boolean, active: boolean) => {
   refs.gcoButton?.classList.toggle('disabled', !active || state.editorIsUsingEraser)
   if (selected !== state.gcoMode) {
     state.gcoMode = selected
@@ -102,7 +94,7 @@ export const updateGcoMode = (selected: boolean, active: boolean) => {
   }
 }
 
-export const updateParamsByLayer = (layerId: string | false = state.currentSelectedLayerId) => {
+const updateParamsByLayer = (layerId: string | false = state.currentSelectedLayerId) => {
   if (layerId && isYourLayerYours(layerId)) {
     const layer = state.layers[layerId]
     const yourLayers = Object.values(state.layers).filter((l) => isYourLayerYours(l.id))
@@ -165,12 +157,12 @@ export const updateCanvasContent = (
     )
   }
   if (madeChanges) {
-    Tools.toggleButton('undo', true)
+    editorCalls.toggleButton('undo', true)
     state.resizeModeMadeChanges = true
   }
 }
 
-export const startResizeMode = () => {
+const startResizeMode = () => {
   if (!state.currentSelectedLayerId) return
   if (state.canvasPanMode) {
     updateCanvasPanMode(false)
@@ -182,12 +174,12 @@ export const startResizeMode = () => {
   updateResizeMode(true, true)
   updateGcoMode(state.gcoMode, false)
   state.resizeModeMadeChanges = false
-  Tools.toggleButton('undo', false)
-  Tools.toggleButton('redo', false)
-  Tools.toggleButton('clear', false)
+  editorCalls.toggleButton('undo', false)
+  editorCalls.toggleButton('redo', false)
+  editorCalls.toggleButton('clear', false)
   refs.resizeButton?.classList.toggle('selected', state.resizeMode)
   refs.visibilityLayerButton?.classList.add('disabled')
-  ColorPicker.deselectPipette(true, false, true)
+  editorCalls.deselectPipette(true, false, true)
   const layer = state.layers[state.currentSelectedLayerId]
   const [image, minX, minY, width, height] = cropImageWithMargin(
     layer.canvas,
@@ -208,11 +200,11 @@ export const startResizeMode = () => {
   )
 }
 
-export const saveResizeModeIfNeeded = async () => {
+const saveResizeModeIfNeeded = async () => {
   editorFacade.flushPendingResizeFrame()
   if (state.resizeModeMadeChanges) {
-    await addLayerHistoryContentChangedStep()
-    updateUndoRedoButtons()
+    await layersBridge.addLayerHistoryContentChangedStep()
+    layersBridge.updateUndoRedoButtons()
     if (Coworking.isOpen() && state.currentSelectedLayerId) {
       Coworking.sendResizeLayer(
         state.currentSelectedLayerId,
@@ -228,7 +220,7 @@ export const saveResizeModeIfNeeded = async () => {
   refs.imageForResize = null
 }
 
-export const endResizeMode = async () => {
+const endResizeMode = async () => {
   if (!state.currentSelectedLayerId) return
   const canBeResized = layerCanBeResized(state.currentSelectedLayerId)
   const layerOptionButton = refs.layersList?.querySelector(
@@ -237,7 +229,7 @@ export const endResizeMode = async () => {
   layerOptionButton?.classList.remove('disabled')
   updateResizeMode(false, canBeResized)
   updateGcoMode(state.gcoMode, canBeResized)
-  Tools.toggleButton('clear', true)
+  editorCalls.toggleButton('clear', true)
   await saveResizeModeIfNeeded()
   refs.visibilityLayerButton?.classList.remove('disabled')
   refs.resizeButton?.classList.toggle('selected', state.resizeMode)
@@ -249,7 +241,7 @@ export const endResizeMode = async () => {
     r: 0,
   }
   editorFacade.hideDragBox()
-  updateUndoRedoButtons()
+  layersBridge.updateUndoRedoButtons()
 }
 
 export const closeResizeModeIfNeeded = () => {
@@ -296,7 +288,7 @@ const flipLayer = async (e: Event, layerId: string | false, horizontally: boolea
         0
       )
       fillCanvasWithImage(layer.canvas.context, flipImage(content, horizontally), x, y)
-      await addLayerHistoryContentChangedStep()
+      await layersBridge.addLayerHistoryContentChangedStep()
       if (Coworking.isOpen()) {
         Coworking.sendFlipLayer(layerId, horizontally)
       }
@@ -346,7 +338,7 @@ export const gcoModeTouchStart = (e: Event) => {
   }
 }
 
-export const _updateLayerOpacity = (layerId: string, opacity: number, inProgress = false) => {
+const _updateLayerOpacity = (layerId: string, opacity: number, inProgress = false) => {
   if (refs.opacityCursor) refs.opacityCursor.style.bottom = `${opacity}%`
   if (refs.opacityLabel) refs.opacityLabel.innerHTML = `${round(opacity, 0)}`
   if (refs.opacitySlider) {
@@ -380,7 +372,7 @@ export const updateLayerOpacity = (() => {
     openParams()
     _updateLayerOpacity(state.currentSelectedLayerId, opacity, inProgress)
     if (!inProgress && opacity !== startValue) {
-      addLayerHistoryOpacityStep(state.currentSelectedLayerId, opacity, startValue)
+      layersBridge.addLayerHistoryOpacityStep(state.currentSelectedLayerId, opacity, startValue)
       if (Coworking.isOpen()) {
         Coworking.sendOpacityLayer(state.currentSelectedLayerId, opacity, startValue)
       }
@@ -388,7 +380,7 @@ export const updateLayerOpacity = (() => {
   }
 })()
 
-export const updateLayerOrger = (layerId: string, newOrder: number) => {
+const updateLayerOrger = (layerId: string, newOrder: number) => {
   if (!state.layers[layerId]) return
   const layers = Object.values(state.layers)
   const currentLayerOrder = state.layers[layerId].order
@@ -408,7 +400,7 @@ export const updateLayerOrger = (layerId: string, newOrder: number) => {
     })
   }
   state.layers[layerId].order = newOrder
-  reorderLayersList()
+  layersBridge.reorderLayersList()
 }
 
 const onListDragChange = (draggedElement: HTMLElement, domOrder: number, inProgress = true) => {
@@ -419,7 +411,7 @@ const onListDragChange = (draggedElement: HTMLElement, domOrder: number, inProgr
 
   if (!inProgress) {
     if (newOrder !== state.listDragStartIndex) {
-      addLayerHistoryOrderStep(layerId, newOrder, state.listDragStartIndex)
+      layersBridge.addLayerHistoryOrderStep(layerId, newOrder, state.listDragStartIndex)
       if (Coworking.isOpen()) {
         Coworking.sendOrderDragLayer(layerId, newOrder, state.listDragStartIndex)
       }
@@ -454,7 +446,7 @@ const onLayerTouchDown = (layerId: string) => {
       updateParamsByLayer(layerId)
       toggleParams()
     } else {
-      selectLayer(layerId)
+      layersBridge.selectLayer(layerId)
       openParams()
     }
   }
@@ -473,7 +465,7 @@ export const onListClick = (e: Event) => {
     ) {
       onLayerTouchDown(id)
     } else if (target.classList.contains('editor-layers__layer-options-button')) {
-      toggleEnableLayer(e, id, true)
+      layersBridge.toggleEnableLayer(e, id, true)
     }
   }
 }
@@ -485,7 +477,7 @@ export const onListLongPress = async (e: Event) => {
     if (layerListDom) {
       const id = layerListDom.getAttribute('data-id')
       if (id) {
-        await selectLayer(id)
+        await layersBridge.selectLayer(id)
         startDragLayer(e, layerListDom)
       }
     }
@@ -497,3 +489,18 @@ export const onContainerTouchStart = (e: Event) => {
     preventDefault(e)
   }
 }
+
+registerLayersBridge({
+  closeParams,
+  endResizeMode,
+  openParams,
+  paramsAreClosed,
+  saveResizeModeIfNeeded,
+  startResizeMode,
+  updateEditorCanvas,
+  updateGcoMode,
+  updateParamsByLayer,
+  updateResizeMode,
+  updateLayerOrger,
+  _updateLayerOpacity,
+})

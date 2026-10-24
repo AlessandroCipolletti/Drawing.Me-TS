@@ -10,7 +10,7 @@ import {
   isIPad13,
   browserName,
 } from 'mobile-device-detect'
-import { getRealScreenWidth, getRealScreenHeight } from 'utils/moduleUtils'
+import { realScreenHeight, realScreenWidth } from 'utils/screenSize'
 
 interface AppInitState {
   NAME: string
@@ -186,7 +186,11 @@ const Params: ParamsObject = {
     Params.pixelRatio = Params.isPhone ? 1 : pixelRatio
 
     Params.isHighPerformanceTablet =
-      (isIPad13 || isIpadOS) && Math.max(getRealScreenWidth(), getRealScreenHeight()) > 2300
+      (isIPad13 || isIpadOS) &&
+      Math.max(
+        realScreenWidth(Params.isDesktop, Params.pixelRatio),
+        realScreenHeight(Params.isDesktop, Params.pixelRatio)
+      ) > 2300
     Params.isHighPerformanceDesktop =
       Params.isDesktop &&
       (Params.isLocal || (browserName === 'Chrome' && navigator.hardwareConcurrency >= 8))

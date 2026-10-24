@@ -1,4 +1,4 @@
-import * as ColorPicker from 'pages/Editor/components/ColorPicker'
+import { editorCalls, registerEditorCalls } from 'pages/Editor/editorCalls'
 import {
   getCustomBrushAt,
   getCustomBrushCount,
@@ -78,11 +78,11 @@ export const setEditorToolByVersion = (tool: string, versionIndex: number | stri
     toolProps.version = undefined
   }
 
-  ColorPicker.deselectPipette(false)
+  editorCalls.deselectPipette(false)
   editorFacade.setTool(toolProps)
 }
 
-export const setCurrentToolCustomProps = (customProps: ToolCustomPropsMap) => {
+const setCurrentToolCustomProps = (customProps: ToolCustomPropsMap) => {
   if (!toolsConfig) return
   const safeCustom = sanitizeToolCustomProps(customProps)
   const versionIndex = state.selectedVersions[state.selectedTool]
@@ -323,3 +323,7 @@ export const initToolsImages = async () => {
     }
   }
 }
+
+registerEditorCalls({
+  setCurrentToolCustomProps,
+})

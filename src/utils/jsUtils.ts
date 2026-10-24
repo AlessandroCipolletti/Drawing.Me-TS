@@ -1,5 +1,10 @@
 import { v4 as uuidv4 } from 'uuid'
-import { setSpinner } from 'utils/domUtils'
+
+let onJsError: () => void = () => {}
+
+export const registerJsErrorCleanup = (cleanup: () => void) => {
+  onJsError = cleanup
+}
 
 export const isEqual = (a: any, b: any): boolean => {
   if (Object.is(a, b)) return true
@@ -84,7 +89,7 @@ const handleJsError = (
   showErrorMsg = true
 ) => {
   console.error(errorMsg, fn?.name || fnName, error?.stack || error)
-  setSpinner(false)
+  onJsError()
   if (showErrorMsg && (window as any).Messages?.error) {
     ;(window as any).Messages.error(errorMsg)
   }

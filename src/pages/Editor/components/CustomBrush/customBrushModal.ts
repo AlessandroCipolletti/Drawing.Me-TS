@@ -3,7 +3,7 @@ import './customBrushModal.css'
 import Params from 'main/Params'
 import { spacing } from 'main/Theme'
 import * as Messages from 'modules/Messages'
-import * as ColorPicker from 'pages/Editor/components/ColorPicker'
+import { editorCalls } from 'pages/Editor/editorCalls'
 import { toolDefaultProps } from 'pages/Editor/config'
 import { TOOL_FRAME_CIRCLE, TOOL_FRAME_IMAGE } from 'pages/Editor/constants'
 import { CurrentToolProps } from 'pages/Editor/editorTypes'
@@ -51,8 +51,8 @@ export interface OpenCustomBrushModalOptions {
 }
 
 const getActiveEditorColor = (): string => {
-  const palette = ColorPicker.getCurrentColorsPalette?.() || []
-  const selectedId = ColorPicker.getCurrentSelectedColorId?.() ?? -1
+  const palette = editorCalls.getCurrentColorsPalette?.() || []
+  const selectedId = editorCalls.getCurrentSelectedColorId?.() ?? -1
   const found = palette.find((c) => c.id === selectedId)
   return found?.finalHex || palette[0]?.finalHex || '#0f172a'
 }

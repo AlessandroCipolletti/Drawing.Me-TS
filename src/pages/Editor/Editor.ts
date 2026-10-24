@@ -89,6 +89,8 @@ import {
   drawStepEnd,
 } from './editorStrokeSession'
 import { createEditorPointerHandlers } from './editorPointerRouter'
+import { currentCanvasHasZoom, registerCanvasZoomCheck } from './editorCanvasZoom'
+import { registerEditorCoworkingPort } from 'app/editorCoworkingPort'
 
 export const config: EditorConfig = editorDefaultConfig
 
@@ -98,6 +100,7 @@ const initialState: EditorState = createInitialEditorState(
 )
 
 let state: EditorState = { ...initialState }
+registerCanvasZoomCheck(() => isCanvasZoomed(state, initialState.canvas))
 let lastActiveDrawingId: number | false = false
 let pointerCleanup: (() => void) | null = null
 
@@ -118,7 +121,7 @@ const toggleFullscreen = (e?: Event) => lifecycleToggleFullscreen(state, e)
 const setToolColor = (color: string | false, randomColor: boolean) =>
   applyToolColorSelection(state, refs, color, randomColor)
 
-export const currentCanvasHasZoom = () => isCanvasZoomed(state, initialState.canvas)
+export { currentCanvasHasZoom }
 
 export const drawCoworkingMultipleStepsData = (data: CoworkingStepsPayload) => {
   if (state?.pageOpened) {
@@ -346,4 +349,9 @@ registerEditorFacade({
   appendLayer: (layerCanvas) => compositorAppendLayer(refs, layerCanvas),
   updateEditorLayer: (z, o, gco, a) => compositorUpdateEditorLayer(state, refs, z, o, gco, a),
   setLayerContext: (ctx) => compositorSetLayerContext(state, refs, ctx),
+})
+
+registerEditorCoworkingPort({
+  getCanvasPxSizes,
+  drawCoworkingMultipleStepsData,
 })

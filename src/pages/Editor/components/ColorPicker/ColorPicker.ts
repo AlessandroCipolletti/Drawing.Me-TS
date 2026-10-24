@@ -1,8 +1,7 @@
 import './colorPicker.css'
 
 import Params from 'main/Params'
-import * as Tools from 'pages/Editor/components/Tools'
-import * as Layers from 'pages/Editor/components/Layers'
+import { editorCalls, registerEditorCalls } from 'pages/Editor/editorCalls'
 import { preventDefault, preventDefaultTouchOnEls } from 'utils/domUtils'
 import { getHexBrightness, swatchNeedsDarkRing } from 'utils/colorsUtils'
 import { cleanRefs } from 'utils/moduleUtils'
@@ -73,7 +72,7 @@ const selectColor = (idColor: number, autoDeselect = true, showParams = true) =>
   if (autoDeselect) {
     deselectAll()
   }
-  Layers.closeResizeModeIfNeeded()
+  editorCalls.closeResizeModeIfNeeded()
   state.lastSelectedColorId = idColor
   updateParamsByColor(idColor, showParams)
   const target = refs.colorsContainer?.querySelector(`div[data-id="${idColor}"]`)
@@ -88,7 +87,7 @@ const selectRandom = (autoDeselect = true) => {
   if (autoDeselect) {
     deselectAll()
   }
-  Layers.closeResizeModeIfNeeded()
+  editorCalls.closeResizeModeIfNeeded()
   state.selectedColorId = 'random'
   state.lastSelectedColorId = 'random'
   refs.randomButtom?.classList.add('editor-colorpicker__random-selected')
@@ -121,7 +120,7 @@ const selectPipette = (autoDeselect = true) => {
       deselectAll()
     }
     state.selectedColorId = 'pipette'
-    Tools.clickButton('pipette')
+    editorCalls.clickButton('pipette')
     refs.pipetteButtom?.classList.add('editor-colorpicker__pipette-selected')
   }
 }
@@ -138,7 +137,7 @@ export const deselectPipette = (
     refs.pipetteButtom.classList.remove('editor-colorpicker__pipette-selected')
     editorFacade.hidePipetteCursor()
     if (selectLastUsedTool) {
-      Tools.selectLastUsedTool(showToolChange)
+      editorCalls.selectLastUsedTool(showToolChange)
     }
     if (selectLastUsedColor) {
       if (state.lastSelectedColorId === 'random') {
@@ -303,3 +302,9 @@ export const remove = async () => {
   config.initialColors = []
   cleanRefs(refs)
 }
+
+registerEditorCalls({
+  deselectPipette,
+  getCurrentColorsPalette,
+  getCurrentSelectedColorId,
+})

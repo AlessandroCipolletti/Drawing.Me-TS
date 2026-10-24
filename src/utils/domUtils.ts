@@ -1,6 +1,6 @@
 import Params from 'main/Params'
 import { round } from 'utils/mathUtils'
-import { iterateFn, delay, noop } from 'utils/jsUtils'
+import { iterateFn, delay, noop, registerJsErrorCleanup } from 'utils/jsUtils'
 import { fadeInElements, fadeOutElements } from 'utils/animationsUtils'
 import spinnerImgUrl from 'static/img/spinner.svg'
 
@@ -253,5 +253,9 @@ export const filterTouchesByTargets = (
   const targetList = Array.isArray(targets) ? targets : [targets]
   return Array.prototype.filter.call(events, (ev: any) => targetList.includes(ev.target))
 }
+
+registerJsErrorCleanup(() => {
+  void setSpinner(false)
+})
 
 export default initDomUtils

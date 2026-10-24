@@ -1,5 +1,5 @@
 import { h, Fragment } from 'ui/jsx-runtime'
-import { PaletteColor } from './ColorPicker'
+import { PaletteColor } from './paletteColor'
 
 export interface ColorPickerRefs {
   colorPickerContainer: HTMLElement | null

@@ -1,5 +1,7 @@
 import Params from 'main/Params'
-import { config, currentCanvasHasZoom } from 'pages/Editor'
+import { editorDefaultConfig as config } from './config'
+import { currentCanvasHasZoom } from './editorCanvasZoom'
+import { computeCanvasOffset } from './editorCanvasMetrics'
 import {
   round,
   getOriginalCoordsFromScaleRotation,
@@ -17,12 +19,11 @@ import {
   StrokeSample,
   drawStrokeSample,
 } from 'utils/canvasUtils'
-import * as Ruler from './components/Ruler'
-import * as Layers from './components/Layers'
-import { LayersMagnetismCoords } from './components/Layers/layersState'
+import { checkCoordNearRuler, getCoordsNearRuler } from './components/Ruler/rulerRender'
+import { getLayerContext, LayersMagnetismCoords } from './components/Layers/layersState'
 import { spacing } from 'main/Theme'
 import { TOUCH_TYPE_STYLUS } from 'main/constants'
-import { getOneToolVersionCompleteProps } from 'pages/Editor/components/Tools'
+import { getOneToolVersionCompleteProps } from './components/Tools/toolsPersistence'
 import { ToolCustomPropsMap, toolDefaultProps } from './config'
 import { CurrentToolProps, EditorState, PointerTouchEvent, ResizeModeState } from './editorTypes'
 import {
@@ -72,7 +73,7 @@ export const drawMultipleCoworkingSteps = async (
     bucket: (layerId: string, x: number, y: number, color: string) => Promise<void>
   }
 ) => {
-  const destinationContext = Layers.getLayerContext(layerId)
+  const destinationContext = getLayerContext(layerId)
   if (!destinationContext) {
     return
   }
@@ -296,13 +297,13 @@ export const updateCurrentTouchData = (
     currentTouch.eventX = currentTouch.x + state.canvas.offset.left
     currentTouch.eventY = currentTouch.y + state.canvas.offset.top
     if (eventType === Params.eventStart) {
-      currentTouch.isNearRuler = Ruler.checkCoordNearRuler(
+      currentTouch.isNearRuler = checkCoordNearRuler(
         currentTouch.x + state.canvas.offset.left,
         currentTouch.y + state.canvas.offset.top
       )
     }
     if (currentTouch.isNearRuler) {
-      ;[currentTouch.x, currentTouch.y] = Ruler.getCoordsNearRuler(
+      ;[currentTouch.x, currentTouch.y] = getCoordsNearRuler(
         currentTouch.x,
         currentTouch.y,
         state.canvas.offset.left,
@@ -552,27 +553,7 @@ export const updateEditorZoomGlobalState = (currentScale: number) => {
 
 export const initCanvasOffset = (state: EditorState) => {
   state.canvas = state.canvas || ({} as EditorState['canvas'])
-  const safeRight =
-    parseInt(
-      getComputedStyle(document.documentElement).getPropertyValue('--safe-area-right'),
-      10
-    ) || 0
-  if (Params.isPhone) {
-    const landscapePadding = Params.width > Params.height ? spacing.PHONE_LANDSCAPE_PADDING : 0
-    state.canvas.offset = {
-      left: spacing.EDITOR_PAGE_MARGIN + landscapePadding,
-      top: spacing.EDITOR_PAGE_MARGIN + spacing.HEADER_HEIGHT,
-      right: spacing.EDITOR_PAGE_MARGIN + landscapePadding + safeRight,
-      bottom: spacing.APP_MARGIN_BOTTOM,
-    }
-  } else {
-    state.canvas.offset = {
-      left: spacing.EDITOR_PAGE_MARGIN + spacing.EDITOR_TOOLS_WIDTH,
-      top: spacing.EDITOR_PAGE_MARGIN + spacing.HEADER_HEIGHT,
-      right: spacing.EDITOR_PAGE_MARGIN + spacing.EDITOR_TOOLS_WIDTH + safeRight,
-      bottom: spacing.EDITOR_PAGE_MARGIN + spacing.COLORPICKER_HEIGHT + spacing.APP_MARGIN_BOTTOM,
-    }
-  }
+  state.canvas.offset = computeCanvasOffset()
 }
 
 export const initState = (initialState: EditorState): EditorState => {

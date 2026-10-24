@@ -17,31 +17,7 @@ import {
   LayerHistoryStep,
   LayerRecord,
 } from './layersState'
-import {
-  addLayerHistoryContentChangedStep,
-  addLayerHistoryDeleteStep,
-  addLayerHistoryDisableStep,
-  addLayerHistoryDuplicateStep,
-  addLayerHistoryEnableStep,
-  addLayerHistoryMergeStep,
-  addLayerHistoryNewStep,
-  addLayerHistoryOpacityStep,
-  addLayerHistoryOrderStep,
-  addLayerHistoryRenameStep,
-  cleanGlobalLayersHistoryForLayer,
-} from './layersHistory'
-import { createNewLayerDom, reorderLayersList } from './layersExport'
-import {
-  _deleteLayer,
-  clearLayer,
-  disableLayer,
-  duplicateLayer,
-  enableLayer,
-  mergeLayers,
-  saveLayerName,
-  selectLayer,
-} from './layersActions'
-import { updateLayerOrger } from './layersListUi'
+import { layersBridge, registerLayersBridge } from './layersBridge'
 
 export const selectCoworkerLayer = (layerId: string) => {
   if (state?.layers?.[layerId] && !isYourLayerYours(layerId)) {
@@ -86,9 +62,9 @@ export const addNewLayerFromCoworker = async (layer: LayerRecord) => {
     clearLayerHistoryStepBitmap
   )
   state.layers[layer.id] = layer
-  await createNewLayerDom(layer.id, true)
-  reorderLayersList()
-  addLayerHistoryNewStep(layer.id)
+  await layersBridge.createNewLayerDom(layer.id, true)
+  layersBridge.reorderLayersList()
+  layersBridge.addLayerHistoryNewStep(layer.id)
   Object.values(state.layers).forEach((l) => {
     if (!isYourLayerYours(l.id)) {
       l.selected = l.id === layer.id
@@ -100,20 +76,20 @@ export const addNewLayerFromCoworker = async (layer: LayerRecord) => {
 }
 
 export const clearLayerFromCoworker = (layerId: string) => {
-  clearLayer(layerId)
-  addLayerHistoryContentChangedStep(layerId)
+  layersBridge.clearLayer(layerId)
+  layersBridge.addLayerHistoryContentChangedStep(layerId)
 }
 
 export const deleteLayerFromCoworker = (layerId: string, nextSelectedId: string) => {
-  addLayerHistoryDeleteStep(layerId, nextSelectedId)
-  _deleteLayer(layerId, nextSelectedId)
+  layersBridge.addLayerHistoryDeleteStep(layerId, nextSelectedId)
+  layersBridge._deleteLayer(layerId, nextSelectedId)
 }
 
 export const receiveLayerFromCoworker = (layerId: string) => {
   const layer = state.layers[layerId]
   if (!layer) return
   layer.history.clear()
-  cleanGlobalLayersHistoryForLayer(layerId)
+  layersBridge.cleanGlobalLayersHistoryForLayer(layerId)
   layer.history = new History<LayerHistoryStep>(
     config.stepHistoryMaxLength,
     clearLayerHistoryStepBitmap
@@ -135,7 +111,7 @@ export const sendCurrentLayerToCoworker = async () => {
   ) {
     const layer = state.layers[state.currentSelectedLayerId]
     layer.history.clear()
-    cleanGlobalLayersHistoryForLayer(state.currentSelectedLayerId)
+    layersBridge.cleanGlobalLayersHistoryForLayer(state.currentSelectedLayerId)
     layer.history = new History<LayerHistoryStep>(
       config.stepHistoryMaxLength,
       clearLayerHistoryStepBitmap
@@ -148,20 +124,20 @@ export const sendCurrentLayerToCoworker = async () => {
     layerListElement?.classList.add('editor-layers__layer-coworker')
     layerListElement?.classList.remove('editor-layers__layer-yours')
     layerListElement?.classList.remove('editor-layers__layer-selected')
-    selectLayer(findFirstLayerForUser())
+    layersBridge.selectLayer(findFirstLayerForUser())
   }
 }
 
 export const renameLayerFromCoworker = (layerId: string, newName: string) => {
   const sanitized = String(newName || '').slice(0, MAX_LAYER_NAME_LENGTH)
   if (!sanitized) return
-  addLayerHistoryRenameStep(layerId, sanitized, state.layers[layerId].name)
-  saveLayerName(layerId, sanitized)
+  layersBridge.addLayerHistoryRenameStep(layerId, sanitized, state.layers[layerId].name)
+  layersBridge.saveLayerName(layerId, sanitized)
 }
 
 export const duplicateLayerFromCoworker = (layerId: string, newId: string) => {
-  addLayerHistoryDuplicateStep(layerId, newId)
-  duplicateLayer(layerId, newId)
+  layersBridge.addLayerHistoryDuplicateStep(layerId, newId)
+  layersBridge.duplicateLayer(layerId, newId)
 }
 
 export const mergeLayersFromCoworker = (
@@ -169,18 +145,18 @@ export const mergeLayersFromCoworker = (
   layerTwoId: string,
   newLayerId: string
 ) => {
-  addLayerHistoryMergeStep(layerOneId, layerTwoId, newLayerId)
-  mergeLayers(layerOneId, layerTwoId, newLayerId, Coworking.getCoworkerUserId())
+  layersBridge.addLayerHistoryMergeStep(layerOneId, layerTwoId, newLayerId)
+  layersBridge.mergeLayers(layerOneId, layerTwoId, newLayerId, Coworking.getCoworkerUserId())
 }
 
 export const enableLayerFromCoworker = (layerId: string) => {
-  enableLayer(layerId)
-  addLayerHistoryEnableStep(layerId)
+  layersBridge.enableLayer(layerId)
+  layersBridge.addLayerHistoryEnableStep(layerId)
 }
 
 export const disableLayerFromCoworker = (layerId: string) => {
-  disableLayer(layerId)
-  addLayerHistoryDisableStep(layerId)
+  layersBridge.disableLayer(layerId)
+  layersBridge.addLayerHistoryDisableStep(layerId)
 }
 
 export const receiveResizeLayerFromCoworker = (
@@ -205,7 +181,7 @@ export const receiveResizeLayerFromCoworker = (
   const minY = round(y - h / 2, 1)
   const rotation = convertAngleDegToRad(r)
   fillCanvasWithImage(layer.canvas.context, image, minX, minY, w, h, rotation)
-  addLayerHistoryContentChangedStep(layerId)
+  layersBridge.addLayerHistoryContentChangedStep(layerId)
 }
 
 export const receiveFlipLayerFromCoworker = (layerId: string, horizontally: boolean) => {
@@ -220,7 +196,7 @@ export const receiveFlipLayerFromCoworker = (layerId: string, horizontally: bool
     0
   )
   fillCanvasWithImage(layer.canvas.context, flipImage(content, horizontally), x, y)
-  addLayerHistoryContentChangedStep(layerId)
+  layersBridge.addLayerHistoryContentChangedStep(layerId)
 }
 
 export const updateLayerOpacityFromCoworker = (
@@ -228,7 +204,7 @@ export const updateLayerOpacityFromCoworker = (
   opacity: number,
   oldValue: number
 ) => {
-  addLayerHistoryOpacityStep(layerId, opacity, oldValue)
+  layersBridge.addLayerHistoryOpacityStep(layerId, opacity, oldValue)
   opacity = round(opacity / 100, 2)
   state.layers[layerId].opacity = opacity
   state.layers[layerId].canvas.style.opacity = String(opacity)
@@ -239,6 +215,10 @@ export const layerDragChangeFromCoworker = (
   newOrder: number,
   oldOrder: number
 ) => {
-  addLayerHistoryOrderStep(layerId, newOrder, oldOrder)
-  updateLayerOrger(layerId, newOrder)
+  layersBridge.addLayerHistoryOrderStep(layerId, newOrder, oldOrder)
+  layersBridge.updateLayerOrger(layerId, newOrder)
 }
+
+registerLayersBridge({
+  selectCoworkerLayer,
+})

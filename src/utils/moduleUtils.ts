@@ -1,4 +1,5 @@
 import Params from 'main/Params'
+import { realScreenHeight, realScreenWidth } from './screenSize'
 import { isLandscapeOrientation, readVisibleViewport } from 'utils/viewportUtils'
 
 const rotationHandlers: Array<(event?: any) => void> = []
@@ -68,33 +69,9 @@ export const cleanEventsForNextRefresh = () => {
   window.sessionStorage.setItem('eventsOnRefresh', JSON.stringify(events))
 }
 
-export const getRealScreenWidth = (): number => {
-  if (Params.isDesktop) {
-    return Math.trunc(screen.width * Params.pixelRatio)
-  } else {
-    const screenLongSide = Math.max(screen.width, screen.height)
-    const screenShortSide = Math.min(screen.width, screen.height)
-    if (isLandscapeOrientation()) {
-      return Math.trunc(screenLongSide * Params.pixelRatio)
-    } else {
-      return Math.trunc(screenShortSide * Params.pixelRatio)
-    }
-  }
-}
+export const getRealScreenWidth = (): number => realScreenWidth(Params.isDesktop, Params.pixelRatio)
 
-export const getRealScreenHeight = (): number => {
-  if (Params.isDesktop) {
-    return Math.trunc(screen.height * Params.pixelRatio)
-  } else {
-    const screenLongSide = Math.max(screen.width, screen.height)
-    const screenShortSide = Math.min(screen.width, screen.height)
-    if (!isLandscapeOrientation()) {
-      return Math.trunc(screenLongSide * Params.pixelRatio)
-    } else {
-      return Math.trunc(screenShortSide * Params.pixelRatio)
-    }
-  }
-}
+const getRealScreenHeight = (): number => realScreenHeight(Params.isDesktop, Params.pixelRatio)
 
 export const getRealScreenMaxSize = (): number =>
   Math.max(getRealScreenWidth(), getRealScreenHeight())
