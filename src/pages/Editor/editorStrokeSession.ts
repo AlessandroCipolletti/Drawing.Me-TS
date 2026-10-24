@@ -17,6 +17,7 @@ import {
 import {
   updateCurrentTouchData,
   getStepData,
+  shouldAdaptStrokeLine,
   shouldThisStepMoveAdaptLine,
   updateLastStepData,
 } from './editorUtils'
@@ -142,10 +143,7 @@ export const createEditorStrokeSession = (deps: StrokeSessionDeps) => {
     }
   }
 
-  const shouldUseLineAdaptation = () =>
-    state.currentToolProps.size < state.currentToolProps.maxSizeThatNeedsToAdaptLine &&
-    (!state.currentToolProps.globalCompositeOperation ||
-      state.currentToolProps.globalCompositeOperation === 'source-over')
+  const shouldUseLineAdaptation = () => shouldAdaptStrokeLine(state.currentToolProps)
 
   const handleTouchStartStep = (context: ExtendedCanvasContext) => {
     state.currentTouch.drewSomething = false

@@ -228,6 +228,32 @@ const getTouchEventData = (
   }
 }
 
+const commitTouchEventStep = (
+  touchEvent: PointerTouchEvent,
+  lastStep: StepLastState,
+  tool: StepToolParams,
+  offsetX = 0,
+  offsetY = 0
+): StrokeSample => {
+  const touchData = getTouchEventData(touchEvent, lastStep, offsetX, offsetY, tool)
+  const stepData = getStepData(tool, touchData, lastStep)
+
+  lastStep.x = stepData.x
+  lastStep.y = stepData.y
+  lastStep.midX = stepData.midX
+  lastStep.midY = stepData.midY
+  lastStep.size = stepData.size
+  lastStep.alpha = stepData.alpha
+  lastStep.rotation = stepData.rotation
+  lastStep.aspectRatio = stepData.aspectRatio
+  lastStep.speedFactor = touchData.speedFactor
+  if (touchEvent.timeStamp) {
+    lastStep.timeStamp = touchEvent.timeStamp
+  }
+
+  return stepData
+}
+
 export const getStepsDataFromTouchEvents = (
   touchEvents: PointerTouchEvent[],
   tool: StepToolParams,
@@ -238,22 +264,7 @@ export const getStepsDataFromTouchEvents = (
   const stepsData: StrokeSample[] = []
 
   for (const touchEvent of touchEvents) {
-    const touchData = getTouchEventData(touchEvent, lastStep, offsetX, offsetY, tool)
-    const stepData = getStepData(tool, touchData, lastStep)
-    stepsData.push(stepData)
-
-    lastStep.x = stepData.x
-    lastStep.y = stepData.y
-    lastStep.midX = stepData.midX
-    lastStep.midY = stepData.midY
-    lastStep.size = stepData.size
-    lastStep.alpha = stepData.alpha
-    lastStep.rotation = stepData.rotation
-    lastStep.aspectRatio = stepData.aspectRatio
-    lastStep.speedFactor = touchData.speedFactor
-    if (touchEvent.timeStamp) {
-      lastStep.timeStamp = touchEvent.timeStamp
-    }
+    stepsData.push(commitTouchEventStep(touchEvent, lastStep, tool, offsetX, offsetY))
   }
 
   return stepsData
@@ -513,9 +524,16 @@ export const updateCurrentTouchData = (
   }
 }
 
-export const shouldThisStepMoveAdaptLine = (state: EditorState): boolean => {
+export const shouldAdaptStrokeLine = (tool: {
+  size: number
+  maxSizeThatNeedsToAdaptLine: number
+  globalCompositeOperation?: string
+}) =>
+  tool.size < tool.maxSizeThatNeedsToAdaptLine &&
+  (!tool.globalCompositeOperation || tool.globalCompositeOperation === 'source-over')
+
+export const shouldThisStepMoveAdaptLine = (state: EditorState, now = Date.now()): boolean => {
   let result = false
-  const now = Date.now()
   state.pxDistanceSinceLastLineAdaptation += state.currentTouch.stepLength
   state.stepsSinceLastLineAdaptation++
 

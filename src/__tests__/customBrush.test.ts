@@ -10,6 +10,7 @@ import {
   formatSchemaNumber,
   getCustomBrushCount,
   getCustomBrushes,
+  createCustomBrushPreviewController,
   getDefaultCustomBrushDraft,
   getSelectedCustomBrushId,
   getSelectedCustomBrushIndex,
@@ -305,5 +306,184 @@ describe('CustomBrush store, param schema, and tool resolution', () => {
     expect((cleaned as any).hasSizeAndAlpha).toBeUndefined()
     // Cleared because frameType is circle, not image
     expect(cleaned.frameImageBase64).toBeUndefined()
+  })
+
+  it('paints only the new preview segment while drawing', () => {
+    const ops: string[] = []
+    const canvasListeners = new Map<string, (event: Event) => void>()
+    const docListeners = new Map<string, (event: Event) => void>()
+    const canvas = {
+      width: 240,
+      height: 240,
+      getBoundingClientRect: () => ({
+        width: 240,
+        height: 240,
+        left: 0,
+        top: 0,
+        right: 240,
+        bottom: 240,
+      }),
+      addEventListener: (type: string, fn: (event: Event) => void) => {
+        canvasListeners.set(type, fn)
+      },
+      removeEventListener: (type: string) => {
+        canvasListeners.delete(type)
+      },
+      getContext: () => ctx,
+    }
+    const ctx: any = new Proxy(
+      {
+        canvas,
+        clearRect: () => ops.push('clearRect'),
+        fill: () => ops.push('fill'),
+        beginPath: () => ops.push('beginPath'),
+        arc: () => ops.push('arc'),
+        ellipse: () => ops.push('ellipse'),
+      },
+      {
+        get(target, prop) {
+          if (prop in target) return (target as any)[prop]
+          const fn = () => {}
+          ;(target as any)[prop] = fn
+          return fn
+        },
+        set(target, prop, value) {
+          ;(target as any)[prop] = value
+          return true
+        },
+      }
+    )
+    const prevDocument = globalThis.document
+    const prevRaf = globalThis.requestAnimationFrame
+    const prevCancelRaf = globalThis.cancelAnimationFrame
+    const prevOffscreen = (globalThis as any).OffscreenCanvas
+    let nextRafId = 1
+    let pendingRaf: { id: number; cb: FrameRequestCallback } | null = null
+
+    ;(globalThis as any).document = {
+      addEventListener: (type: string, fn: (event: Event) => void) => {
+        docListeners.set(type, fn)
+      },
+      removeEventListener: (type: string) => {
+        docListeners.delete(type)
+      },
+    }
+    ;(globalThis as any).OffscreenCanvas = class {
+      width: number
+      height: number
+      constructor(w: number, h: number) {
+        this.width = w
+        this.height = h
+      }
+      getContext() {
+        const label = this.width >= 300 ? 'shape' : 'surface'
+        const target: Record<string, unknown> = {
+          fillStyle: '',
+          globalCompositeOperation: 'source-over',
+          clearRect: () => ops.push(`${label}:clear`),
+          fill: () => ops.push(`${label}:fill`),
+          fillRect() {},
+          drawImage() {},
+        }
+        return new Proxy(target, {
+          get(obj, prop) {
+            if (prop in obj) return obj[prop as string]
+            const fn = () => {}
+            obj[prop as string] = fn
+            return fn
+          },
+          set(obj, prop, value) {
+            obj[prop as string] = value
+            return true
+          },
+        })
+      }
+    }
+    globalThis.requestAnimationFrame = ((cb: FrameRequestCallback) => {
+      const id = nextRafId++
+      pendingRaf = { id, cb }
+      return id
+    }) as typeof requestAnimationFrame
+    globalThis.cancelAnimationFrame = ((id: number) => {
+      if (pendingRaf?.id === id) pendingRaf = null
+    }) as typeof cancelAnimationFrame
+
+    const flushRaf = () => {
+      const job = pendingRaf
+      pendingRaf = null
+      job?.cb(0)
+    }
+    const pointer = (x: number, y: number, timeStamp: number) => ({
+      button: 0,
+      clientX: x,
+      clientY: y,
+      timeStamp,
+      pointerType: 'pen',
+      pressure: 0.4,
+      preventDefault() {},
+      stopPropagation() {},
+    })
+
+    const tool = {
+      ...getOneToolVersionCompleteProps('marker', false),
+      frameType: TOOL_FRAME_CIRCLE,
+      stabilization: 0,
+      size: 24,
+      alpha: 1,
+      minAlpha: 0,
+      maxAlpha: 1,
+      color: '#112233',
+      randomColor: false,
+    }
+    const controller = createCustomBrushPreviewController(canvas as any, 240, () => tool as any)
+
+    try {
+      const visibleClears = () => ops.filter((op) => op === 'clearRect').length
+      const surfaceClears = () => ops.filter((op) => op === 'surface:clear').length
+      const surfaceFills = () => ops.filter((op) => op === 'surface:fill').length
+
+      controller.renderNow()
+      expect(visibleClears()).toBe(1)
+
+      canvasListeners.get(Params.eventStart)?.(pointer(20, 20, 10) as any)
+      const clearsAfterStart = surfaceClears()
+      const fillsAfterStart = surfaceFills()
+      const visibleAfterStart = visibleClears()
+
+      for (let i = 1; i <= 12; i++) {
+        docListeners.get(Params.eventMove)?.(pointer(20 + i * 12, 20 + i * 8, 10 + i * 8) as any)
+      }
+      flushRaf()
+      docListeners.get(Params.eventEnd)?.(pointer(180, 140, 200) as any)
+
+      expect(visibleClears() - visibleAfterStart).toBe(2)
+      expect(surfaceClears() - clearsAfterStart).toBeLessThan(12)
+      expect(surfaceFills()).toBeGreaterThan(fillsAfterStart)
+
+      const clearsBeforeParam = surfaceClears()
+      const visibleBeforeParam = visibleClears()
+      tool.size = 48
+      controller.requestLatestRender()
+      flushRaf()
+      expect(visibleClears()).toBe(visibleBeforeParam + 1)
+      expect(surfaceClears() - clearsBeforeParam).toBeGreaterThan(0)
+      expect(surfaceClears() - clearsBeforeParam).toBeLessThan(14)
+
+      tool.stabilization = 0.8
+      canvasListeners.get(Params.eventStart)?.(pointer(24, 24, 300) as any)
+      const clearsAfterStabilizedStart = surfaceClears()
+      for (let i = 1; i <= 12; i++) {
+        docListeners.get(Params.eventMove)?.(pointer(24 + i * 10, 24 + i * 6, 300 + i * 8) as any)
+      }
+      flushRaf()
+      docListeners.get(Params.eventEnd)?.(pointer(160, 120, 500) as any)
+      expect(surfaceClears() - clearsAfterStabilizedStart).toBeLessThan(12)
+    } finally {
+      controller.destroy()
+      globalThis.document = prevDocument
+      globalThis.requestAnimationFrame = prevRaf
+      globalThis.cancelAnimationFrame = prevCancelRaf
+      ;(globalThis as any).OffscreenCanvas = prevOffscreen
+    }
   })
 })

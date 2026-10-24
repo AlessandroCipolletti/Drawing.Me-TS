@@ -277,35 +277,11 @@ const createDeterministicRng = (x: number, y: number, size: number, alpha: numbe
  */
 const MAX_SPRAY_STAMPS_PER_STEP = 8192
 const MAX_PARTICLE_STAMPS_PER_STEP = 8192
-const STROKE_SLICE_MS = 8
 
-let strokeSliceStart = 0
-let strokePause: (() => Promise<void>) | null = null
-let strokeCancelled = false
-
-const isThenable = <T>(value: T | Promise<T>): value is Promise<T> =>
-  !!value && typeof (value as Promise<T>).then === 'function'
-
-/** Yield the main thread during a modal preview so sliders can keep moving. */
-const pauseIfDue = (): Promise<void> | void => {
-  if (!strokePause || strokeCancelled) return
-  if (performance.now() - strokeSliceStart < STROKE_SLICE_MS) return
-  strokeSliceStart = performance.now()
-  return strokePause()
-}
-
-const eachStamp = (count: number, drawOne: () => void): void | Promise<void> => {
-  let index = 0
-  const next = (): void | Promise<void> => {
-    while (index < count) {
-      if (strokeCancelled) return
-      drawOne()
-      index += 1
-      const pause = pauseIfDue()
-      if (pause) return pause.then(next)
-    }
+const eachStamp = (count: number, drawOne: () => void) => {
+  for (let index = 0; index < count; index++) {
+    drawOne()
   }
-  return next()
 }
 
 /**
@@ -702,7 +678,7 @@ const toolShapesDrawFns: Record<
     blur?: number,
     aspectRatio?: number,
     tool?: StrokeToolParams
-  ) => void | Promise<void>
+  ) => void
 > = {
   [TOOL_FRAME_CIRCLE]: drawCircle,
   [TOOL_FRAME_SQUARE]: drawSquare,
@@ -847,18 +823,18 @@ const invokeStampDraw = (
     blur?: number,
     aspectRatio?: number,
     tool?: StrokeToolParams
-  ) => void | Promise<void>,
+  ) => void,
   destinationContext: ExtendedCanvasContext,
   stamp: ResolvedStampDrawParams,
   tool: StrokeToolParams
-): void | Promise<void> => {
+) => {
   if (stamp.alpha <= 0 || !Number.isFinite(stamp.x) || !Number.isFinite(stamp.y)) {
     return
   }
   if (stamp.compositeOp) {
     const prevOp = destinationContext.globalCompositeOperation
     destinationContext.globalCompositeOperation = stamp.compositeOp
-    const drawn = drawShape(
+    drawShape(
       destinationContext,
       stamp.x,
       stamp.y,
@@ -870,15 +846,10 @@ const invokeStampDraw = (
       stamp.aspect,
       tool
     )
-    if (isThenable(drawn)) {
-      return drawn.then(() => {
-        destinationContext.globalCompositeOperation = prevOp
-      })
-    }
     destinationContext.globalCompositeOperation = prevOp
     return
   }
-  return drawShape(
+  drawShape(
     destinationContext,
     stamp.x,
     stamp.y,
@@ -896,7 +867,7 @@ const drawCurvedFunctionLine = (
   destinationContext: ExtendedCanvasContext,
   stepData: StrokeSample,
   tool: StrokeToolParams
-): boolean | Promise<boolean> => {
+): boolean => {
   const drawShape = tool.frameType ? toolShapesDrawFns[tool.frameType] : undefined
   if (!drawShape) {
     return false
@@ -931,10 +902,9 @@ const drawCurvedFunctionLine = (
     return next
   }
 
-  const run = (cursor: number): boolean | Promise<boolean> => {
+  const run = (cursor: number): boolean => {
     let i = cursor
     while (i <= stepLength) {
-      if (strokeCancelled) return drewSomething
       if (i === stepLength) evaluatedEnd = true
       const t = getPerc(i, stepLength) / 100
       const frameX = round(
@@ -971,20 +941,10 @@ const drawCurvedFunctionLine = (
           frameAspect,
           t
         )
-        const pending = invokeStampDraw(drawShape, destinationContext, stamp, tool)
+        invokeStampDraw(drawShape, destinationContext, stamp, tool)
         destinationContext.lastDrawCoordX = frameX
         destinationContext.lastDrawCoordY = frameY
         drewSomething = true
-        const next = bump(i)
-        const continueRun = (): boolean | Promise<boolean> => {
-          if (strokeCancelled) return drewSomething
-          const pause = pauseIfDue()
-          if (pause) return pause.then(() => run(next))
-          return run(next)
-        }
-        if (isThenable(pending)) return pending.then(continueRun)
-        const pause = pauseIfDue()
-        if (pause) return pause.then(() => run(next))
       }
       i = bump(i)
     }
@@ -1003,7 +963,7 @@ const drawStrokeSamplePausable = (
   sample: StrokeSample,
   rawTool: StrokeToolParams,
   applyCompositeOperation = false
-): boolean | Promise<boolean> => {
+): boolean => {
   const tool = normalizeToolDrawParams(rawTool)
   if (applyCompositeOperation && tool.globalCompositeOperation) {
     destinationContext.globalCompositeOperation = tool.globalCompositeOperation
@@ -1024,28 +984,20 @@ const drawStrokeSamplePausable = (
       sample.rotation,
       sample.aspectRatio ?? 1
     )
-    const pending = invokeStampDraw(
-      toolShapesDrawFns[tool.frameType],
-      destinationContext,
-      stamp,
-      tool
-    )
+    invokeStampDraw(toolShapesDrawFns[tool.frameType], destinationContext, stamp, tool)
     destinationContext.lastDrawCoordX = sample.x
     destinationContext.lastDrawCoordY = sample.y
-    if (isThenable(pending)) return pending.then(() => true)
     return true
   }
   return drawCurvedFunctionLine(destinationContext, sample, tool)
 }
 
-/** Live and coworker strokes stay synchronous. The modal preview is the pausable path. */
 export const drawStrokeSample = (
   destinationContext: ExtendedCanvasContext,
   sample: StrokeSample,
   rawTool: StrokeToolParams,
   applyCompositeOperation = false
-): boolean =>
-  drawStrokeSamplePausable(destinationContext, sample, rawTool, applyCompositeOperation) as boolean
+): boolean => drawStrokeSamplePausable(destinationContext, sample, rawTool, applyCompositeOperation)
 
 export const fillCanvasWithImage = (
   destinationContext: CanvasRenderingContext2D,
@@ -1136,36 +1088,6 @@ export const drawMultipleSteps = (
   beginStepBatch(destinationContext, tool)
   for (const step of steps) {
     drawStrokeSample(destinationContext, step, tool, true)
-  }
-}
-
-/** Modal preview draw. Yields between slices so param sliders stay responsive. */
-export const drawMultipleStepsYielding = async (
-  destinationContext: ExtendedCanvasContext,
-  steps: StrokeSample[],
-  tool: StrokeToolParams,
-  isCurrent: () => boolean
-) => {
-  beginStepBatch(destinationContext, tool)
-  strokeCancelled = false
-  strokeSliceStart = performance.now()
-  strokePause = () =>
-    new Promise((resolve) => {
-      setTimeout(() => {
-        if (!isCurrent()) strokeCancelled = true
-        resolve()
-      }, 0)
-    })
-  try {
-    for (const step of steps) {
-      if (strokeCancelled || !isCurrent()) return
-      const drawn = drawStrokeSamplePausable(destinationContext, step, tool, true)
-      if (isThenable(drawn)) await drawn
-      if (strokeCancelled || !isCurrent()) return
-    }
-  } finally {
-    strokePause = null
-    strokeCancelled = false
   }
 }
 
