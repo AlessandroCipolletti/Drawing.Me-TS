@@ -854,7 +854,9 @@ describe('Unified Numeric Stroke Kernel (Local & PeerJS Coworking)', () => {
   it('forces every frame to opacity 1 at max selected opacity when opaqueFramesAtMaxAlpha is set', () => {
     const marker = getOneToolVersionCompleteProps('marker', false)
     const pencil = getOneToolVersionCompleteProps('pencil', 0)
+    const eraser = getOneToolVersionCompleteProps('eraser', false)
     expect(marker.opaqueFramesAtMaxAlpha).toBe(true)
+    expect(eraser.opaqueFramesAtMaxAlpha).toBe(true)
     expect(pencil.opaqueFramesAtMaxAlpha).toBe(false)
 
     const touch = {
