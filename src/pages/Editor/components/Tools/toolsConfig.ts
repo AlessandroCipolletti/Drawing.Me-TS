@@ -73,6 +73,7 @@ const toolsConfigInit = (): Record<string, ToolConfigProps> => ({
   marker: getCustomTool({
     name: 'marker',
     frameType: TOOL_FRAME_CIRCLE,
+    opaqueFramesAtMaxAlpha: true,
     minSize: 2,
     sizeForceFactor: 0.3,
     sizeSpeedFactor: -0.08,

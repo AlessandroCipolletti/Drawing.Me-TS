@@ -1,5 +1,5 @@
 .editor__container {
-  --editor-dock-tile: 3.7rem;
+  --editor-dock-tile: 3.9rem;
   --editor-dock-edge: calc(var(--editor-tools-width) - 0.1rem + var(--editor-dock-gap));
   position: absolute;
   left: 0rem;

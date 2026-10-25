@@ -81,6 +81,10 @@ export interface StrokeToolParams {
   stampScaleY?: number
   flow?: number
   buildup?: number
+  alpha?: number
+  maxAlpha?: number
+  /** Draw every frame at opacity 1 when the selected opacity is at maxAlpha. */
+  opaqueFramesAtMaxAlpha?: boolean
   particleDensity?: number
   sprayDensity?: number
   sprayRadiusFactor?: number
@@ -88,6 +92,19 @@ export interface StrokeToolParams {
   colorJitterSat?: number
   colorJitterLight?: number
   preserveStampRemainder?: boolean
+}
+
+/** Selected opacity is at the tool maximum (the 100% slider), and the tool opts into solid frames. */
+export const shouldForceOpaqueFrames = (tool: {
+  opaqueFramesAtMaxAlpha?: boolean
+  alpha?: number
+  maxAlpha?: number
+}): boolean => {
+  if (!tool.opaqueFramesAtMaxAlpha) return false
+  const { alpha, maxAlpha } = tool
+  if (typeof alpha !== 'number' || typeof maxAlpha !== 'number') return false
+  if (!Number.isFinite(alpha) || !Number.isFinite(maxAlpha)) return false
+  return alpha + 0.0005 >= maxAlpha
 }
 
 const VALID_COMPOSITE_OPERATIONS = new Set<GlobalCompositeOperation>([
@@ -787,6 +804,9 @@ const resolveStampDrawParams = (
   if (buildup > 0 && typeof segmentT === 'number') {
     const buildupScale = 1 - buildup * (1 - segmentT)
     alpha = Math.max(0.001, Math.min(1, round(alpha * buildupScale, 4)))
+  }
+  if (shouldForceOpaqueFrames(tool)) {
+    alpha = 1
   }
 
   let size = jitteredSize

@@ -107,10 +107,15 @@ describe('CustomBrush store, param schema, and tool resolution', () => {
       'stampRotationOffset',
       'minAltitudeFactorToHandleRotation',
       'stampCompositeOperation',
+      'opaqueFramesAtMaxAlpha',
     ]
     for (const reqKey of requiredNewKeys) {
       expect(keys.has(reqKey as any)).toBe(true)
     }
+    expect(
+      CUSTOM_BRUSH_PARAM_SCHEMA.find((entry) => entry.key === 'opaqueFramesAtMaxAlpha')?.kind
+    ).toBe('toggle')
+    expect(getDefaultCustomBrushDraft().opaqueFramesAtMaxAlpha).toBe(false)
 
     for (const entry of CUSTOM_BRUSH_PARAM_SCHEMA) {
       if (entry.kind !== 'slider') continue

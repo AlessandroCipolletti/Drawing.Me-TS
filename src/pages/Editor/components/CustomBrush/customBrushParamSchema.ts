@@ -284,6 +284,12 @@ export const CUSTOM_BRUSH_PARAM_SCHEMA: CustomBrushParamSchemaEntry[] = [
     kind: 'toggle',
     section: 'size-alpha',
   },
+  {
+    key: 'opaqueFramesAtMaxAlpha',
+    label: 'Solid at 100%',
+    kind: 'toggle',
+    section: 'size-alpha',
+  },
 
   // Taper
   {

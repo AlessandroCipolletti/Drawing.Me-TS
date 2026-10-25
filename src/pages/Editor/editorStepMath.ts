@@ -1,6 +1,6 @@
 import Params from 'main/Params'
 import { round, getNumberInBetween } from 'utils/mathUtils'
-import { StrokeSample } from 'utils/canvasUtils'
+import { shouldForceOpaqueFrames, StrokeSample } from 'utils/canvasUtils'
 import { TOUCH_TYPE_STYLUS } from 'main/constants'
 
 export interface StepToolParams {
@@ -29,6 +29,7 @@ export interface StepToolParams {
   endTaperSizeAmount?: number
   endTaperAlphaCurve?: number
   degradeAlphaBySize?: boolean
+  opaqueFramesAtMaxAlpha?: boolean
   handleStylusRotation?: boolean
   handleStylusTwist?: boolean
   handlePathRotation?: boolean
@@ -138,6 +139,10 @@ export const getStepAlpha = (
   touchData: StepTouchData,
   currentSize: number
 ): number => {
+  if (shouldForceOpaqueFrames(toolsProps)) {
+    return 1
+  }
+
   const force = applyResponseCurve(touchData.force || 0, toolsProps.forceCurve)
   const altitude = applyResponseCurve(touchData.altitudeFactor || 0, toolsProps.altitudeCurve)
   const rawSpeed = touchData.speedFactor || 0
@@ -352,6 +357,10 @@ export const getStepData = (
     ;[type, size, alpha, rotation, aspectRatio] = getStepStartLineData(toolProps, touchData)
   } else {
     ;[type, size, alpha, rotation, aspectRatio] = getStepEndLineData(toolProps, touchData, lastStep)
+  }
+
+  if (shouldForceOpaqueFrames(toolProps)) {
+    alpha = 1
   }
 
   return {

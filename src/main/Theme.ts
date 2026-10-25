@@ -15,12 +15,12 @@ export const spacing: Record<string, any> = {
   HEADER_BUTTON_WIDTH: 0,
 
   // EDITOR
-  EDITOR_TOOLS_WIDTH: 5.4,
+  EDITOR_TOOLS_WIDTH: 5.6,
   EDITOR_PAGE_MARGIN: 1,
   EDITOR_DOCK_GAP: 0.6,
 
   // color picker
-  COLORPICKER_HEIGHT: 5.9,
+  COLORPICKER_HEIGHT: 6.1,
 
   // ruler
   RULER_HEIGHT: 12,
@@ -48,10 +48,10 @@ export const init = () => {
   spacing.HEADER_BUTTON_WIDTH = Params.isPhone
     ? spacing.MOBILE_HEADER_BUTTON_WIDTH
     : spacing.DESKTOP_HEADER_BUTTON_WIDTH
-  spacing.EDITOR_TOOLS_WIDTH = 5.4 * spacing.ONE_REM
+  spacing.EDITOR_TOOLS_WIDTH = 5.6 * spacing.ONE_REM
   spacing.EDITOR_PAGE_MARGIN = 1 * spacing.ONE_REM
   spacing.EDITOR_DOCK_GAP = 0.6 * spacing.ONE_REM
-  spacing.COLORPICKER_HEIGHT = 5.9 * spacing.ONE_REM
+  spacing.COLORPICKER_HEIGHT = 6.1 * spacing.ONE_REM
   spacing.RULER_HEIGHT *= spacing.ONE_REM
   spacing.HEADER_HEIGHT = 5.5 * spacing.ONE_REM
 

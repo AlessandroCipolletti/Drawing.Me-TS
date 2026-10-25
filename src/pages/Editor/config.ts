@@ -88,6 +88,11 @@ export interface ToolConfigProps {
   /** Deterministic per-stamp lightness jitter factor (0..1, default 0). */
   colorJitterLight: number
   degradeAlphaBySize: boolean
+  /**
+   * When true and the selected opacity is at its maximum (100%), every frame of
+   * the stroke is drawn at opacity 1 instead of the pressure/speed/tilt formula.
+   */
+  opaqueFramesAtMaxAlpha: boolean
   showVersionPreview: boolean
   frameType: string | false
   frameImageName: string | false
@@ -185,6 +190,7 @@ export const toolDefaultProps: ToolConfigProps = {
   colorJitterLight: 0,
 
   degradeAlphaBySize: false,
+  opaqueFramesAtMaxAlpha: false,
   showVersionPreview: false,
   frameType: false,
   frameImageName: false,

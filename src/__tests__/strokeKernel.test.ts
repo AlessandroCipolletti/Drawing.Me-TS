@@ -850,6 +850,97 @@ describe('Unified Numeric Stroke Kernel (Local & PeerJS Coworking)', () => {
     expect(getStepRotation(tool, touch, { rotation: 0 })).toBeCloseTo(Math.PI / 2, 3)
   })
 
+  it('forces every frame to opacity 1 at max selected opacity when opaqueFramesAtMaxAlpha is set', () => {
+    const marker = getOneToolVersionCompleteProps('marker', false)
+    const pencil = getOneToolVersionCompleteProps('pencil', 0)
+    expect(marker.opaqueFramesAtMaxAlpha).toBe(true)
+    expect(pencil.opaqueFramesAtMaxAlpha).toBe(false)
+
+    const touch = {
+      type: 'move' as const,
+      x: 10,
+      y: 10,
+      midX: 10,
+      midY: 10,
+      force: 0.8,
+      speedFactor: 0.6,
+      altitudeFactor: 0.5,
+      stepLength: 8,
+    }
+    const atMax = {
+      ...toolDefaultProps,
+      opaqueFramesAtMaxAlpha: true,
+      alpha: 0.24,
+      minAlpha: 0.003,
+      maxAlpha: 0.24,
+      alphaForceFactor: 0.075,
+      alphaSpeedFactor: -0.02,
+      startTaperFactor: 0.6,
+      endTaperFactor: 0.45,
+      endTaperSizeAmount: 0.5,
+    }
+    expect(getStepAlpha(atMax, touch, 20)).toBe(1)
+    const start = getStepData(atMax, { ...touch, type: 'start', stepLength: 0 }, {})
+    const move = getStepData(atMax, touch, start)
+    const end = getStepData(atMax, { ...touch, type: 'end' }, move)
+    expect(start.alpha).toBe(1)
+    expect(move.alpha).toBe(1)
+    expect(end.alpha).toBe(1)
+    expect(getStepAlpha({ ...atMax, alpha: 0.1 }, touch, 20)).toBeLessThan(1)
+    expect(getStepAlpha({ ...atMax, opaqueFramesAtMaxAlpha: false }, touch, 20)).toBeLessThan(1)
+
+    const sample: StrokeSample = {
+      type: 'start',
+      x: 12,
+      y: 12,
+      midX: 12,
+      midY: 12,
+      size: 20,
+      alpha: 1,
+      rotation: 0,
+      oldSize: 20,
+      oldAlpha: 1,
+      oldRotation: 0,
+      oldMidX: 0,
+      oldMidY: 0,
+      oldX: 0,
+      oldY: 0,
+      stepLength: 0,
+    }
+    const solidCtx = createMockCanvasContext()
+    drawStrokeSample(
+      solidCtx.ctx,
+      sample,
+      {
+        ...atMax,
+        frameType: TOOL_FRAME_CIRCLE,
+        color: '#112233',
+        jitterAlpha: 0.8,
+        flow: 0.25,
+        buildup: 0.8,
+      },
+      true
+    )
+    expect(solidCtx.ctx.globalAlpha).toBe(1)
+
+    const softCtx = createMockCanvasContext()
+    drawStrokeSample(
+      softCtx.ctx,
+      sample,
+      {
+        ...atMax,
+        opaqueFramesAtMaxAlpha: false,
+        frameType: TOOL_FRAME_CIRCLE,
+        color: '#112233',
+        jitterAlpha: 0,
+        flow: 0.25,
+        buildup: 0,
+      },
+      true
+    )
+    expect(softCtx.ctx.globalAlpha).toBeLessThan(1)
+  })
+
   it('supports Apple Pencil Pro barrel roll (twist), non-linear response curves, anisotropic aspect ratio, 1€ stabilization, and deterministic jitter across coworking', () => {
     // 1. Apple Pencil Pro twist normalization (degrees -> radians) & vertical barrel roll
     const normPen = normalizeTouchOrPointerEvent({
