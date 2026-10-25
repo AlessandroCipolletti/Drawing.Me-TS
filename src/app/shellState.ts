@@ -13,6 +13,17 @@ let menuIsOpen = false
 let menuAnimations: MenuButtonAnimations | null = null
 let menuRouteSubscriber: ((route: string) => void) | null = null
 
+const onMenuOutsidePointer = (e: Event) => {
+  const target = e.target as Node | null
+  if (!target) return
+  const el = target instanceof Element ? target : target.parentElement
+  if (!el) return
+  if (el.closest('.drawith__menu-pages') || el.closest('.menu-button')) {
+    return
+  }
+  closeMainMenu()
+}
+
 export const registerMenuButtonAnimations = (animations: MenuButtonAnimations) => {
   menuAnimations = animations
 }
@@ -50,7 +61,7 @@ const openMainMenu = (e?: Event) => {
   }
   menuIsOpen = true
   addGlobalStatus('drawith__MENU-OPEN')
-  Params.pagesContainer?.addEventListener(Params.eventStart, closeMainMenu)
+  document.addEventListener(Params.eventStart, onMenuOutsidePointer, true)
   menuAnimations?.open()
 }
 
@@ -60,7 +71,7 @@ export const closeMainMenu = (e?: Event) => {
   }
   menuIsOpen = false
   removeGlobalStatus('drawith__MENU-OPEN')
-  Params.pagesContainer?.removeEventListener(Params.eventStart, closeMainMenu)
+  document.removeEventListener(Params.eventStart, onMenuOutsidePointer, true)
   menuAnimations?.close()
 }
 

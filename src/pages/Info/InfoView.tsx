@@ -4,7 +4,6 @@ export interface InfoViewProps {
   labels: {
     createdBy: string
     version: string
-    and: string
     aboutUs: string
   }
   version: string
@@ -30,10 +29,6 @@ export const InfoView = ({ labels, version, onAboutTabRef }: InfoViewProps) => (
             {labels.createdBy}
             <br />
             <a href="mailto:cipolletti.alessandro@gmail.com">Cipolletti Alessandro</a>
-            <br />
-            {labels.and}
-            <br />
-            Gaetano Saturno
           </p>
         </div>
       </div>

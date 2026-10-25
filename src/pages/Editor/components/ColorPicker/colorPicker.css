@@ -35,6 +35,11 @@
   box-shadow: none;
   transition: transform var(--options-show-transition) cubic-bezier(0.22, 1, 0.36, 1);
 }
+.drawith__IOS .editor-colorpicker__container,
+.drawith__IPAD .editor-colorpicker__container,
+.drawith__IPHONE .editor-colorpicker__container {
+  border-radius: 1.05rem 1.05rem 2.1rem 2.1rem;
+}
 .editor-colorpicker__container > * {
   display: inline-block;
   position: absolute;

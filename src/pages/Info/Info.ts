@@ -17,7 +17,6 @@ const refs: {
 const labels = {
   createdBy: 'Created by',
   version: 'Version',
-  and: 'and',
   aboutUs: 'About us',
 }
 

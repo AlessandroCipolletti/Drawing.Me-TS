@@ -1,8 +1,12 @@
 .folder__share-popup {
   width: 65vw;
   height: 65vh;
-  padding: 2rem;
+  padding: 1.6rem;
   box-sizing: border-box;
+  border-radius: 1.05rem;
+  border: 0.5px solid rgba(15, 23, 42, 0.22);
+  background-color: var(--editor-capsule-bg-strong);
+  box-shadow: none;
 }
 .drawith__PHONE .folder__share-popup {
   width: 90vw;
@@ -71,9 +75,9 @@
 
 .folder__share-popup-image {
   -webkit-touch-callout: default;
-  border: 1px solid var(--border-medium);
-  border-radius: 1rem;
-  box-shadow: var(--shadow-sm);
+  border: 0.5px solid rgba(15, 23, 42, 0.22);
+  border-radius: 0.85rem;
+  box-shadow: none;
   margin: 1.5rem 0rem;
   cursor: pointer;
 

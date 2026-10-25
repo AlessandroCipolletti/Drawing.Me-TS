@@ -44,7 +44,7 @@ export const AppShellView = ({ labels, refs }: AppShellViewProps) => (
             refs.menuItemFolder = el
           }}
         >
-          <div class="drawith__menu-item-icon svg-icon-drawing svg-icon-light" />
+          <div class="drawith__menu-item-icon svg-icon-drawing svg-icon-dark" />
           <span>{labels.folderPageLabel}</span>
         </div>
 
@@ -54,7 +54,7 @@ export const AppShellView = ({ labels, refs }: AppShellViewProps) => (
             refs.menuItemDashboard = el
           }}
         >
-          <div class="drawith__menu-item-icon svg-icon-move svg-icon-light" />
+          <div class="drawith__menu-item-icon svg-icon-move svg-icon-dark" />
           <span>{labels.dashboardPageLabel}</span>
         </div>
 
@@ -64,7 +64,7 @@ export const AppShellView = ({ labels, refs }: AppShellViewProps) => (
             refs.menuItemAbout = el
           }}
         >
-          <div class="drawith__menu-item-icon svg-icon-info-line svg-icon-light" />
+          <div class="drawith__menu-item-icon svg-icon-info-line svg-icon-dark" />
           <span>{labels.aboutUs}</span>
         </div>
 
