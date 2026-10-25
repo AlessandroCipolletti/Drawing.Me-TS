@@ -128,8 +128,9 @@ const updateParamsByLayer = (layerId: string | false = state.currentSelectedLaye
     if (wasInResizeMode && !state.resizeMode) {
       editorFacade.hideDragBox()
     }
-    refs.visibilityLayerButton?.classList.toggle('svg-icon-visible', layer.active)
-    refs.visibilityLayerButton?.classList.toggle('svg-icon-hidden', !layer.active)
+    const visibilityIcon = refs.visibilityLayerButton?.querySelector('.editor-layers__params-icon')
+    visibilityIcon?.classList.toggle('svg-icon-visible', layer.active)
+    visibilityIcon?.classList.toggle('svg-icon-hidden', !layer.active)
   }
 }
 
@@ -427,7 +428,10 @@ const startDragLayer = (e: Event, layerListDom: HTMLElement) => {
   const id = layerListDom.getAttribute('data-id')
   if (!id || !refs.layersList) return
   state.listDragStartIndex = state.layers[id].order
+  const expanded = Boolean(layerListDom.closest('.editor-layers__container--expanded'))
+  if (expanded) layerListDom.classList.add('editor-layers__layer-drag-expanded')
   handleElementsListDragAndDrop(e, refs.layersList, layerListDom, onListDragChange, 'vertical')
+  if (expanded) layerListDom.classList.remove('editor-layers__layer-drag-expanded')
 }
 
 const findListTargetLayerParent = (target: EventTarget | null): HTMLElement | false => {
@@ -458,16 +462,23 @@ export const onListClick = (e: Event) => {
   if (layerListDom && target) {
     const id = layerListDom.getAttribute('data-id')
     if (!id) return
-    if (
-      target === layerListDom ||
-      target.classList.contains('editor-layers__layer-preview') ||
-      target.nodeName.toLowerCase() === 'input'
-    ) {
-      onLayerTouchDown(id)
-    } else if (target.classList.contains('editor-layers__layer-options-button')) {
+    if (target.classList.contains('editor-layers__layer-options-button')) {
       layersBridge.toggleEnableLayer(e, id, true)
+    } else {
+      onLayerTouchDown(id)
     }
   }
+}
+
+export const layersToggleButtonTouchStart = (e: Event) => {
+  preventDefault(e)
+  closeParams()
+  const expanded = refs.layersContainer?.classList.toggle('editor-layers__container--expanded')
+  refs.layersContainer?.parentElement?.classList.toggle(
+    'editor__layers-expanded',
+    Boolean(expanded)
+  )
+  refs.layersToggleButton?.classList.toggle('selected', Boolean(expanded))
 }
 
 export const onListLongPress = async (e: Event) => {

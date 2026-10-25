@@ -1,11 +1,11 @@
 /* CONTAINER */
 .drawith__EDITOR-FULLSCREEN .editor-colorpicker__container {
-  transform: translate3d(0px, 120%, 0rem);
+  transform: translate3d(0px, 125%, 0rem);
 }
 .drawith__PHONE .editor-colorpicker__container {
-  left: 0px;
-  width: 100%;
-  border-radius: 1.4rem 1.4rem 0 0;
+  left: 0.55rem;
+  width: calc(100% - 1.1rem);
+  border-radius: 1.05rem;
 }
 @media screen and (orientation: landscape) {
   .drawith__PHONE .editor-colorpicker__container {
@@ -19,26 +19,26 @@
   --colorpicker-random-width: 5.5rem;
   touch-action: manipulation;
 
-  padding-bottom: var(--app-margin-bottom);
+  padding-bottom: 0;
   position: absolute;
-  width: 98%;
-  height: var(--colorpicker-height);
-  bottom: 0px;
-  left: 1%;
+  width: calc(100% - 1.1rem);
+  height: calc(var(--editor-tools-width) - 0.55rem);
+  bottom: 0.45rem;
+  left: 0.55rem;
+  box-sizing: border-box;
   z-index: 1000;
-  background-color: var(--surface-glass);
-  backdrop-filter: blur(18px) saturate(180%);
-  -webkit-backdrop-filter: blur(18px) saturate(180%);
-  border: 1px solid var(--border-subtle);
-  border-bottom: none;
-  border-radius: 1.6rem 1.6rem 0 0;
-  box-shadow: 0 -4px 24px rgba(15, 23, 42, 0.08);
+  background-color: var(--editor-capsule-bg);
+  backdrop-filter: blur(22px) saturate(190%);
+  -webkit-backdrop-filter: blur(22px) saturate(190%);
+  border: 0.5px solid rgba(15, 23, 42, 0.22);
+  border-radius: 1.05rem;
+  box-shadow: none;
   transition: transform var(--options-show-transition) cubic-bezier(0.22, 1, 0.36, 1);
 }
 .editor-colorpicker__container > * {
   display: inline-block;
   position: absolute;
-  height: var(--colorpicker-height);
+  height: 100%;
   top: 0rem;
 }
 
@@ -56,7 +56,10 @@
   background-size: 3.4rem;
   background-position: center;
   background-repeat: no-repeat;
-  border: 1.5px solid var(--border-subtle);
+  border: 1.5px solid rgba(15, 23, 42, 0.14);
+  box-shadow:
+    0 2px 6px rgba(15, 23, 42, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
   width: 3.8rem;
   height: 3.8rem;
   margin: 0;
@@ -72,7 +75,14 @@
 .editor-colorpicker__pipette:hover,
 .editor-colorpicker__random:hover {
   transform: translateY(-1px);
-  box-shadow: var(--shadow-sm);
+  box-shadow:
+    0 4px 10px rgba(15, 23, 42, 0.16),
+    inset 0 1px 0 #ffffff;
+}
+.editor-colorpicker__input:active,
+.editor-colorpicker__pipette:active,
+.editor-colorpicker__random:active {
+  transform: translateY(0px) scale(0.95);
 }
 
 /* INPUT */
@@ -110,11 +120,15 @@
   background-color: var(--palette-white);
   background-image: url('../../../../static/icons/svg/pipette.svg');
   background-size: 62%;
-  border-radius: 1rem;
+  border-radius: 1.05rem;
 }
 .editor-colorpicker__pipette-selected {
   background-color: #ffffff;
   border-color: var(--accent-ink-strong);
+  box-shadow:
+    0 0 0 2px #ffffff,
+    0 0 0 4px var(--accent-ink-strong),
+    0 4px 12px rgba(15, 23, 42, 0.25);
 }
 
 /* RANDOM */
@@ -158,21 +172,21 @@
 }
 .editor-colorpicker__color {
   position: relative;
-  width: 3.8rem;
-  height: 3.8rem;
-  border-radius: 0.85rem;
-  border: 1px solid rgba(15, 23, 42, 0.14);
+  width: var(--editor-dock-tile);
+  height: var(--editor-dock-tile);
+  border-radius: var(--editor-dock-tile-radius);
+  border: 1px solid rgba(15, 23, 42, 0.16);
   background-image: linear-gradient(
     180deg,
-    rgba(255, 255, 255, 0.22) 0%,
+    rgba(255, 255, 255, 0.24) 0%,
     rgba(255, 255, 255, 0) 45%,
-    rgba(15, 23, 42, 0.1) 100%
+    rgba(15, 23, 42, 0.12) 100%
   );
   box-shadow:
-    0 2px 5px rgba(15, 23, 42, 0.12),
-    0 1px 2px rgba(15, 23, 42, 0.06),
-    inset 0 1px 1px rgba(255, 255, 255, 0.45),
-    inset 0 -1px 1px rgba(15, 23, 42, 0.16);
+    0 2px 6px rgba(15, 23, 42, 0.14),
+    0 1px 2px rgba(15, 23, 42, 0.08),
+    inset 0 1px 1px rgba(255, 255, 255, 0.48),
+    inset 0 -1px 1px rgba(15, 23, 42, 0.22);
   margin: 0rem 0.28rem;
   display: inline-block;
   flex-shrink: 0;
@@ -185,25 +199,27 @@
 .editor-colorpicker__color:hover {
   transform: translateY(-2px) scale(1.05);
   box-shadow:
-    0 5px 12px rgba(15, 23, 42, 0.18),
-    0 2px 4px rgba(15, 23, 42, 0.08),
-    inset 0 1px 1px rgba(255, 255, 255, 0.55),
-    inset 0 -1px 1px rgba(15, 23, 42, 0.16);
+    0 6px 14px rgba(15, 23, 42, 0.2),
+    0 2px 4px rgba(15, 23, 42, 0.1),
+    inset 0 1px 1px rgba(255, 255, 255, 0.58),
+    inset 0 -1px 1px rgba(15, 23, 42, 0.22);
 }
 .editor-colorpicker__color:active {
-  transform: translateY(0px) scale(0.96);
+  transform: translateY(0px) scale(0.95);
 }
 .editor-colorpicker__color-selected::before {
   content: '';
   position: absolute;
-  inset: 0.38rem;
-  border-radius: 0.5rem;
-  border: 1px solid #ffffff;
+  inset: 0.31rem;
+  border-radius: 0.48rem;
+  border: 1.5px solid #ffffff;
+  box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.28);
   box-sizing: border-box;
   pointer-events: none;
 }
 .editor-colorpicker__color-selected-light::before {
   border-color: #0f172a;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.65);
 }
 
 /* SELECTED COLOR PARAMS */
@@ -213,7 +229,7 @@
   flex-direction: column;
 }
 .drawith__EDITOR-FULLSCREEN .editor-colorpicker__params-container {
-  transform: translate3d(-50%, 120%, 0rem);
+  transform: translate3d(-50%, 125%, 0rem);
 }
 .editor-colorpicker__params-container {
   width: 74rem;
@@ -226,7 +242,7 @@
   flex-direction: row;
   justify-content: space-evenly;
   align-items: center;
-  padding: 0 1.2rem;
+  padding: 0 1.4rem;
   box-sizing: border-box;
 }
 .editor-colorpicker__params-container > div:not(.editor-colorpicker__params-button) {
@@ -245,10 +261,10 @@
   justify-content: center;
 }
 .editor-colorpicker__params-container.params-container-visible {
-  top: calc(100% - (2 * var(--colorpicker-height) + var(--app-margin-bottom) + 1rem));
+  top: calc(100% - var(--header-height) - var(--colorpicker-height) - 0.6rem);
 }
 .drawith__PHONE .editor-colorpicker__params-container.params-container-visible {
-  top: calc(100% - (3 * var(--colorpicker-height) + var(--app-margin-bottom) + 1rem));
+  top: calc(100% - var(--header-height) - (2 * var(--colorpicker-height)) - 0.6rem);
 }
 .editor-colorpicker__params-container .editor-colorpicker__params-button {
   width: 2.6rem;
@@ -262,7 +278,10 @@
 }
 .editor-colorpicker__params-container .editor-colorpicker__params-button:hover {
   background-color: var(--palette-red-1);
-  transform: scale(1.08);
+  transform: scale(1.1);
+}
+.editor-colorpicker__params-container .editor-colorpicker__params-button:active {
+  transform: scale(0.94);
 }
 .drawith__PHONE .editor-colorpicker__params-container .editor-colorpicker__params-button {
   display: none;
@@ -270,11 +289,13 @@
 
 /* PARAMS LABELS */
 .drawith__PHONE .editor-colorpicker__params-container > * > span {
-  font-size: 1.35rem;
+  font-size: 1.15rem;
 }
 .editor-colorpicker__params-container > * > span {
   color: var(--text-secondary);
   font-family: 'Poppins-Medium', sans-serif;
-  font-size: 1.35rem;
+  font-size: 1.15rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05rem;
   padding-right: 1.2rem;
 }

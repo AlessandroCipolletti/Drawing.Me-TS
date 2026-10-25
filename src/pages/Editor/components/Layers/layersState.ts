@@ -170,6 +170,7 @@ export const refs: LayersRefs = {
   flipHorizontalButton: null,
   sendLayerButton: null,
   canvasPanButton: null,
+  layersToggleButton: null,
   gcoButton: null,
   resizeButton: null,
   visibilityLayerButton: null,

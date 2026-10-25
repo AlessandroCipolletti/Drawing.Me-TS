@@ -25,10 +25,10 @@ export const computeCanvasOffset = (): CanvasOffset => {
     }
   }
   return {
-    left: spacing.EDITOR_PAGE_MARGIN + spacing.EDITOR_TOOLS_WIDTH,
-    top: spacing.EDITOR_PAGE_MARGIN + spacing.HEADER_HEIGHT,
-    right: spacing.EDITOR_PAGE_MARGIN + spacing.EDITOR_TOOLS_WIDTH + safeRight,
-    bottom: spacing.EDITOR_PAGE_MARGIN + spacing.COLORPICKER_HEIGHT + spacing.APP_MARGIN_BOTTOM,
+    left: spacing.EDITOR_DOCK_GAP + spacing.EDITOR_TOOLS_WIDTH,
+    top: spacing.EDITOR_TOOLS_WIDTH + spacing.EDITOR_DOCK_GAP - 0.1 * spacing.ONE_REM,
+    right: spacing.EDITOR_DOCK_GAP + spacing.EDITOR_TOOLS_WIDTH + safeRight,
+    bottom: spacing.EDITOR_TOOLS_WIDTH + spacing.EDITOR_DOCK_GAP - 0.1 * spacing.ONE_REM,
   }
 }
 

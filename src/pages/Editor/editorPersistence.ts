@@ -18,7 +18,6 @@ import {
 import { EditorState } from './editorTypes'
 
 const labels = {
-  draftSaved: 'Draft saved',
   draftError: 'An error occurred during draft saving',
   copySaved: 'New copy saved',
   areYouSureToCloseCoworking: 'Are you sure to close the drawing session?',
@@ -118,7 +117,6 @@ const saveDraft = (
         state.modifiedSinceLastSave = false
         onSetLastActiveId(draftId)
         if (state.localDbDrawId === false) {
-          Messages.info(labels.draftSaved, editorConfig.draftInfoDuration)
           state.localDbDrawId = draftId
         }
       },

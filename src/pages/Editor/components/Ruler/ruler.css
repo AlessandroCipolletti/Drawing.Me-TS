@@ -6,18 +6,20 @@
   height: var(--ruler-height);
   margin-top: calc(var(--ruler-height) / -2);
 
-  background-color: rgba(255, 255, 255, 0.82);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  border-top: 1.5px solid rgba(51, 65, 85, 0.45);
-  border-bottom: 1.5px solid rgba(51, 65, 85, 0.45);
+  background-color: rgba(248, 250, 252, 0.84);
+  backdrop-filter: blur(14px) saturate(160%);
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
+  border-top: 2px solid rgba(15, 23, 42, 0.55);
+  border-bottom: 2px solid rgba(15, 23, 42, 0.55);
   background-size: var(--one-cm-size-by-scale) 100%;
   background-repeat: repeat-x;
   background-position: 0% 0%;
   box-shadow:
-    0 8px 24px rgba(15, 23, 42, 0.16),
-    0 2px 6px rgba(15, 23, 42, 0.08);
-  border-radius: 0.75rem;
+    0 12px 32px rgba(2, 6, 23, 0.24),
+    0 4px 10px rgba(2, 6, 23, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.9);
+  border-radius: 0.85rem;
   touch-action: none;
   box-sizing: border-box;
 }
@@ -78,15 +80,19 @@
   left: 50%;
   margin-top: -2.95rem;
   margin-left: -2.95rem;
-  border: 1.5px solid rgba(15, 23, 42, 0.22);
-  background-color: rgba(255, 255, 255, 0.94);
-  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.12);
+  border: 1.5px solid rgba(15, 23, 42, 0.24);
+  background-color: rgba(255, 255, 255, 0.96);
+  box-shadow:
+    0 6px 16px rgba(15, 23, 42, 0.18),
+    0 2px 4px rgba(15, 23, 42, 0.1),
+    inset 0 1px 0 #ffffff;
   position: absolute;
   z-index: 700;
   cursor: pointer;
   transition:
     border-color 150ms ease,
-    box-shadow 150ms ease;
+    box-shadow 150ms ease,
+    transform 120ms ease;
 }
 .drawith__PHONE .editor__tool-ruler-level,
 .drawith__PHONE .editor__tool-ruler-level-selected {
@@ -98,8 +104,8 @@
 .editor__tool-ruler-level-selected {
   border-color: var(--accent-ink-strong);
   box-shadow:
-    0 0 0 3px var(--accent-ink-ring),
-    0 2px 8px rgba(15, 23, 42, 0.14);
+    0 0 0 3px #38bdf8,
+    0 6px 18px rgba(15, 23, 42, 0.24);
 }
 
 .editor__tool-ruler-level-value {
@@ -126,24 +132,35 @@
   top: 50%;
   margin-top: -2.35rem;
   margin-left: -2.35rem;
-  background-color: rgba(255, 255, 255, 0.92);
-  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.1);
+  background-color: rgba(255, 255, 255, 0.96);
+  box-shadow:
+    0 4px 12px rgba(15, 23, 42, 0.16),
+    0 1px 3px rgba(15, 23, 42, 0.08),
+    inset 0 1px 0 #ffffff;
   position: absolute;
   z-index: 700;
   background-size: 56%;
   background-repeat: no-repeat;
   background-position: center;
-  border: 1.5px solid rgba(15, 23, 42, 0.2);
+  border: 1.5px solid rgba(15, 23, 42, 0.22);
   cursor: pointer;
   transition:
     background-color 150ms ease,
     border-color 150ms ease,
+    box-shadow 150ms ease,
     transform 120ms ease;
 }
 .editor__tool-ruler-perpendicular:hover,
 .editor__tool-ruler-specular:hover {
   border-color: var(--accent-ink-strong);
   background-color: #ffffff;
+  box-shadow:
+    0 6px 16px rgba(15, 23, 42, 0.22),
+    inset 0 1px 0 #ffffff;
+}
+.editor__tool-ruler-perpendicular:active,
+.editor__tool-ruler-specular:active {
+  transform: scale(0.94);
 }
 .drawith__PHONE .editor__tool-ruler-perpendicular,
 .drawith__PHONE .editor__tool-ruler-specular {

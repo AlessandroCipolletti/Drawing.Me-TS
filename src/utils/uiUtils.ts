@@ -544,6 +544,9 @@ export const handleElementsListDragAndDrop = (() => {
   ) => {
     animationScale = Params.isPhone ? 1.7 : 1.2
     const draggedEl = selectedElement.cloneNode(true) as HTMLElement
+    const selectedRect = selectedElement.getBoundingClientRect()
+    draggedEl.style.width = `${selectedRect.width}px`
+    draggedEl.style.height = `${selectedRect.height}px`
     if (draggedEl.querySelector('canvas')) {
       const newCanvas = draggedEl.querySelector('canvas')!
       const oldCanvas = selectedElement.querySelector('canvas')!

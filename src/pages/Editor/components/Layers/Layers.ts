@@ -51,6 +51,7 @@ import {
   flipHorizontally,
   flipVertically,
   gcoModeTouchStart,
+  layersToggleButtonTouchStart,
   onContainerTouchStart,
   onListClick,
   onListLongPress,
@@ -112,6 +113,12 @@ const initDom = async (moduleContainer: HTMLElement) => {
     panBtn.addEventListener(Params.eventStart, canvasPanButtonTouchStart)
     refs.canvasPanButton = panBtn
   }
+  const layersToggleBtn = createDom()
+  layersToggleBtn.appendChild(
+    createDom('editor-layers__toggle-button', 'svg-icon-layers-mini', 'svg-icon-dark')
+  )
+  layersToggleBtn.addEventListener(Params.eventStart, layersToggleButtonTouchStart)
+  refs.layersToggleButton = layersToggleBtn
 
   refs.layerListElement?.remove()
   refs.paramsContainer?.addEventListener(Params.eventStart, preventDefault)
@@ -144,8 +151,8 @@ const initDom = async (moduleContainer: HTMLElement) => {
   if (refs.resizeButton) {
     const groupButtons =
       Params.isDesktop && refs.canvasPanButton
-        ? [refs.canvasPanButton, refs.resizeButton, refs.gcoButton]
-        : [refs.resizeButton, refs.gcoButton]
+        ? [refs.canvasPanButton, refs.resizeButton, refs.gcoButton, refs.layersToggleButton!]
+        : [refs.resizeButton, refs.gcoButton, refs.layersToggleButton!]
     editorCalls.addOptionButtonsGroup(groupButtons)
   }
 }

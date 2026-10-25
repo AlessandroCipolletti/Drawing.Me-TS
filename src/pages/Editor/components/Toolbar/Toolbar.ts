@@ -301,26 +301,52 @@ const addOptionButtonsGroup = (
   buttons: HTMLElement[] = [],
   side: 'left' | 'center' | 'right' = 'center'
 ) => {
-  const spacer = createDom('editor-toolbar__spacer')
   const wrapper = createDom('editor-toolbar__options-group')
   for (const button of buttons) {
     button.classList.add('editor-toolbar__button')
     wrapper.appendChild(button)
   }
   if (side === 'left') {
-    refs.leftSide?.appendChild(spacer)
+    refs.leftSide?.appendChild(createDom('editor-toolbar__spacer'))
     refs.leftSide?.appendChild(wrapper)
   } else if (side === 'center') {
-    refs.centerSide?.appendChild(spacer)
     refs.centerSide?.appendChild(wrapper)
   } else if (side === 'right') {
     refs.rightSide?.appendChild(wrapper)
-    refs.rightSide?.appendChild(spacer)
+    refs.rightSide?.appendChild(createDom('editor-toolbar__spacer'))
   }
+}
+
+let statusLabelParent: HTMLElement | null = null
+let statusLabelNext: ChildNode | null = null
+
+const moveStatusLabelIntoHeader = () => {
+  const label = document.querySelector('.messages__update')
+  if (!label || !refs.rightSide) return
+  statusLabelParent = label.parentElement
+  statusLabelNext = label.nextSibling
+  if (refs.saveCopyButton?.parentElement === refs.rightSide) {
+    refs.rightSide.insertBefore(label, refs.saveCopyButton)
+  } else {
+    refs.rightSide.appendChild(label)
+  }
+}
+
+const restoreStatusLabel = () => {
+  const label = document.querySelector('.messages__update')
+  if (!label || !statusLabelParent) return
+  if (statusLabelNext && statusLabelNext.parentElement === statusLabelParent) {
+    statusLabelParent.insertBefore(label, statusLabelNext)
+  } else {
+    statusLabelParent.appendChild(label)
+  }
+  statusLabelParent = null
+  statusLabelNext = null
 }
 
 const initDom = async (container: HTMLElement) => {
   mount(container, ToolbarView({ refs }))
+  moveStatusLabelIntoHeader()
 
   if (refs.toolPreviewPopup && refs.toolPreviewCanvas) {
     refs.toolPreviewPopup.style.width = `${state.toolPreviewCanvasSize}px`
@@ -367,6 +393,7 @@ export const init = async (container: HTMLElement) => {
 }
 
 export const remove = async () => {
+  restoreStatusLabel()
   state = deepCopy(initialState)
   previewRafPending = false
   cleanRefs(refs)

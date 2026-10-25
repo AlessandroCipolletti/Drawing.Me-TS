@@ -23,6 +23,7 @@ const goFullscreen = (state: EditorState, e?: Event) => {
   ColorPicker.closeParams()
   Tools.closeVersions()
   Layers.closeParams()
+  Toolbar.closeParams()
 }
 
 const exitFullscreen = (state: EditorState, e?: Event) => {

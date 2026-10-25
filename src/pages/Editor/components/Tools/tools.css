@@ -1,22 +1,25 @@
 .drawith__EDITOR-FULLSCREEN .editor-tools__container,
 .drawith__EDITOR-FULLSCREEN .editor-tools__versions-container {
-  transform: translate3d(-115%, 0rem, 0rem);
+  transform: translate3d(-125%, 0rem, 0rem);
 }
 .editor-tools__container,
 .editor-tools__versions-container {
-  --tools-container-margin-top: calc(var(--header-height) + var(--editor-page-margin));
-  --tools-container-margin-bottom: calc(
-    var(--colorpicker-height) + var(--app-margin-bottom) + calc(2 * var(--editor-page-margin))
-  );
+  --tools-container-margin-top: var(--editor-dock-edge);
+  --tools-container-margin-bottom: var(--editor-dock-edge);
   --tools-height: calc(
     var(--100vh) - var(--tools-container-margin-top) - var(--tools-container-margin-bottom)
   );
 
   position: absolute;
-  width: var(--editor-tools-width);
+  width: calc(var(--editor-tools-width) - 0.55rem);
   height: var(--tools-height);
   top: var(--tools-container-margin-top);
-  left: 0rem;
+  left: 0.55rem;
+}
+.drawith__PHONE .editor-tools__container,
+.drawith__PHONE .editor-tools__versions-container {
+  --tools-container-margin-top: calc(var(--header-height) + var(--editor-page-margin));
+  --tools-container-margin-bottom: calc(var(--header-height) + var(--editor-page-margin) * 0.5);
 }
 @media screen and (orientation: landscape) {
   .drawith__PHONE .editor-tools__container,
@@ -31,14 +34,13 @@
   -webkit-overflow-scrolling: touch;
   -ms-overflow-style: none;
   scrollbar-width: none;
-  background-color: var(--surface-glass);
-  backdrop-filter: blur(18px) saturate(180%);
-  -webkit-backdrop-filter: blur(18px) saturate(180%);
-  border: 1px solid var(--border-subtle);
-  border-left: none;
-  border-radius: 0 1.4rem 1.4rem 0;
-  box-shadow: var(--shadow-dock);
-  padding: 0.4rem 0.3rem;
+  background-color: var(--editor-capsule-bg);
+  backdrop-filter: blur(22px) saturate(190%);
+  -webkit-backdrop-filter: blur(22px) saturate(190%);
+  border: 0.5px solid rgba(15, 23, 42, 0.22);
+  border-radius: 1.1rem;
+  box-shadow: none;
+  padding: 0.55rem 0.25rem 0.4rem;
   box-sizing: border-box;
 }
 .editor-tools__container::-webkit-scrollbar {
@@ -52,10 +54,19 @@
 
 .editor-tools__versions {
   width: 100%;
-  height: 100%;
+  height: auto;
+  max-height: 100%;
   position: absolute;
   top: 0rem;
   left: 0rem;
+  box-sizing: border-box;
+  padding: 0.4rem 0.2rem;
+  background-color: var(--editor-capsule-bg-strong);
+  backdrop-filter: blur(22px) saturate(190%);
+  -webkit-backdrop-filter: blur(22px) saturate(190%);
+  border: 0.5px solid rgba(15, 23, 42, 0.22);
+  border-radius: 1.1rem;
+  box-shadow: none;
   transition:
     transform var(--options-show-transition) cubic-bezier(0.22, 1, 0.36, 1),
     opacity var(--options-show-transition) ease;
@@ -69,7 +80,7 @@
   pointer-events: none;
 }
 .editor-tools__versions-open {
-  transform: translate3d(calc(100% + 0.4rem), 0rem, 0rem);
+  transform: translate3d(calc(100% + 0.5rem), 0rem, 0rem);
   opacity: 1;
   pointer-events: auto;
   overflow-y: auto;
@@ -79,31 +90,26 @@
   display: none;
 }
 
-.drawith__PHONE .editor-tools__tool {
-  margin: 0.15rem auto;
-  height: 4.1rem;
-  width: 4.1rem;
-}
 .editor-tools__tool {
   position: relative;
-  width: 4.2rem;
-  height: 4.2rem;
-  margin: 0.25rem auto;
-  border-radius: 1.1rem;
-  border: 1.5px solid transparent;
+  width: var(--editor-dock-tile);
+  height: var(--editor-dock-tile);
+  margin: 0 auto 0.56rem;
+  border-radius: 0.85rem;
+  border: 0.5px solid rgba(15, 23, 42, 0.18);
+  background-color: #ffffff;
+  box-shadow: none;
   box-sizing: border-box;
   cursor: pointer;
   transition:
     background-color 150ms ease,
-    border-color 150ms ease,
-    box-shadow 150ms ease,
     transform 120ms ease;
 }
 .editor-tools__tool:hover:not(.disabled) {
-  background-color: var(--surface-hover);
+  background-color: var(--editor-well-bg);
 }
 .editor-tools__tool:active:not(.disabled) {
-  transform: scale(0.95);
+  transform: scale(0.96);
 }
 
 .editor-tools__tool::after {
@@ -111,8 +117,8 @@
   position: absolute;
   inset: 0;
   margin: auto;
-  width: 56%;
-  height: 56%;
+  width: 54%;
+  height: 54%;
   background-color: var(--palette-gray-1);
   mask-size: contain;
   -webkit-mask-size: contain;
@@ -121,25 +127,21 @@
   mask-position: center;
   -webkit-mask-position: center;
   pointer-events: none;
-  transition:
-    background-color 150ms ease,
-    transform 150ms ease;
+  transition: background-color 150ms ease;
 }
 
 .editor-tools__tool-selected,
 .editor-tools__tool-activated {
-  background-color: var(--accent-ink);
-  border-color: var(--accent-ink-strong);
-  box-shadow: 0 3px 10px rgba(15, 23, 42, 0.22);
+  background-color: var(--editor-active-bg);
+  border-color: var(--editor-active-bg);
+}
+.editor-tools__tool-selected:hover:not(.disabled),
+.editor-tools__tool-activated:hover:not(.disabled) {
+  background-color: var(--editor-active-bg);
 }
 .editor-tools__tool-selected::after,
 .editor-tools__tool-activated::after {
   background-color: #ffffff;
-  transform: scale(1.06);
-}
-.editor-tools__tool-selected:hover:not(.disabled),
-.editor-tools__tool-activated:hover:not(.disabled) {
-  background-color: var(--accent-ink-strong);
 }
 
 .editor-tools__tool-marker::after {
@@ -217,16 +219,14 @@
 
 .editor-tools__versions-button {
   position: relative;
-  width: 4rem;
-  height: 4rem;
+  width: var(--editor-dock-tile);
+  height: var(--editor-dock-tile);
   flex-shrink: 0;
-  border-radius: 1.2rem;
-  margin: 0.5rem 0.4rem;
-  border: 1.5px solid var(--border-medium);
-  background-color: var(--surface-glass-strong);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  box-shadow: var(--shadow-sm);
+  border-radius: 0.85rem;
+  margin: 0.45rem 0.4rem;
+  border: 0.5px solid rgba(15, 23, 42, 0.18);
+  background-color: #ffffff;
+  box-shadow: none;
   background-size: 76%;
   background-repeat: no-repeat;
   background-position: center;
@@ -234,13 +234,13 @@
   cursor: pointer;
   transition:
     transform 120ms ease,
-    border-color 150ms ease,
-    box-shadow 150ms ease,
     background-color 150ms ease;
 }
 .editor-tools__versions-button:hover {
-  transform: scale(1.04);
-  border-color: var(--accent-ink);
+  background-color: var(--editor-well-bg);
+}
+.editor-tools__versions-button:active {
+  transform: scale(0.96);
 }
 .editor-tools__versions-button-image::after {
   content: '';
@@ -256,26 +256,38 @@
 .drawith__PHONE .editor-tools__versions-button {
   margin: 0.45rem 0.5rem;
 }
+.editor-tools__versions-button:first-child {
+  margin-top: 0;
+}
+.editor-tools__versions-button:last-child {
+  margin-bottom: 0;
+}
 .editor-tools__versions-button-selected {
-  color: var(--palette-white);
-  background-color: var(--accent-ink);
-  border: 1.5px solid var(--accent-ink-strong);
-  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.25);
+  color: #ffffff;
+  background: var(--editor-active-bg);
+  border-color: var(--editor-active-bg);
+  box-shadow: none;
+}
+.editor-tools__versions-button-selected:hover {
+  background: var(--editor-active-bg);
 }
 .editor-tools__versions-button-selected.editor-tools__versions-button-image::after {
   filter: invert(1);
 }
 
 .editor-tools__versions-button > p {
-  font-size: 1.35rem;
+  font-size: 1.3rem;
   text-align: center;
-  line-height: 3.8rem;
+  line-height: var(--editor-dock-tile);
   width: 100%;
   height: 100%;
   font-family: 'Poppins-Medium', sans-serif;
+  font-variant-numeric: tabular-nums;
 }
 .editor-tools__versions-button-add {
   border-style: dashed;
+  border-width: 0.5px;
+  border-color: rgba(15, 23, 42, 0.28);
   display: flex;
   align-items: center;
   justify-content: center;

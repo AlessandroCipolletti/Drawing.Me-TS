@@ -23,8 +23,37 @@ export interface ToolbarRefs {
   toolPreviewContext: ExtendedCanvasContext | null
 }
 
+const edgeIconOutlineOffsets = ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw'] as const
+
+const EdgeIcon = ({ iconClass }: { iconClass: string }) => (
+  <div class="editor-toolbar__edge-icon">
+    {edgeIconOutlineOffsets.map((offset) => (
+      <div
+        class={`${iconClass} editor-toolbar__edge-icon-outline editor-toolbar__edge-icon-outline-${offset}`}
+      />
+    ))}
+    <div class={`${iconClass} svg-icon-dark`} />
+  </div>
+)
+
 export const ToolbarView = ({ refs }: { refs: ToolbarRefs }) => (
   <>
+    <div
+      class="editor-toolbar__edge-button editor__back"
+      ref={(el) => {
+        refs.backButton = el
+      }}
+    >
+      <EdgeIcon iconClass="svg-icon-back-save" />
+    </div>
+    <div
+      class="editor-toolbar__edge-button editor__go-fullscreen"
+      ref={(el) => {
+        refs.goFullscreenButton = el
+      }}
+    >
+      <EdgeIcon iconClass="svg-icon-dynamic-editor-fullscreen" />
+    </div>
     <div
       class="editor-toolbar__container"
       ref={(el) => {
@@ -36,14 +65,7 @@ export const ToolbarView = ({ refs }: { refs: ToolbarRefs }) => (
         ref={(el) => {
           refs.leftSide = el
         }}
-      >
-        <div
-          class="editor-toolbar__button editor__back editor-toolbar__button-big svg-icon-back-save svg-icon-dark"
-          ref={(el) => {
-            refs.backButton = el
-          }}
-        />
-      </div>
+      />
 
       <div
         class="editor-toolbar__center"
@@ -89,12 +111,6 @@ export const ToolbarView = ({ refs }: { refs: ToolbarRefs }) => (
           class="editor-toolbar__button editor__save-copy svg-icon-download svg-icon-dark"
           ref={(el) => {
             refs.saveCopyButton = el
-          }}
-        />
-        <div
-          class="editor-toolbar__button editor__go-fullscreen svg-icon-dynamic-editor-fullscreen svg-icon-dark"
-          ref={(el) => {
-            refs.goFullscreenButton = el
           }}
         />
       </div>

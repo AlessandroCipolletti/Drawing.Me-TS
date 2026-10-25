@@ -325,8 +325,9 @@ const enableLayer = (layerId: string | false = state.currentSelectedLayerId) => 
     layersBridge.updateEditorCanvas()
     layersBridge.updateResizeMode(false, canBeResized)
     layersBridge.updateGcoMode(false, canBeResized)
-    refs.visibilityLayerButton?.classList.toggle('svg-icon-visible', layer.active)
-    refs.visibilityLayerButton?.classList.toggle('svg-icon-hidden', !layer.active)
+    const visibilityIcon = refs.visibilityLayerButton?.querySelector('.editor-layers__params-icon')
+    visibilityIcon?.classList.toggle('svg-icon-visible', layer.active)
+    visibilityIcon?.classList.toggle('svg-icon-hidden', !layer.active)
   }
 }
 
@@ -349,8 +350,9 @@ const disableLayer = (layerId: string | false = state.currentSelectedLayerId) =>
     layersBridge.updateEditorCanvas()
     layersBridge.updateResizeMode(false, false)
     layersBridge.updateGcoMode(state.gcoMode, false)
-    refs.visibilityLayerButton?.classList.toggle('svg-icon-visible', layer.active)
-    refs.visibilityLayerButton?.classList.toggle('svg-icon-hidden', !layer.active)
+    const visibilityIcon = refs.visibilityLayerButton?.querySelector('.editor-layers__params-icon')
+    visibilityIcon?.classList.toggle('svg-icon-visible', layer.active)
+    visibilityIcon?.classList.toggle('svg-icon-hidden', !layer.active)
   }
 }
 
