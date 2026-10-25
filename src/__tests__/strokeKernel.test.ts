@@ -78,6 +78,7 @@ function createMockCanvasContext(): {
     stroke: () => ops.push({ op: 'stroke', args: [] }),
     translate: (x: number, y: number) => ops.push({ op: 'translate', args: [x, y] }),
     rotate: (angle: number) => ops.push({ op: 'rotate', args: [angle] }),
+    scale: (x: number, y: number) => ops.push({ op: 'scale', args: [x, y] }),
     fillRect: (x: number, y: number, w: number, h: number) =>
       ops.push({ op: 'fillRect', args: [x, y, w, h] }),
     drawImage: (...args: any[]) => ops.push({ op: 'drawImage', args }),
@@ -1036,7 +1037,11 @@ describe('Unified Numeric Stroke Kernel (Local & PeerJS Coworking)', () => {
     drawStrokeSample(remoteCtx.ctx, { ...moveStep }, twistTool, true)
     drawStrokeSample(remoteCtx.ctx, { ...endStep }, twistTool, true)
 
-    expect(localCtx.ops.some((o) => o.op === 'ellipse')).toBe(true)
+    expect(localCtx.ops.some((o) => o.op === 'arc' && o.args[0] === 0 && o.args[1] === 0)).toBe(
+      true
+    )
+    expect(localCtx.ops.some((o) => o.op === 'scale')).toBe(true)
+    expect(localCtx.ops.some((o) => o.op === 'ellipse')).toBe(false)
     expect(remoteCtx.ops).toEqual(localCtx.ops)
   })
 

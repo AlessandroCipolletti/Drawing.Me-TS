@@ -351,19 +351,19 @@ const drawCircle = (
   if (MATH.abs(aspectRatio - 1) > 0.001) {
     const rx = size / 2
     const ry = MATH.max(0.5, round(size / (2 * aspectRatio), 2))
-    if (typeof destinationContext.ellipse === 'function') {
-      destinationContext.ellipse(x, y, rx, ry, rotation || 0, 0, 2 * PI, true)
-    } else {
-      destinationContext.translate(x, y)
-      if (rotation) destinationContext.rotate(rotation)
-      destinationContext.arc(0, 0, rx, 0, 2 * PI, true)
-      if (rotation) destinationContext.rotate(-rotation)
-      destinationContext.translate(-x, -y)
-    }
+    // ellipse() on WebKit builds its damage rect from the unrotated radii, so a
+    // vertically tilted oval is clipped until a later stamp repaints that area.
+    destinationContext.save()
+    destinationContext.translate(x, y)
+    if (rotation) destinationContext.rotate(rotation)
+    if (rx > 0 && ry !== rx) destinationContext.scale(1, ry / rx)
+    destinationContext.arc(0, 0, MATH.max(rx, 0.5), 0, 2 * PI, true)
+    destinationContext.fill()
+    destinationContext.restore()
   } else {
     destinationContext.arc(x, y, size / 2, 0, 2 * PI, true)
+    destinationContext.fill()
   }
-  destinationContext.fill()
   if (blur) {
     destinationContext.shadowColor = ''
     destinationContext.shadowBlur = 0

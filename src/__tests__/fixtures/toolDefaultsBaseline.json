@@ -11,8 +11,8 @@
         "alpha": 0.052,
         "rotation": 0.6,
         "stepLength": 0,
-        "aspectRatio": 1.136,
-        "oldAspectRatio": 1.136
+        "aspectRatio": 1,
+        "oldAspectRatio": 1
       },
       {
         "type": "move",
@@ -31,8 +31,8 @@
         "oldX": 40,
         "oldY": 50,
         "stepLength": 36.8,
-        "aspectRatio": 1.171,
-        "oldAspectRatio": 1.136
+        "aspectRatio": 1,
+        "oldAspectRatio": 1
       },
       {
         "type": "end",
@@ -51,8 +51,8 @@
         "oldX": 68,
         "oldY": 74,
         "stepLength": 32.5,
-        "aspectRatio": 1.126,
-        "oldAspectRatio": 1.171
+        "aspectRatio": 1,
+        "oldAspectRatio": 1
       }
     ],
     "opsCount": 138,
@@ -62,8 +62,8 @@
         "args": []
       },
       {
-        "op": "ellipse",
-        "args": [40, 50, 17.5, 15.4, 0.6]
+        "op": "arc",
+        "args": [40, 50, 17.5]
       },
       {
         "op": "fill",
@@ -74,8 +74,8 @@
         "args": []
       },
       {
-        "op": "ellipse",
-        "args": [40.8, 50.7, 17.75, 15.5, 0.63668475]
+        "op": "arc",
+        "args": [40.8, 50.7, 17.75]
       },
       {
         "op": "fill",
@@ -86,14 +86,14 @@
         "args": []
       },
       {
-        "op": "ellipse",
-        "args": [41.6, 51.4, 17.85, 15.55, 0.6509511]
+        "op": "arc",
+        "args": [41.6, 51.4, 17.85]
       }
     ],
     "lastOps": [
       {
-        "op": "ellipse",
-        "args": [77.8, 83, 14.85, 13.14, 0.76815384]
+        "op": "arc",
+        "args": [77.8, 83, 14.85]
       },
       {
         "op": "fill",
@@ -104,8 +104,8 @@
         "args": []
       },
       {
-        "op": "ellipse",
-        "args": [78.9, 84, 14.7, 13.03, 0.76907692]
+        "op": "arc",
+        "args": [78.9, 84, 14.7]
       },
       {
         "op": "fill",
@@ -116,8 +116,8 @@
         "args": []
       },
       {
-        "op": "ellipse",
-        "args": [80, 85, 14.5, 12.88, 0.77]
+        "op": "arc",
+        "args": [80, 85, 14.5]
       },
       {
         "op": "fill",
