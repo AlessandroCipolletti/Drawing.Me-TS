@@ -81,8 +81,8 @@
   cursor: auto;
 }
 .editor-layers__add-new {
-  width: 2.9rem;
-  height: 2.9rem;
+  width: 3.3rem;
+  height: 3.3rem;
   border-radius: 0.85rem;
   background-color: var(--editor-well-bg);
   border: 1px solid var(--editor-well-border);
@@ -212,8 +212,8 @@
 
 .editor-layers__layer-thumb {
   position: relative;
-  width: 3.35rem;
-  height: 3.35rem;
+  width: 3.75rem;
+  height: 3.75rem;
   border-radius: 0.7rem;
   background-color: #ffffff;
   border: 1px solid rgba(15, 23, 42, 0.1);
@@ -223,8 +223,8 @@
 }
 .editor-layers__container--expanded .editor-layers__layer-thumb,
 .editor-layers__layer-drag-expanded .editor-layers__layer-thumb {
-  width: 4.2rem;
-  height: 4.2rem;
+  width: 4.6rem;
+  height: 4.6rem;
   border-radius: 0.75rem;
 }
 
@@ -362,7 +362,7 @@
   right: calc(var(--layers-panel-width) + var(--layers-panel-right) + 0.7rem);
 }
 .drawith__PHONE .editor-layers__params-container {
-  width: 8.4rem;
+  width: 9.2rem;
   display: grid;
   grid-template-columns: 1fr 1fr;
   align-content: start;
@@ -450,8 +450,8 @@
   cursor: auto;
 }
 .editor-layers__params-gco {
-  width: 3.5rem;
-  height: 3.5rem;
+  width: 3.9rem;
+  height: 3.9rem;
   margin: 0.5rem;
   cursor: pointer;
 }

@@ -58,15 +58,15 @@
 .editor-colorpicker__input,
 .editor-colorpicker__pipette,
 .editor-colorpicker__random {
-  background-size: 3.4rem;
+  background-size: 3.8rem;
   background-position: center;
   background-repeat: no-repeat;
   border: 1.5px solid rgba(15, 23, 42, 0.14);
   box-shadow:
     0 2px 6px rgba(15, 23, 42, 0.1),
     inset 0 1px 0 rgba(255, 255, 255, 0.9);
-  width: 3.8rem;
-  height: 3.8rem;
+  width: 4.2rem;
+  height: 4.2rem;
   margin: 0;
   box-sizing: border-box;
   cursor: pointer;
@@ -97,8 +97,8 @@
 }
 .editor-colorpicker__input-container input {
   position: absolute;
-  width: 3.8rem;
-  height: 3.8rem;
+  width: 4.2rem;
+  height: 4.2rem;
   margin: 0;
   border: none;
   z-index: 20;
@@ -272,8 +272,8 @@
   top: calc(100% - var(--header-height) - (2 * var(--colorpicker-height)) - 0.6rem);
 }
 .editor-colorpicker__params-container .editor-colorpicker__params-button {
-  width: 2.6rem;
-  height: 2.6rem;
+  width: 3rem;
+  height: 3rem;
   margin-right: 0.8rem;
   margin-left: 0.8rem;
   cursor: pointer;

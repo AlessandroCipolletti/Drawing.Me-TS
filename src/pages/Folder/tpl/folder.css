@@ -1,4 +1,6 @@
 .folder__container {
+  --editor-tools-width: 5rem;
+  --editor-dock-tile: 3.3rem;
   position: absolute;
   background-color: var(--editor-desk-bg);
   background-image: var(--editor-desk-surface);
