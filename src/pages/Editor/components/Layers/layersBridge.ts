@@ -48,7 +48,7 @@ export interface LayersBridge {
   cleanGlobalLayersHistoryForLayer: (layerId: string) => void
   closeParams: () => Promise<void>
   endResizeMode: () => Promise<void>
-  endLassoMode: () => void
+  endLassoMode: (applyPending?: boolean) => void
   openParams: () => Promise<void>
   paramsAreClosed: () => boolean
   saveResizeModeIfNeeded: () => Promise<void>
@@ -58,6 +58,7 @@ export interface LayersBridge {
   updateParamsByLayer: (layerId?: string | false) => void
   updateResizeMode: (selected: boolean, active: boolean) => void
   updateLassoMode: (selected: boolean, active: boolean) => void
+  refreshActiveLassoSelection: () => Promise<unknown>
   selectCoworkerLayer: (layerId: string) => void
   _deleteLayer: (
     layerId: string,

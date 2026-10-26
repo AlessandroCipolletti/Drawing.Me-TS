@@ -28,6 +28,7 @@ import {
   isLayerMasked,
   syncLayerDisplayDuringStroke,
 } from './components/Layers/layerMask'
+import { applyLassoClipPath } from './components/Layers/layerLasso'
 import { state as layersState } from './components/Layers/layersState'
 import { hideQuickShapeBar, showQuickShapeBar } from './editorCompositor'
 import {
@@ -107,6 +108,10 @@ export const createEditorStrokeSession = (deps: StrokeSessionDeps) => {
 
   let preStrokeCanvas: HTMLCanvasElement | OffscreenCanvas | null = null
   let preStrokeCtx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null = null
+  let preStrokeOutsideCanvas: HTMLCanvasElement | OffscreenCanvas | null = null
+  let preStrokeOutsideCtx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null =
+    null
+  let lassoClipActive = false
   let quickShapePoints: QuickShapeInputPoint[] = []
   let quickShapeFreehandSteps: StrokeSample[] = []
   let quickShapeCurrentSteps: StrokeSample[] = []
@@ -178,19 +183,107 @@ export const createEditorStrokeSession = (deps: StrokeSessionDeps) => {
     targetCtx.globalAlpha = prevAlpha
   }
 
+  const capturePreStrokeOutsideForLasso = (
+    sourceCanvas: HTMLCanvasElement | undefined,
+    maskCanvas: HTMLCanvasElement | undefined
+  ) => {
+    if (!sourceCanvas || !maskCanvas || !sourceCanvas.width || !sourceCanvas.height) return
+    const w = sourceCanvas.width
+    const h = sourceCanvas.height
+    if (!preStrokeOutsideCanvas) {
+      if (typeof OffscreenCanvas !== 'undefined') {
+        preStrokeOutsideCanvas = new OffscreenCanvas(w, h)
+      } else if (typeof document !== 'undefined') {
+        preStrokeOutsideCanvas = document.createElement('canvas')
+      }
+      if (preStrokeOutsideCanvas) {
+        preStrokeOutsideCtx = preStrokeOutsideCanvas.getContext('2d') as
+          CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null
+      }
+    }
+    if (!preStrokeOutsideCanvas || !preStrokeOutsideCtx) return
+    if (preStrokeOutsideCanvas.width !== w || preStrokeOutsideCanvas.height !== h) {
+      preStrokeOutsideCanvas.width = w
+      preStrokeOutsideCanvas.height = h
+    }
+    preStrokeOutsideCtx.globalCompositeOperation = 'source-over'
+    preStrokeOutsideCtx.globalAlpha = 1
+    preStrokeOutsideCtx.clearRect(0, 0, w, h)
+    preStrokeOutsideCtx.drawImage(sourceCanvas, 0, 0)
+    preStrokeOutsideCtx.globalCompositeOperation = 'destination-out'
+    preStrokeOutsideCtx.drawImage(maskCanvas, 0, 0)
+    preStrokeOutsideCtx.globalCompositeOperation = 'source-over'
+  }
+
+  const applyLassoMaskCompositeToContext = (targetCtx: ExtendedCanvasContext | null) => {
+    const lassoSel = Layers.getActiveLassoSelection()
+    if (!targetCtx || !lassoSel?.maskCanvas) return
+    const prevGco = targetCtx.globalCompositeOperation
+    const prevAlpha = targetCtx.globalAlpha
+    targetCtx.globalAlpha = 1
+    targetCtx.globalCompositeOperation = 'destination-in'
+    targetCtx.drawImage(lassoSel.maskCanvas, 0, 0)
+    if (
+      targetCtx !== refs.contextForLine &&
+      preStrokeOutsideCanvas &&
+      preStrokeOutsideCanvas.width > 0 &&
+      preStrokeOutsideCanvas.height > 0
+    ) {
+      targetCtx.globalCompositeOperation = 'lighter'
+      targetCtx.drawImage(preStrokeOutsideCanvas as CanvasImageSource, 0, 0)
+    }
+    targetCtx.globalCompositeOperation = prevGco
+    targetCtx.globalAlpha = prevAlpha
+  }
+
+  const beginLassoCanvasClip = () => {
+    const lassoSel = Layers.getActiveLassoSelection()
+    if (!lassoSel || lassoClipActive) return
+    if (state.currentToolProps.name === 'bucket') {
+      if (refs.layerContext?.canvas) {
+        capturePreStrokeOutsideForLasso(refs.layerContext.canvas, lassoSel.maskCanvas)
+      }
+      return
+    }
+    if (refs.layerContext) {
+      refs.layerContext.save()
+      applyLassoClipPath(refs.layerContext, lassoSel.points, lassoSel.inverted)
+    }
+    if (refs.contextForLine) {
+      refs.contextForLine.save()
+      applyLassoClipPath(refs.contextForLine, lassoSel.points, lassoSel.inverted)
+    }
+    lassoClipActive = true
+  }
+
+  const endLassoCanvasClip = () => {
+    if (!lassoClipActive) return
+    lassoClipActive = false
+    refs.layerContext?.restore()
+    refs.contextForLine?.restore()
+  }
+
+  const commitHistoryAndRefreshLasso = () => {
+    void Layers.addLayerHistoryContentChangedStep().then(() => {
+      if (Layers.hasActiveLassoSelection()) {
+        void Layers.refreshActiveLassoSelection()
+      }
+    })
+  }
+
   const saveStepHistory = () => {
     if (pendingHistoryRafId !== null) {
       cancelAnimationFrame(pendingHistoryRafId)
       pendingHistoryRafId = null
     }
-    void Layers.addLayerHistoryContentChangedStep()
+    commitHistoryAndRefreshLasso()
   }
 
   const flushPendingHistorySave = () => {
     if (pendingHistoryRafId === null) return
     cancelAnimationFrame(pendingHistoryRafId)
     pendingHistoryRafId = null
-    void Layers.addLayerHistoryContentChangedStep()
+    commitHistoryAndRefreshLasso()
   }
 
   const scheduleSaveStepHistory = () => {
@@ -199,7 +292,7 @@ export const createEditorStrokeSession = (deps: StrokeSessionDeps) => {
     }
     pendingHistoryRafId = requestAnimationFrame(() => {
       pendingHistoryRafId = null
-      void Layers.addLayerHistoryContentChangedStep()
+      commitHistoryAndRefreshLasso()
     })
   }
 
@@ -257,9 +350,16 @@ export const createEditorStrokeSession = (deps: StrokeSessionDeps) => {
   ) => {
     if (coordsAreInsideLayer(x, y)) {
       flushPendingHistorySave()
+      const lassoSel = Layers.getActiveLassoSelection()
+      if (lassoSel && context.canvas) {
+        capturePreStrokeOutsideForLasso(context.canvas, lassoSel.maskCanvas)
+      }
       let hasBeenUsed = false
       if (Layers.isYourLayerEmpty()) {
         fillCompletely(context, color, context.canvas.width, context.canvas.height)
+        if (lassoSel) {
+          applyLassoMaskCompositeToContext(context)
+        }
         hasBeenUsed = true
         const layerId = Layers.getCurrentSelectedLayerId()
         if (layerId) syncLayerDisplayDuringStroke(layerId)
@@ -276,6 +376,9 @@ export const createEditorStrokeSession = (deps: StrokeSessionDeps) => {
         if (res) {
           hasBeenUsed = true
           res.then(() => {
+            if (Layers.hasActiveLassoSelection()) {
+              applyLassoMaskCompositeToContext(context)
+            }
             const layerId = Layers.getCurrentSelectedLayerId()
             if (layerId) syncLayerDisplayDuringStroke(layerId)
             saveStepHistory()
@@ -304,12 +407,22 @@ export const createEditorStrokeSession = (deps: StrokeSessionDeps) => {
       refs.contextForLine.clearRect(0, 0, refs.canvasForLine.width, refs.canvasForLine.height)
     }
 
+    const lassoSel = Layers.getActiveLassoSelection()
+    const needsPostClip = Boolean(lassoSel && !lassoClipActive)
+    if (needsPostClip && lassoSel) {
+      targetCtx.save()
+      applyLassoClipPath(targetCtx, lassoSel.points, lassoSel.inverted)
+    }
+
     if (variant === 'freehand') {
       for (const step of quickShapeFreehandSteps) {
         drawStrokeSample(targetCtx, step, quickShapeToolSnapshot, true)
       }
       targetCtx.globalAlpha = 1
       targetCtx.globalCompositeOperation = 'source-over'
+      if (needsPostClip) {
+        targetCtx.restore()
+      }
       quickShapeCurrentSteps = quickShapeFreehandSteps
       const geom = computeQuickShapeGeometry(
         quickShapeDetection,
@@ -340,6 +453,9 @@ export const createEditorStrokeSession = (deps: StrokeSessionDeps) => {
     }
     targetCtx.globalAlpha = 1
     targetCtx.globalCompositeOperation = 'source-over'
+    if (needsPostClip) {
+      targetCtx.restore()
+    }
     quickShapeCurrentSteps = samples
 
     showQuickShapeBar(
@@ -668,6 +784,10 @@ export const createEditorStrokeSession = (deps: StrokeSessionDeps) => {
   const onStepTouchStart = (touchEvent: PointerTouchEvent) => {
     if (!refs.contextForLine || !refs.canvasForLine || !refs.layerContext) return
     dismissQuickShape()
+    endLassoCanvasClip()
+    if (state.lassoMode?.hasSelection) {
+      refs.lassoBar?.classList.add('editor-lasso__bar--drawing')
+    }
     state.currentTouch = { ...initialCurrentTouch }
     state.lastStep = {}
     state.lastAdaptedStep = {}
@@ -678,14 +798,20 @@ export const createEditorStrokeSession = (deps: StrokeSessionDeps) => {
     state.stepsSinceLastLineAdaptation = 0
 
     updateCurrentTouchData(state, touchEvent, Params.eventStart)
+    if (Layers.hasPendingLassoFloat()) {
+      Layers.commitPendingLassoFloat(true)
+    }
     if (state.currentTouch.isNearRuler && !Ruler.isHeldByFingers()) {
       Ruler.lock()
       nearRulerLocked = true
     } else if (
-      !state.currentTouch.isNearRuler &&
-      isQuickShapeSupportedTool(state.currentToolProps)
+      (!state.currentTouch.isNearRuler && isQuickShapeSupportedTool(state.currentToolProps)) ||
+      Layers.hasActiveLassoSelection()
     ) {
       capturePreStrokeSnapshot(refs.layerContext.canvas)
+    }
+    if (Layers.hasActiveLassoSelection()) {
+      beginLassoCanvasClip()
     }
     handleTouchStartStep(refs.layerContext)
 
@@ -714,7 +840,11 @@ export const createEditorStrokeSession = (deps: StrokeSessionDeps) => {
 
   const onStepTouchEnd = (e: PointerTouchEvent) => {
     clearQuickShapeHoldTimer()
-    if (!refs.contextForLine || !refs.canvasForLine || !refs.layerContext) return
+    refs.lassoBar?.classList.remove('editor-lasso__bar--drawing')
+    if (!refs.contextForLine || !refs.canvasForLine || !refs.layerContext) {
+      endLassoCanvasClip()
+      return
+    }
     if (state.hasPredictedOverlay) {
       refs.contextForLine.clearRect(0, 0, refs.canvasForLine.width, refs.canvasForLine.height)
       state.hasPredictedOverlay = false
@@ -729,6 +859,7 @@ export const createEditorStrokeSession = (deps: StrokeSessionDeps) => {
       state.currentTouch.isDown = state.currentTouch.isNearRuler = false
       refs.toolCursor?.classList.add('displayNone')
       quickShapeCommitted = true
+      endLassoCanvasClip()
 
       if (Coworking.isOpen() && quickShapeCurrentSteps.length > 0) {
         sendCoworkingQuickShapeSteps(state, quickShapeCurrentSteps, 'current')
@@ -764,6 +895,7 @@ export const createEditorStrokeSession = (deps: StrokeSessionDeps) => {
     }
     updateCurrentTouchData(state, e, Params.eventEnd)
     handleTouchEndStep(refs.layerContext)
+    endLassoCanvasClip()
     if (lineCanvasHiddenForMask) {
       setLineCanvasHiddenForMask(false)
     }
@@ -777,12 +909,17 @@ export const createEditorStrokeSession = (deps: StrokeSessionDeps) => {
       state.currentToolProps.name !== 'pipette' &&
       refs.layerContext
     ) {
+      endLassoCanvasClip()
       state.currentTouch = { ...initialCurrentTouch }
       state.lastStep = {}
       state.lastAdaptedStep = {}
       updateCurrentTouchType(state, touchEvent)
       state.currentTouch.isNearRuler = true
       updateCurrentTouchData(state, touchEvent, Params.eventStart, x, y)
+      if (Layers.hasActiveLassoSelection()) {
+        capturePreStrokeSnapshot(refs.layerContext.canvas)
+        beginLassoCanvasClip()
+      }
       handleTouchStartStep(refs.layerContext)
       const layerId = Layers.getCurrentSelectedLayerId()
       if (layerId) refreshStrokeLayerDisplay(layerId)
@@ -823,6 +960,7 @@ export const createEditorStrokeSession = (deps: StrokeSessionDeps) => {
       state.currentTouch.y = round(y * Params.pxScale, 1)
     }
     handleTouchEndStep(refs.layerContext)
+    endLassoCanvasClip()
   }
 
   return {

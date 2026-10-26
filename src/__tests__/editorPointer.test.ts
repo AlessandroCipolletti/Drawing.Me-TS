@@ -5,7 +5,12 @@ import {
   resolveTouchMoveAction,
   resolveTouchEndAction,
 } from 'pages/Editor/editorPointerRouter'
-import { getLassoBezierCurvePoints } from 'pages/Editor/components/Layers/layerLasso'
+import {
+  applyLassoClipPath,
+  clearPolygonFromCanvas,
+  fillPolygonOnCanvas,
+  getLassoBezierCurvePoints,
+} from 'pages/Editor/components/Layers/layerLasso'
 import { runCoalescedStepTouchMove } from 'pages/Editor/editorStrokeSession'
 import {
   buildQuickShapeStrokeSamples,
@@ -524,5 +529,127 @@ describe('Editor pointer dispatch & coalesced 120Hz stroke safety net', () => {
     expect(hist.getPrevious()).toBe(10)
     expect(deleted).toEqual([20])
     expect(hist.back()).toBe(10)
+  })
+
+  it('supports closed lasso stroke clipping, invert evenodd clip, fill, and clear', () => {
+    // Once a lasso selection is closed (lassoHasSelection: true), strokes route to 'step' so brushes clip inside the selection
+    expect(
+      resolveTouchStartAction({
+        isResizing: false,
+        resizeModeActive: false,
+        lassoModeActive: true,
+        lassoHasSelection: true,
+        currentDeviceHasStylus: true,
+        touchType: TOUCH_TYPE_STYLUS,
+        hasZoom: true,
+        toolName: 'pencil',
+        currentLayerIsActive: true,
+      })
+    ).toBe('step')
+
+    expect(
+      resolveTouchMoveAction({
+        isResizing: false,
+        resizeModeActive: false,
+        lassoModeActive: true,
+        lassoHasSelection: true,
+        isZooming: false,
+        currentDeviceHasStylus: true,
+        touchType: TOUCH_TYPE_STYLUS,
+        toolName: 'pencil',
+        currentLayerIsActive: true,
+      })
+    ).toBe('step')
+
+    expect(
+      resolveTouchEndAction({
+        isResizing: false,
+        resizeModeActive: false,
+        lassoModeActive: true,
+        lassoHasSelection: true,
+        currentDeviceHasStylus: true,
+        isZooming: false,
+        toolName: 'pencil',
+        currentLayerIsActive: true,
+      })
+    ).toBe('step')
+
+    // When Move mode is toggled on inside an active lasso selection, drags route to 'lassoMove' while keeping the selection active
+    expect(
+      resolveTouchStartAction({
+        isResizing: false,
+        resizeModeActive: false,
+        lassoModeActive: true,
+        lassoHasSelection: true,
+        lassoMoveMode: true,
+        currentDeviceHasStylus: true,
+        touchType: TOUCH_TYPE_STYLUS,
+        hasZoom: true,
+        toolName: 'pencil',
+        currentLayerIsActive: true,
+      })
+    ).toBe('lassoMove')
+
+    expect(
+      resolveTouchMoveAction({
+        isResizing: false,
+        resizeModeActive: false,
+        lassoModeActive: true,
+        lassoHasSelection: true,
+        lassoMoveMode: true,
+        isZooming: false,
+        currentDeviceHasStylus: true,
+        touchType: TOUCH_TYPE_STYLUS,
+        toolName: 'pencil',
+        currentLayerIsActive: true,
+      })
+    ).toBe('lassoMove')
+
+    expect(
+      resolveTouchEndAction({
+        isResizing: false,
+        resizeModeActive: false,
+        lassoModeActive: true,
+        lassoHasSelection: true,
+        lassoMoveMode: true,
+        currentDeviceHasStylus: true,
+        isZooming: false,
+        toolName: 'pencil',
+        currentLayerIsActive: true,
+      })
+    ).toBe('lassoMove')
+
+    // Clip, fill, and clear support both normal ('nonzero') and inverted ('evenodd') winding rules
+    const clipRules: string[] = []
+    const fillRules: Array<string | undefined> = []
+    const mockCtx = {
+      canvas: { width: 200, height: 200 },
+      globalAlpha: 1,
+      globalCompositeOperation: 'source-over',
+      fillStyle: '#000000',
+      save: vi.fn(),
+      restore: vi.fn(),
+      beginPath: vi.fn(),
+      moveTo: vi.fn(),
+      lineTo: vi.fn(),
+      closePath: vi.fn(),
+      rect: vi.fn(),
+      clip: vi.fn((rule?: string) => clipRules.push(rule || 'nonzero')),
+      fill: vi.fn((rule?: string) => fillRules.push(rule)),
+    } as unknown as CanvasRenderingContext2D
+
+    const triangle: Array<[number, number]> = [
+      [20, 20],
+      [120, 20],
+      [70, 120],
+    ]
+    applyLassoClipPath(mockCtx, triangle, false)
+    applyLassoClipPath(mockCtx, triangle, true)
+    expect(clipRules).toEqual(['nonzero', 'evenodd'])
+
+    fillPolygonOnCanvas(mockCtx, triangle, '#ff0000', { inverted: false })
+    fillPolygonOnCanvas(mockCtx, triangle, '#00ff00', { inverted: true })
+    clearPolygonFromCanvas(mockCtx, triangle, { inverted: true })
+    expect(fillRules).toEqual([undefined, 'evenodd', 'evenodd'])
   })
 })

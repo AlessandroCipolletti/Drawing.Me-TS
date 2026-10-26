@@ -84,6 +84,11 @@ export const applyToolSelection = (
   coordsAreInsideLayer: (x: number, y: number) => boolean,
   tool: Partial<CurrentToolProps>
 ) => {
+  if (state.lassoMode?.isMoveMode) {
+    state.lassoMode.isMoveMode = false
+    state.lassoMode.isDraggingMove = false
+    refs.lassoMoveButton?.classList.remove('selected')
+  }
   if (tool.name === 'pipette') {
     initPipetteCursor(state, initialCanvas, refs, coordsAreInsideLayer)
   }
@@ -162,7 +167,10 @@ const startLassoMarchingAnts = (state: EditorState, refs: EditorRefs) => {
       state.lassoMode.points,
       true,
       state.canvas.scale,
-      lassoDashOffset
+      lassoDashOffset,
+      {
+        inverted: state.lassoMode.inverted,
+      }
     )
     lassoAntsRafId = requestAnimationFrame(step)
   }
@@ -172,8 +180,21 @@ const startLassoMarchingAnts = (state: EditorState, refs: EditorRefs) => {
 export const updateLassoBarPosition = (state: EditorState, refs: EditorRefs) => {
   if (!refs.lassoBar || !state.lassoMode?.active || !state.lassoMode.hasSelection) return
   const canCreateNewLayer = Layers.canCreateLayerFromLasso()
-  refs.lassoCutButton?.classList.toggle('disabled', !canCreateNewLayer)
-  refs.lassoCopyButton?.classList.toggle('disabled', !canCreateNewLayer)
+  const hasPixels = Boolean(state.lassoMode.hasPixels)
+  if (!hasPixels && state.lassoMode.isMoveMode) {
+    state.lassoMode.isMoveMode = false
+    state.lassoMode.isDraggingMove = false
+  }
+  refs.lassoInvertButton?.classList.toggle('selected', Boolean(state.lassoMode.inverted))
+  refs.lassoMoveButton?.classList.toggle('disabled', !hasPixels)
+  refs.lassoMoveButton?.classList.toggle(
+    'selected',
+    Boolean(hasPixels && state.lassoMode.isMoveMode)
+  )
+  refs.lassoTransformButton?.classList.toggle('disabled', !hasPixels)
+  refs.lassoClearButton?.classList.toggle('disabled', !hasPixels)
+  refs.lassoCutButton?.classList.toggle('disabled', !hasPixels || !canCreateNewLayer)
+  refs.lassoCopyButton?.classList.toggle('disabled', !hasPixels || !canCreateNewLayer)
 
   if (Params.isPhone) {
     refs.lassoBar.style.left = '50%'
@@ -211,7 +232,7 @@ export const updateLassoBarPosition = (state: EditorState, refs: EditorRefs) => 
   }
 
   const barRect = refs.lassoBar.getBoundingClientRect()
-  const barW = barRect.width || 280
+  const barW = barRect.width || 440
   const barH = barRect.height || 46
 
   const minLeft = state.canvas.offset.left + barW / 2 + 10
@@ -235,6 +256,10 @@ export const clearLassoSelectionOverlay = (state: EditorState, refs: EditorRefs)
   if (state.lassoMode) {
     state.lassoMode.isDrawing = false
     state.lassoMode.hasSelection = false
+    state.lassoMode.hasPixels = false
+    state.lassoMode.isMoveMode = false
+    state.lassoMode.isDraggingMove = false
+    state.lassoMode.inverted = false
     state.lassoMode.points = []
     state.lassoMode.minX = -1
     state.lassoMode.minY = -1
@@ -245,6 +270,8 @@ export const clearLassoSelectionOverlay = (state: EditorState, refs: EditorRefs)
     const ctx = refs.lassoCanvas.getContext('2d')
     ctx?.clearRect(0, 0, refs.lassoCanvas.width, refs.lassoCanvas.height)
   }
+  refs.lassoMoveButton?.classList.remove('selected')
+  refs.lassoBar?.classList.remove('editor-lasso__bar--drawing')
   refs.lassoBar?.classList.add('displayNone')
 }
 
@@ -259,10 +286,25 @@ export const setLassoModeActive = (state: EditorState, refs: EditorRefs, active:
 export const showLassoSelectionOverlay = (
   state: EditorState,
   refs: EditorRefs,
-  bounds: { minX: number; minY: number; maxX: number; maxY: number }
+  bounds: {
+    minX: number
+    minY: number
+    maxX: number
+    maxY: number
+    hasPixels?: boolean
+    inverted?: boolean
+  }
 ) => {
   state.lassoMode.isDrawing = false
+  state.lassoMode.isDraggingMove = false
   state.lassoMode.hasSelection = true
+  state.lassoMode.hasPixels = bounds.hasPixels ?? true
+  if (!state.lassoMode.hasPixels) {
+    state.lassoMode.isMoveMode = false
+  }
+  if (typeof bounds.inverted === 'boolean') {
+    state.lassoMode.inverted = bounds.inverted
+  }
   state.lassoMode.minX = bounds.minX
   state.lassoMode.minY = bounds.minY
   state.lassoMode.maxX = bounds.maxX

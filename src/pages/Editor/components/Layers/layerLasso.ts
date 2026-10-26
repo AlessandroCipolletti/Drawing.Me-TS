@@ -11,9 +11,14 @@ import {
 
 export type LassoPoint = [number, number]
 
+export interface LassoSelectionOptions {
+  inverted?: boolean
+}
+
 export interface LassoExtractionResult {
   selectedCanvas: HTMLCanvasElement
   outsideCanvas: HTMLCanvasElement
+  maskCanvas: HTMLCanvasElement
   minX: number
   minY: number
   maxX: number
@@ -21,6 +26,8 @@ export interface LassoExtractionResult {
   width: number
   height: number
   points: LassoPoint[]
+  hasPixels: boolean
+  inverted: boolean
 }
 
 const MIN_POINT_DISTANCE_PX = 4
@@ -130,20 +137,46 @@ export const getLassoBezierCurvePoints = (points: LassoPoint[], closePath = true
   return curvePoints
 }
 
-const traceLassoPolygon = (
+const appendLassoSubpath = (
   ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
   points: LassoPoint[],
   closePath = true
 ) => {
   if (!points.length) return
   const curvePoints = getLassoBezierCurvePoints(points, closePath)
-  ctx.beginPath()
   ctx.moveTo(curvePoints[0][0], curvePoints[0][1])
   for (let i = 1; i < curvePoints.length; i++) {
     ctx.lineTo(curvePoints[i][0], curvePoints[i][1])
   }
   if (closePath && curvePoints.length > 2) {
     ctx.closePath()
+  }
+}
+
+const traceLassoPolygon = (
+  ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+  points: LassoPoint[],
+  closePath = true
+) => {
+  if (!points.length) return
+  ctx.beginPath()
+  appendLassoSubpath(ctx, points, closePath)
+}
+
+export const applyLassoClipPath = (
+  ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+  points: LassoPoint[],
+  inverted = false
+) => {
+  if (points.length < MIN_POLYGON_POINTS) return
+  ctx.beginPath()
+  if (inverted && typeof ctx.rect === 'function' && ctx.canvas) {
+    ctx.rect(0, 0, ctx.canvas.width, ctx.canvas.height)
+    appendLassoSubpath(ctx, points, true)
+    ctx.clip('evenodd')
+  } else {
+    appendLassoSubpath(ctx, points, true)
+    ctx.clip('nonzero')
   }
 }
 
@@ -195,6 +228,43 @@ const getPolygonClampedBounds = (
   }
 }
 
+const buildLassoMaskCanvas = (
+  width: number,
+  height: number,
+  rawPoints: LassoPoint[],
+  options?: LassoSelectionOptions
+): HTMLCanvasElement => {
+  const points: LassoPoint[] = rawPoints.map(([x, y]) => [round(x, 1), round(y, 1)])
+  const inverted = Boolean(options?.inverted)
+
+  const maskCanvas = document.createElement('canvas')
+  maskCanvas.width = Math.max(1, width)
+  maskCanvas.height = Math.max(1, height)
+  const maskCtx = maskCanvas.getContext('2d')
+  if (!maskCtx || points.length < MIN_POLYGON_POINTS) {
+    return maskCanvas
+  }
+
+  maskCtx.save()
+  maskCtx.globalAlpha = 1
+  maskCtx.globalCompositeOperation = 'source-over'
+  maskCtx.fillStyle = '#000000'
+
+  if (inverted) {
+    maskCtx.fillRect(0, 0, width, height)
+    maskCtx.globalCompositeOperation = 'destination-out'
+    traceLassoPolygon(maskCtx, points, true)
+    maskCtx.fill()
+    maskCtx.globalCompositeOperation = 'source-over'
+  } else {
+    traceLassoPolygon(maskCtx, points, true)
+    maskCtx.fill()
+  }
+  maskCtx.restore()
+
+  return maskCanvas
+}
+
 export const appendLassoPointIfMoved = (points: LassoPoint[], x: number, y: number): boolean => {
   const rx = round(x, 1)
   const ry = round(y, 1)
@@ -215,67 +285,155 @@ export const appendLassoPointIfMoved = (points: LassoPoint[], x: number, y: numb
 
 export const clearPolygonFromCanvas = (
   ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
-  points: LassoPoint[]
+  points: LassoPoint[],
+  options?: LassoSelectionOptions
 ) => {
   if (points.length < MIN_POLYGON_POINTS) return
+  const inverted = Boolean(options?.inverted)
+
   ctx.save()
   ctx.globalAlpha = 1
   ctx.globalCompositeOperation = 'destination-out'
   ctx.fillStyle = '#000000'
-  traceLassoPolygon(ctx, points, true)
-  ctx.fill()
+  if (inverted && typeof ctx.rect === 'function' && ctx.canvas) {
+    ctx.beginPath()
+    ctx.rect(0, 0, ctx.canvas.width, ctx.canvas.height)
+    appendLassoSubpath(ctx, points, true)
+    ctx.fill('evenodd')
+  } else {
+    traceLassoPolygon(ctx, points, true)
+    ctx.fill()
+  }
+  ctx.restore()
+}
+
+export const fillPolygonOnCanvas = (
+  ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+  points: LassoPoint[],
+  color: string,
+  options?: LassoSelectionOptions,
+  compositeOperation: GlobalCompositeOperation = 'source-over'
+) => {
+  if (points.length < MIN_POLYGON_POINTS || !color) return
+  const inverted = Boolean(options?.inverted)
+
+  ctx.save()
+  ctx.globalAlpha = 1
+  ctx.globalCompositeOperation = compositeOperation
+  ctx.fillStyle = color
+  if (inverted && typeof ctx.rect === 'function' && ctx.canvas) {
+    ctx.beginPath()
+    ctx.rect(0, 0, ctx.canvas.width, ctx.canvas.height)
+    appendLassoSubpath(ctx, points, true)
+    ctx.fill('evenodd')
+  } else {
+    traceLassoPolygon(ctx, points, true)
+    ctx.fill()
+  }
   ctx.restore()
 }
 
 export const extractLassoSelection = async (
   sourceCanvas: HTMLCanvasElement | OffscreenCanvas,
   rawPoints: LassoPoint[],
-  visibleSourceCanvas: HTMLCanvasElement | OffscreenCanvas = sourceCanvas
+  visibleSourceCanvas: HTMLCanvasElement | OffscreenCanvas = sourceCanvas,
+  options?: LassoSelectionOptions
 ): Promise<LassoExtractionResult | null> => {
   const points: LassoPoint[] = rawPoints.map(([x, y]) => [round(x, 1), round(y, 1)])
   const polyBounds = getPolygonClampedBounds(points, sourceCanvas.width, sourceCanvas.height)
   if (!polyBounds) return null
 
-  const { minX: polyMinX, minY: polyMinY, width: polyW, height: polyH } = polyBounds
+  const inverted = Boolean(options?.inverted)
+
+  const searchMinX = inverted ? 0 : polyBounds.minX
+  const searchMinY = inverted ? 0 : polyBounds.minY
+  const searchMaxX = inverted ? sourceCanvas.width : polyBounds.maxX
+  const searchMaxY = inverted ? sourceCanvas.height : polyBounds.maxY
+  const searchW = Math.max(1, searchMaxX - searchMinX)
+  const searchH = Math.max(1, searchMaxY - searchMinY)
+
+  const maskCanvas = buildLassoMaskCanvas(sourceCanvas.width, sourceCanvas.height, points, {
+    inverted,
+  })
 
   const maskedSubCanvas = document.createElement('canvas')
-  maskedSubCanvas.width = polyW
-  maskedSubCanvas.height = polyH
+  maskedSubCanvas.width = searchW
+  maskedSubCanvas.height = searchH
   const maskedSubCtx = maskedSubCanvas.getContext('2d', { willReadFrequently: true })
   if (!maskedSubCtx) {
     maskedSubCanvas.width = maskedSubCanvas.height = 0
+    maskCanvas.width = maskCanvas.height = 0
     return null
   }
 
-  maskedSubCtx.save()
-  maskedSubCtx.translate(-polyMinX, -polyMinY)
-  maskedSubCtx.fillStyle = '#000000'
-  traceLassoPolygon(maskedSubCtx, points, true)
-  maskedSubCtx.fill()
-  maskedSubCtx.globalCompositeOperation = 'source-in'
   maskedSubCtx.drawImage(
     visibleSourceCanvas,
-    polyMinX,
-    polyMinY,
-    polyW,
-    polyH,
-    polyMinX,
-    polyMinY,
-    polyW,
-    polyH
+    searchMinX,
+    searchMinY,
+    searchW,
+    searchH,
+    0,
+    0,
+    searchW,
+    searchH
   )
-  maskedSubCtx.restore()
+  maskedSubCtx.globalCompositeOperation = 'destination-in'
+  maskedSubCtx.drawImage(
+    maskCanvas,
+    searchMinX,
+    searchMinY,
+    searchW,
+    searchH,
+    0,
+    0,
+    searchW,
+    searchH
+  )
+  maskedSubCtx.globalCompositeOperation = 'source-over'
 
   const contentCoords = await findImageContentCoords(maskedSubCanvas, 1)
-  if (!Number.isFinite(contentCoords.minX) || !Number.isFinite(contentCoords.maxX)) {
+  const hasPixels =
+    Number.isFinite(contentCoords.minX) &&
+    Number.isFinite(contentCoords.maxX) &&
+    Number.isFinite(contentCoords.minY) &&
+    Number.isFinite(contentCoords.maxY)
+
+  const outsideCanvas = document.createElement('canvas')
+  outsideCanvas.width = sourceCanvas.width
+  outsideCanvas.height = sourceCanvas.height
+  const outsideCtx = outsideCanvas.getContext('2d')
+  if (outsideCtx) {
+    outsideCtx.drawImage(sourceCanvas, 0, 0)
+    outsideCtx.globalCompositeOperation = 'destination-out'
+    outsideCtx.drawImage(maskCanvas, 0, 0)
+    outsideCtx.globalCompositeOperation = 'source-over'
+  }
+
+  if (!hasPixels) {
     maskedSubCanvas.width = maskedSubCanvas.height = 0
-    return null
+    const emptySelectedCanvas = document.createElement('canvas')
+    emptySelectedCanvas.width = 1
+    emptySelectedCanvas.height = 1
+    return {
+      selectedCanvas: emptySelectedCanvas,
+      outsideCanvas,
+      maskCanvas,
+      minX: polyBounds.minX,
+      minY: polyBounds.minY,
+      maxX: polyBounds.maxX,
+      maxY: polyBounds.maxY,
+      width: polyBounds.width,
+      height: polyBounds.height,
+      points,
+      hasPixels: false,
+      inverted,
+    }
   }
 
   const tightW = Math.max(1, round(contentCoords.maxX - contentCoords.minX, 0))
   const tightH = Math.max(1, round(contentCoords.maxY - contentCoords.minY, 0))
-  const tightMinX = round(polyMinX + contentCoords.minX, 0)
-  const tightMinY = round(polyMinY + contentCoords.minY, 0)
+  const tightMinX = round(searchMinX + contentCoords.minX, 0)
+  const tightMinY = round(searchMinY + contentCoords.minY, 0)
   const tightMaxX = tightMinX + tightW
   const tightMaxY = tightMinY + tightH
 
@@ -298,18 +456,10 @@ export const extractLassoSelection = async (
   }
   maskedSubCanvas.width = maskedSubCanvas.height = 0
 
-  const outsideCanvas = document.createElement('canvas')
-  outsideCanvas.width = sourceCanvas.width
-  outsideCanvas.height = sourceCanvas.height
-  const outsideCtx = outsideCanvas.getContext('2d')
-  if (outsideCtx) {
-    outsideCtx.drawImage(sourceCanvas, 0, 0)
-    clearPolygonFromCanvas(outsideCtx, points)
-  }
-
   return {
     selectedCanvas,
     outsideCanvas,
+    maskCanvas,
     minX: tightMinX,
     minY: tightMinY,
     maxX: tightMaxX,
@@ -317,6 +467,8 @@ export const extractLassoSelection = async (
     width: tightW,
     height: tightH,
     points,
+    hasPixels: true,
+    inverted,
   }
 }
 
@@ -325,7 +477,8 @@ export const renderLassoOverlayFrame = (
   points: LassoPoint[],
   closed: boolean,
   canvasScale: number,
-  dashOffset = 0
+  dashOffset = 0,
+  options?: LassoSelectionOptions
 ) => {
   if (!canvas) return
   const ctx = canvas.getContext('2d')
@@ -333,6 +486,7 @@ export const renderLassoOverlayFrame = (
   ctx.clearRect(0, 0, canvas.width, canvas.height)
   if (points.length < 2) return
 
+  const inverted = Boolean(closed && options?.inverted)
   const unit = Math.max(0.5, Params.pxScale / Math.max(0.25, canvasScale || 1))
   const lineWidth = 1.8 * unit
   const dashLen = 6 * unit
@@ -342,9 +496,19 @@ export const renderLassoOverlayFrame = (
   ctx.lineCap = 'round'
   ctx.lineJoin = 'round'
 
+  if (inverted && typeof ctx.rect === 'function') {
+    ctx.beginPath()
+    ctx.rect(0, 0, canvas.width, canvas.height)
+    appendLassoSubpath(ctx, points, true)
+    ctx.fillStyle = 'rgba(2, 132, 199, 0.09)'
+    ctx.fill('evenodd')
+  } else {
+    traceLassoPolygon(ctx, points, closed)
+    ctx.fillStyle = closed ? 'rgba(2, 132, 199, 0.09)' : 'rgba(2, 132, 199, 0.05)'
+    ctx.fill()
+  }
+
   traceLassoPolygon(ctx, points, closed)
-  ctx.fillStyle = closed ? 'rgba(2, 132, 199, 0.09)' : 'rgba(2, 132, 199, 0.05)'
-  ctx.fill()
 
   ctx.lineWidth = lineWidth + 1.4 * unit
   ctx.strokeStyle = 'rgba(255, 255, 255, 0.92)'
@@ -356,6 +520,20 @@ export const renderLassoOverlayFrame = (
   ctx.setLineDash([dashLen, gapLen])
   ctx.lineDashOffset = -dashOffset * unit
   ctx.stroke()
+
+  if (inverted && typeof ctx.strokeRect === 'function') {
+    const inset = lineWidth
+    ctx.lineWidth = lineWidth + 1.2 * unit
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)'
+    ctx.setLineDash([])
+    ctx.strokeRect(inset, inset, canvas.width - inset * 2, canvas.height - inset * 2)
+
+    ctx.lineWidth = lineWidth
+    ctx.strokeStyle = '#0284c7'
+    ctx.setLineDash([dashLen, gapLen])
+    ctx.lineDashOffset = -dashOffset * unit
+    ctx.strokeRect(inset, inset, canvas.width - inset * 2, canvas.height - inset * 2)
+  }
 
   if (!closed && points.length > 2) {
     const first = points[0]

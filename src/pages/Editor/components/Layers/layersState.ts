@@ -94,7 +94,11 @@ export interface LayersState {
   resizeMode: boolean
   lassoMode: boolean
   lassoSelection: LassoExtractionResult | null
+  lassoFloatDirty: boolean
+  lassoFloatBasePoints: LassoPoint[] | null
   lassoTransformPoints: LassoPoint[] | null
+  lassoTransformOptions: { inverted: boolean } | null
+  lassoHistoryDepth: number
   gcoMode: boolean
   editorIsUsingEraser: boolean
   paramsTimeout: ReturnType<typeof setTimeout> | false
@@ -122,7 +126,11 @@ const initialState: LayersState = {
   resizeMode: false,
   lassoMode: false,
   lassoSelection: null,
+  lassoFloatDirty: false,
+  lassoFloatBasePoints: null,
   lassoTransformPoints: null,
+  lassoTransformOptions: null,
+  lassoHistoryDepth: 0,
   gcoMode: false,
   editorIsUsingEraser: false,
   paramsTimeout: false,
@@ -272,6 +280,9 @@ export const layerCanBeResized = (layerId: string): boolean =>
     Number.isFinite(state.layers[layerId].minX) &&
     state.layers[layerId].opacity > 0
   )
+
+export const layerCanUseLasso = (layerId: string): boolean =>
+  Boolean(state.layers[layerId]?.active && state.layers[layerId].opacity > 0)
 
 export const getCurrentSelectedLayerId = (): string => state.currentSelectedLayerId || ''
 

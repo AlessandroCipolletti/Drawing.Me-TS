@@ -72,8 +72,10 @@ export const handleEditorKeyDown = (
       exitFullscreen(state)
     } else if (state.quickShapeMode?.active) {
       onDismissQuickShape?.()
-    } else if (state.resizeMode?.active || state.lassoMode?.active) {
+    } else if (state.resizeMode?.active) {
       Layers.closeResizeModeIfNeeded()
+    } else if (state.lassoMode?.active) {
+      Layers.cancelLassoSelection()
     } else {
       ColorPicker.closeParams()
       Tools.closeVersions()

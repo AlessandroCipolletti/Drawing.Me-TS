@@ -197,10 +197,14 @@ export const receiveResizeLayerFromCoworker = (
   layersBridge.addLayerHistoryContentChangedStep(layerId)
 }
 
-export const receiveLassoClearFromCoworker = async (layerId: string, points: LassoPoint[]) => {
+export const receiveLassoClearFromCoworker = async (
+  layerId: string,
+  points: LassoPoint[],
+  inverted?: boolean
+) => {
   const layer = state.layers[layerId]
   if (!layer) return
-  clearPolygonFromCanvas(layer.canvas.context, points)
+  clearPolygonFromCanvas(layer.canvas.context, points, { inverted })
   await layersBridge.addLayerHistoryContentChangedStep(layerId)
 }
 
@@ -211,13 +215,16 @@ export const receiveLassoTransformFromCoworker = async (
   y: number,
   w: number,
   h: number,
-  r: number
+  r: number,
+  inverted?: boolean
 ) => {
   const layer = state.layers[layerId]
   if (!layer) return
   syncLayerDisplay(layer.id)
-  const result = await extractLassoSelection(layer.canvas, points, getLayerDomCanvas(layer))
-  if (!result) return
+  const result = await extractLassoSelection(layer.canvas, points, getLayerDomCanvas(layer), {
+    inverted,
+  })
+  if (!result || !result.hasPixels) return
   const minX = round(x - w / 2, 1)
   const minY = round(y - h / 2, 1)
   const rotation = convertAngleDegToRad(r)
@@ -234,6 +241,7 @@ export const receiveLassoTransformFromCoworker = async (
   )
   result.selectedCanvas.width = result.selectedCanvas.height = 0
   result.outsideCanvas.width = result.outsideCanvas.height = 0
+  result.maskCanvas.width = result.maskCanvas.height = 0
   await layersBridge.addLayerHistoryContentChangedStep(layerId)
 }
 
@@ -242,7 +250,8 @@ export const receiveLassoCopyToLayerFromCoworker = async (
   newLayerId: string,
   insertOrder: number,
   layerName: string,
-  points: LassoPoint[]
+  points: LassoPoint[],
+  inverted?: boolean
 ) => {
   const sourceLayer = state.layers[sourceLayerId]
   if (!sourceLayer) return
@@ -250,9 +259,10 @@ export const receiveLassoCopyToLayerFromCoworker = async (
   const result = await extractLassoSelection(
     sourceLayer.canvas,
     points,
-    getLayerDomCanvas(sourceLayer)
+    getLayerDomCanvas(sourceLayer),
+    { inverted }
   )
-  if (!result) return
+  if (!result || !result.hasPixels) return
   await layersBridge.createLayerFromSelectionCanvas(
     newLayerId,
     insertOrder,
@@ -266,6 +276,7 @@ export const receiveLassoCopyToLayerFromCoworker = async (
   )
   result.selectedCanvas.width = result.selectedCanvas.height = 0
   result.outsideCanvas.width = result.outsideCanvas.height = 0
+  result.maskCanvas.width = result.maskCanvas.height = 0
   await layersBridge.addLayerHistoryNewStep(newLayerId)
   selectCoworkerLayer(newLayerId)
 }
@@ -275,7 +286,8 @@ export const receiveLassoCutToLayerFromCoworker = async (
   newLayerId: string,
   insertOrder: number,
   layerName: string,
-  points: LassoPoint[]
+  points: LassoPoint[],
+  inverted?: boolean
 ) => {
   const sourceLayer = state.layers[sourceLayerId]
   if (!sourceLayer) return
@@ -283,9 +295,10 @@ export const receiveLassoCutToLayerFromCoworker = async (
   const result = await extractLassoSelection(
     sourceLayer.canvas,
     points,
-    getLayerDomCanvas(sourceLayer)
+    getLayerDomCanvas(sourceLayer),
+    { inverted }
   )
-  if (!result) return
+  if (!result || !result.hasPixels) return
   fillCanvasWithImage(sourceLayer.canvas.context, result.outsideCanvas, 0, 0)
   await layersBridge.commitLayerCanvasStepOnly(sourceLayerId)
   await layersBridge.createLayerFromSelectionCanvas(
@@ -301,6 +314,7 @@ export const receiveLassoCutToLayerFromCoworker = async (
   )
   result.selectedCanvas.width = result.selectedCanvas.height = 0
   result.outsideCanvas.width = result.outsideCanvas.height = 0
+  result.maskCanvas.width = result.maskCanvas.height = 0
   await layersBridge.addLayerHistoryCutToNewStep(sourceLayerId, newLayerId)
   selectCoworkerLayer(newLayerId)
 }

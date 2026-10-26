@@ -20,6 +20,14 @@ export interface EditorFacade {
   flushPendingResizeFrame: () => void
   setLassoModeActive: (active: boolean) => void
   clearLassoSelectionOverlay: () => void
+  updateLassoSelectionUi: (bounds: {
+    minX: number
+    minY: number
+    maxX: number
+    maxY: number
+    hasPixels?: boolean
+    inverted?: boolean
+  }) => void
   dismissQuickShape: () => void
   appendLayer: (canvas: HTMLCanvasElement) => void
   updateEditorLayer: (
@@ -55,6 +63,7 @@ export const editorFacade: EditorFacade = {
   flushPendingResizeFrame: () => currentFacade?.flushPendingResizeFrame(),
   setLassoModeActive: (active) => currentFacade?.setLassoModeActive(active),
   clearLassoSelectionOverlay: () => currentFacade?.clearLassoSelectionOverlay(),
+  updateLassoSelectionUi: (bounds) => currentFacade?.updateLassoSelectionUi(bounds),
   dismissQuickShape: () => currentFacade?.dismissQuickShape(),
   appendLayer: (canvas) => currentFacade?.appendLayer(canvas),
   updateEditorLayer: (layerZIndex, opacity, globalCompositeOperation, active) =>

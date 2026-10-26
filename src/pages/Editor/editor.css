@@ -192,11 +192,12 @@ div.editor__magnetised-line-r {
   position: absolute;
   z-index: 1001;
   width: auto;
+  max-width: calc(var(--100vw) - 1.6rem);
   height: auto;
   display: flex;
   flex-direction: row;
   align-items: center;
-  gap: 0.4rem;
+  gap: 0.36rem;
   padding: 0.42rem 0.52rem;
   border-radius: 1.15rem;
   border: 0.5px solid rgba(15, 23, 42, 0.24);
@@ -208,7 +209,13 @@ div.editor__magnetised-line-r {
     0 4px 12px -2px rgba(15, 23, 42, 0.1);
   transform: translate3d(-50%, 0, 0);
   opacity: 1;
+  overflow: visible;
   pointer-events: auto;
+  transition: opacity 120ms ease;
+}
+.params-container.editor-lasso__bar.editor-lasso__bar--drawing {
+  opacity: 0.22;
+  pointer-events: none;
 }
 .drawith__EDITOR-FULLSCREEN .params-container.editor-lasso__bar {
   opacity: 0;
@@ -219,9 +226,9 @@ div.editor__magnetised-line-r {
   flex-direction: row;
   align-items: center;
   justify-content: center;
-  gap: 0.38rem;
-  height: 3.6rem;
-  padding: 0 0.9rem;
+  gap: 0.36rem;
+  height: 3.5rem;
+  padding: 0 0.82rem;
   border-radius: 0.85rem;
   border: 0.5px solid rgba(15, 23, 42, 0.16);
   background-color: #ffffff;
@@ -232,16 +239,27 @@ div.editor__magnetised-line-r {
   transition:
     background-color 140ms ease,
     border-color 140ms ease,
+    color 140ms ease,
     transform 110ms ease,
     opacity 140ms ease;
 }
 .editor-lasso__action--icon-only {
-  width: 3.6rem;
+  width: 3.5rem;
   padding: 0;
 }
 .editor-lasso__action:hover:not(.disabled) {
   background-color: var(--editor-well-bg);
   border-color: var(--accent-ink-strong);
+}
+.editor-lasso__action.selected {
+  background-color: var(--accent-ink);
+  border-color: var(--accent-ink);
+}
+.editor-lasso__action.selected .editor-lasso__action-label {
+  color: #ffffff;
+}
+.editor-lasso__action.selected .editor-lasso__action-icon {
+  background-color: #ffffff;
 }
 .editor-lasso__action:active:not(.disabled) {
   transform: scale(0.95);
@@ -251,8 +269,8 @@ div.editor__magnetised-line-r {
   cursor: auto;
 }
 .editor-lasso__action-icon {
-  width: 1.95rem;
-  height: 1.95rem;
+  width: 1.9rem;
+  height: 1.9rem;
   flex-shrink: 0;
   pointer-events: none;
 }
@@ -261,7 +279,7 @@ div.editor__magnetised-line-r {
 }
 .editor-lasso__action-label {
   font-family: 'Poppins-Medium', sans-serif;
-  font-size: 1.1rem;
+  font-size: 1.08rem;
   line-height: 1;
   color: var(--text-primary);
   white-space: nowrap;
@@ -271,21 +289,24 @@ div.editor__magnetised-line-r {
   width: 1px;
   height: 2.3rem;
   background-color: rgba(15, 23, 42, 0.14);
-  margin: 0 0.1rem;
+  margin: 0 0.08rem;
   flex-shrink: 0;
 }
 .drawith__PHONE .params-container.editor-lasso__bar {
   top: calc(var(--header-height) + 0.55rem) !important;
   left: 50% !important;
-  gap: 0.32rem;
-  padding: 0.36rem 0.44rem;
+  gap: 0.28rem;
+  padding: 0.34rem 0.42rem;
 }
 .drawith__PHONE .editor-lasso__action {
-  width: 3.55rem;
-  height: 3.55rem;
+  height: 3.35rem;
+  padding: 0 0.58rem;
+}
+.drawith__PHONE .editor-lasso__action--icon-only {
+  width: 3.35rem;
   padding: 0;
 }
-.drawith__PHONE .editor-lasso__action-label {
+.drawith__PHONE .editor-lasso__action-icon + .editor-lasso__action-label {
   display: none;
 }
 

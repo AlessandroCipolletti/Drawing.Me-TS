@@ -66,6 +66,7 @@ import {
   hideQuickShapeBar,
   setLassoModeActive as compositorSetLassoModeActive,
   clearLassoSelectionOverlay as compositorClearLassoSelectionOverlay,
+  showLassoSelectionOverlay,
   stopLassoMarchingAnts,
   flushPendingResizeFrame as compositorFlushPendingResizeFrame,
   showDragBox as compositorShowDragBox,
@@ -146,6 +147,8 @@ const updateDragBoxHandlers = () => {
   if (state.resizeMode.active) {
     updateDragBoxHandlersPosition(refs)
   }
+}
+const updateFloatingOptionBars = () => {
   if (state.lassoMode?.active) {
     updateLassoBarPosition(state, refs)
   }
@@ -163,11 +166,7 @@ const onGestureEnd = (_x: number, _y: number, scale: number, rotation: number) =
     refs,
     config,
     updateDragBoxHandlers,
-    (duration) =>
-      animateDragBoxHandlersPositionToOrigin(refs, duration, () => {
-        updateLassoBarPosition(state, refs)
-        updateQuickShapeBarPosition(state, refs)
-      }),
+    (duration) => animateDragBoxHandlersPositionToOrigin(refs, duration),
     scale,
     rotation
   )
@@ -176,7 +175,10 @@ export const getCanvasPxSizes = (withCoworking = false): [number, number] =>
   getCanvasPxSizesForEditor(state, config, withCoworking)
 
 const onRotate = () =>
-  handleViewportRotate(state, initialState.canvas, refs, config, updateDragBoxHandlers)
+  handleViewportRotate(state, initialState.canvas, refs, config, () => {
+    updateDragBoxHandlers()
+    updateFloatingOptionBars()
+  })
 const onKeyDown = (e: KeyboardEvent) =>
   handleEditorKeyDown(state, e, () => activeStrokeSession?.dismissQuickShape())
 
@@ -236,6 +238,22 @@ const bindEditorInput = () => {
     isWheelBlocked: () => state.desktopPointerDown,
   })
   refs.lassoBar?.addEventListener(Params.eventStart, preventDefault)
+  refs.lassoInvertButton?.addEventListener(Params.eventStart, (e) => {
+    preventDefault(e)
+    state.lassoMode.inverted = !state.lassoMode.inverted
+    refs.lassoInvertButton?.classList.toggle('selected', state.lassoMode.inverted)
+    void Layers.updateLassoSelectionOptions(state.lassoMode.inverted)
+  })
+  refs.lassoMoveButton?.addEventListener(Params.eventStart, (e) => {
+    preventDefault(e)
+    if (!state.lassoMode.hasPixels) return
+    state.lassoMode.isMoveMode = !state.lassoMode.isMoveMode
+    refs.lassoMoveButton?.classList.toggle('selected', state.lassoMode.isMoveMode)
+  })
+  refs.lassoTransformButton?.addEventListener(Params.eventStart, (e) => {
+    preventDefault(e)
+    Layers.startTransformLassoSelectionInPlace()
+  })
   refs.lassoCutButton?.addEventListener(Params.eventStart, (e) => {
     preventDefault(e)
     void Layers.cutLassoSelectionToNewLayer()
@@ -243,10 +261,6 @@ const bindEditorInput = () => {
   refs.lassoCopyButton?.addEventListener(Params.eventStart, (e) => {
     preventDefault(e)
     void Layers.copyLassoSelectionToNewLayer()
-  })
-  refs.lassoTransformButton?.addEventListener(Params.eventStart, (e) => {
-    preventDefault(e)
-    Layers.startTransformLassoSelectionInPlace()
   })
   refs.lassoClearButton?.addEventListener(Params.eventStart, (e) => {
     preventDefault(e)
@@ -427,6 +441,7 @@ registerEditorFacade({
     compositorSetLassoModeActive(state, refs, active)
   },
   clearLassoSelectionOverlay: () => compositorClearLassoSelectionOverlay(state, refs),
+  updateLassoSelectionUi: (bounds) => showLassoSelectionOverlay(state, refs, bounds),
   dismissQuickShape: () => {
     activeStrokeSession?.dismissQuickShape()
     hideQuickShapeBar(state, refs)

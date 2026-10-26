@@ -26,6 +26,7 @@ import {
   hardDeleteLayer,
   isYourLayerYours,
   layerCanBeResized,
+  layerCanUseLasso,
   LayerHistoryStep,
   state,
 } from './layersState'
@@ -41,7 +42,7 @@ const updateUndoRedoButtons = () => {
     return
   }
   if (userHistory) {
-    editorCalls.toggleButton('undo', userHistory.canGoBack)
+    editorCalls.toggleButton('undo', Boolean(state.lassoSelection || userHistory.canGoBack))
     editorCalls.toggleButton('redo', userHistory.canGoForward)
   }
 }
@@ -158,9 +159,10 @@ const restoreLayerContentStep = async (layerId: string, step?: LayerHistoryStep)
   refreshMaskDependents(layerId)
   if (layerId === state.currentSelectedLayerId) {
     const canBeResized = layerCanBeResized(layerId)
+    const canUseLasso = layerCanUseLasso(layerId)
     const wasInResizeMode = state.resizeMode
     layersBridge.updateResizeMode(state.resizeMode && canBeResized, canBeResized)
-    layersBridge.updateLassoMode(state.lassoMode && canBeResized, canBeResized)
+    layersBridge.updateLassoMode(state.lassoMode && canUseLasso, canUseLasso)
     layersBridge.updateGcoMode(state.gcoMode && canBeResized, !state.resizeMode && canBeResized)
     if (wasInResizeMode && !state.resizeMode) {
       editorFacade.hideDragBox()
@@ -173,14 +175,23 @@ const restoreLayerContentStep = async (layerId: string, step?: LayerHistoryStep)
 
 const layerHistoryQueues: Record<string, Promise<void>> = {}
 
+const cloneLayerCanvas = (source: HTMLCanvasElement) => {
+  const snapshot = document.createElement('canvas')
+  snapshot.width = source.width
+  snapshot.height = source.height
+  snapshot.getContext('2d')?.drawImage(source, 0, 0)
+  return snapshot
+}
+
 export const addLayerHistoryContentChangedStep = async (
   layerId: string | false = state.currentSelectedLayerId
 ) => {
   if (!layerId) return
   const layerAtCall = state.layers[layerId]
   if (!layerAtCall) return
-  const snapshotBitmapPromise = createImageBitmap(layerAtCall.canvas)
-  const coordsPromise = findImageContentCoords(layerAtCall.canvas, config.coordsImgScale)
+  const snapshotCanvas = cloneLayerCanvas(layerAtCall.canvas)
+  const snapshotBitmapPromise = createImageBitmap(snapshotCanvas)
+  const coordsPromise = findImageContentCoords(snapshotCanvas, config.coordsImgScale)
 
   const runCommit = async () => {
     const [bitmap, coords] = await Promise.all([snapshotBitmapPromise, coordsPromise])
@@ -194,6 +205,7 @@ export const addLayerHistoryContentChangedStep = async (
     layer.maxX = coords.maxX
     layer.maxY = coords.maxY
     const canBeResized = layerCanBeResized(layerId)
+    const canUseLasso = layerCanUseLasso(layerId)
     layer.updateTimestamp = Date.now()
     layer.modified = true
     const step: LayerHistoryStep = {
@@ -211,6 +223,9 @@ export const addLayerHistoryContentChangedStep = async (
       layer.owner
     )
     layer.history.add(step)
+    if (isYourLayerYours(layerId) && state.lassoMode && state.lassoSelection) {
+      state.lassoHistoryDepth += 1
+    }
     if (layer.maskBelowLayerId) {
       compositeSourceToDisplay(layerId)
     } else {
@@ -221,7 +236,7 @@ export const addLayerHistoryContentChangedStep = async (
     if (isYourLayerYours(layerId)) {
       const wasInResizeMode = state.resizeMode
       layersBridge.updateResizeMode(state.resizeMode && canBeResized, canBeResized)
-      layersBridge.updateLassoMode(state.lassoMode && canBeResized, canBeResized)
+      layersBridge.updateLassoMode(state.lassoMode && canUseLasso, canUseLasso)
       layersBridge.updateGcoMode(state.gcoMode && canBeResized, !state.resizeMode && canBeResized)
       if (wasInResizeMode && !state.resizeMode) {
         editorFacade.hideDragBox()
@@ -241,8 +256,9 @@ export const replaceLatestLayerHistoryContentStep = async (
   if (!layerId) return
   const layerAtCall = state.layers[layerId]
   if (!layerAtCall) return
-  const snapshotBitmapPromise = createImageBitmap(layerAtCall.canvas)
-  const coordsPromise = findImageContentCoords(layerAtCall.canvas, config.coordsImgScale)
+  const snapshotCanvas = cloneLayerCanvas(layerAtCall.canvas)
+  const snapshotBitmapPromise = createImageBitmap(snapshotCanvas)
+  const coordsPromise = findImageContentCoords(snapshotCanvas, config.coordsImgScale)
 
   const runReplace = async () => {
     const [bitmap, coords] = await Promise.all([snapshotBitmapPromise, coordsPromise])
@@ -256,6 +272,7 @@ export const replaceLatestLayerHistoryContentStep = async (
     layer.maxX = coords.maxX
     layer.maxY = coords.maxY
     const canBeResized = layerCanBeResized(layerId)
+    const canUseLasso = layerCanUseLasso(layerId)
     layer.updateTimestamp = Date.now()
     layer.modified = true
     const step: LayerHistoryStep = {
@@ -278,7 +295,7 @@ export const replaceLatestLayerHistoryContentStep = async (
     if (isYourLayerYours(layerId)) {
       const wasInResizeMode = state.resizeMode
       layersBridge.updateResizeMode(state.resizeMode && canBeResized, canBeResized)
-      layersBridge.updateLassoMode(state.lassoMode && canBeResized, canBeResized)
+      layersBridge.updateLassoMode(state.lassoMode && canUseLasso, canUseLasso)
       layersBridge.updateGcoMode(state.gcoMode && canBeResized, !state.resizeMode && canBeResized)
       if (wasInResizeMode && !state.resizeMode) {
         editorFacade.hideDragBox()
@@ -316,8 +333,9 @@ const commitLayerCanvasStepOnly = async (layerId: string) => {
   if (!layerId) return
   const layerAtCall = state.layers[layerId]
   if (!layerAtCall) return
-  const snapshotBitmapPromise = createImageBitmap(layerAtCall.canvas)
-  const coordsPromise = findImageContentCoords(layerAtCall.canvas, config.coordsImgScale)
+  const snapshotCanvas = cloneLayerCanvas(layerAtCall.canvas)
+  const snapshotBitmapPromise = createImageBitmap(snapshotCanvas)
+  const coordsPromise = findImageContentCoords(snapshotCanvas, config.coordsImgScale)
 
   const runCommit = async () => {
     const [bitmap, coords] = await Promise.all([snapshotBitmapPromise, coordsPromise])
@@ -519,6 +537,7 @@ export const doUndoForUser = async (userId: string) => {
     const step = state.layers[state.currentSelectedLayerId]?.history.getCurrent()
     if (step) {
       const wasLassoInPlace = Boolean(state.lassoTransformPoints)
+      state.lassoFloatDirty = false
       await restoreLayerContentStep(state.currentSelectedLayerId, step)
       state.resizeModeMadeChanges = false
       if (wasLassoInPlace) {
@@ -530,10 +549,22 @@ export const doUndoForUser = async (userId: string) => {
     }
   } else {
     if (userId === Coworking.getUserId() && state.resizeMode) {
+      state.lassoFloatDirty = false
       await layersBridge.endResizeMode()
     }
+    let keepLassoSelectionOnUndo = false
     if (userId === Coworking.getUserId() && state.lassoMode) {
-      layersBridge.endLassoMode()
+      if (state.lassoSelection && state.lassoHistoryDepth <= 0) {
+        layersBridge.endLassoMode(false)
+        updateUndoRedoButtons()
+        return false
+      }
+      if (state.lassoSelection && state.lassoHistoryDepth > 0) {
+        state.lassoHistoryDepth -= 1
+        keepLassoSelectionOnUndo = true
+      } else {
+        layersBridge.endLassoMode()
+      }
     }
     const userHistory = UsersLayersHistory[userId]
     if (userHistory?.canGoBack) {
@@ -546,6 +577,9 @@ export const doUndoForUser = async (userId: string) => {
         if (action.type === HISTORY_STEP_LAYER_CONTENT && action.layerId) {
           const step = state.layers[action.layerId].history.back()
           await restoreLayerContentStep(action.layerId, step)
+          if (keepLassoSelectionOnUndo) {
+            await layersBridge.refreshActiveLassoSelection()
+          }
         } else if (
           action.type === HISTORY_STEP_LAYER_CUT_TO_NEW &&
           action.layerId &&

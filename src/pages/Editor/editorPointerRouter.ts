@@ -12,17 +12,19 @@ import { updateCurrentTouchData } from './editorUtils'
 import {
   clearLassoSelectionOverlay,
   showLassoSelectionOverlay,
+  updateLassoBarPosition,
   updateLayerContentCoordsAfterDragResize,
   handleResizeLayerContentTouchMove,
   handleDragLayerContentTouchMove,
 } from './editorCompositor'
+import { round } from 'utils/mathUtils'
 import { updatePipette, closePipetteCursor } from './editorLifecycle'
 import { EditorRefs } from './EditorView'
 import { EditorConfig, EditorState, PointerTouchEvent, ResizeModeState } from './editorTypes'
 import { runCoalescedStepTouchMove, updateCurrentTouchType } from './editorStrokeSession'
 
 export type TouchDispatchAction =
-  'none' | 'panCanvas' | 'dragLayer' | 'dragZoom' | 'lasso' | 'pipette' | 'step'
+  'none' | 'panCanvas' | 'dragLayer' | 'dragZoom' | 'lasso' | 'lassoMove' | 'pipette' | 'step'
 
 const isDesktopCanvasPan = (params: {
   desktopCanvasPanMode?: boolean
@@ -34,6 +36,8 @@ export const resolveTouchStartAction = (params: {
   isResizing: boolean
   resizeModeActive: boolean
   lassoModeActive?: boolean
+  lassoHasSelection?: boolean
+  lassoMoveMode?: boolean
   desktopCanvasPanMode?: boolean
   pointerType?: string
   currentDeviceHasStylus: boolean
@@ -48,7 +52,10 @@ export const resolveTouchStartAction = (params: {
   if (params.currentDeviceHasStylus && params.touchType !== TOUCH_TYPE_STYLUS && params.hasZoom) {
     return 'dragZoom'
   }
-  if (params.lassoModeActive) return 'lasso'
+  if (params.lassoModeActive) {
+    if (!params.lassoHasSelection) return 'lasso'
+    if (params.lassoMoveMode) return 'lassoMove'
+  }
   if (params.toolName === 'pipette') return 'pipette'
   if (params.currentLayerIsActive) return 'step'
   return 'none'
@@ -58,6 +65,8 @@ export const resolveTouchMoveAction = (params: {
   isResizing: boolean
   resizeModeActive: boolean
   lassoModeActive?: boolean
+  lassoHasSelection?: boolean
+  lassoMoveMode?: boolean
   desktopCanvasPanMode?: boolean
   pointerType?: string
   isZooming: boolean
@@ -72,7 +81,10 @@ export const resolveTouchMoveAction = (params: {
   if (params.isZooming && params.currentDeviceHasStylus && params.touchType !== TOUCH_TYPE_STYLUS) {
     return 'dragZoom'
   }
-  if (params.lassoModeActive) return 'lasso'
+  if (params.lassoModeActive) {
+    if (!params.lassoHasSelection) return 'lasso'
+    if (params.lassoMoveMode) return 'lassoMove'
+  }
   if (params.toolName === 'pipette') return 'pipette'
   if (params.currentLayerIsActive) return 'step'
   return 'none'
@@ -82,6 +94,8 @@ export const resolveTouchEndAction = (params: {
   isResizing: boolean
   resizeModeActive: boolean
   lassoModeActive?: boolean
+  lassoHasSelection?: boolean
+  lassoMoveMode?: boolean
   desktopCanvasPanMode?: boolean
   pointerType?: string
   currentDeviceHasStylus: boolean
@@ -93,7 +107,10 @@ export const resolveTouchEndAction = (params: {
   if (isDesktopCanvasPan(params) && params.isZooming) return 'panCanvas'
   if (params.resizeModeActive) return 'dragLayer'
   if (params.currentDeviceHasStylus && params.isZooming) return 'dragZoom'
-  if (params.lassoModeActive) return 'lasso'
+  if (params.lassoModeActive) {
+    if (!params.lassoHasSelection) return 'lasso'
+    if (params.lassoMoveMode) return 'lassoMove'
+  }
   if (params.toolName === 'pipette') return 'pipette'
   if (params.currentLayerIsActive) return 'step'
   return 'none'
@@ -225,6 +242,65 @@ export const createEditorPointerHandlers = (deps: PointerRouterDeps) => {
     })
   }
 
+  let lassoMoveOriginPoints: Array<[number, number]> = []
+  let lassoMoveOriginBounds = { minX: 0, minY: 0, maxX: 0, maxY: 0 }
+
+  const onLassoMoveTouchStart = (touchEvent: PointerTouchEvent) => {
+    if (!state.lassoMode.hasSelection || !state.lassoMode.hasPixels) return
+    Tools.closeVersions()
+    Layers.closeParams()
+    Toolbar.closeParams()
+    ColorPicker.closeParams()
+    refs.lassoBar?.classList.add('editor-lasso__bar--drawing')
+    updateCurrentTouchType(state, touchEvent)
+    updateCurrentTouchData(state, touchEvent, Params.eventStart, false, false, true)
+    state.lassoMode.isDraggingMove = true
+    lassoMoveOriginPoints = state.lassoMode.points.map(([px, py]) => [px, py])
+    lassoMoveOriginBounds = {
+      minX: state.lassoMode.minX,
+      minY: state.lassoMode.minY,
+      maxX: state.lassoMode.maxX,
+      maxY: state.lassoMode.maxY,
+    }
+  }
+
+  const onLassoMoveTouchMove = (touchEvent: PointerTouchEvent) => {
+    if (!state.lassoMode.isDraggingMove) return
+    updateCurrentTouchData(state, touchEvent, Params.eventMove, false, false, true)
+    const dx = state.currentTouch.dragX
+    const dy = state.currentTouch.dragY
+    state.lassoMode.points = lassoMoveOriginPoints.map(([px, py]) => [
+      round(px + dx, 1),
+      round(py + dy, 1),
+    ])
+    state.lassoMode.minX = round(lassoMoveOriginBounds.minX + dx, 1)
+    state.lassoMode.minY = round(lassoMoveOriginBounds.minY + dy, 1)
+    state.lassoMode.maxX = round(lassoMoveOriginBounds.maxX + dx, 1)
+    state.lassoMode.maxY = round(lassoMoveOriginBounds.maxY + dy, 1)
+    Layers.translateLassoSelectionInPlace(dx, dy)
+    updateLassoBarPosition(state, refs)
+  }
+
+  const onLassoMoveTouchEnd = (touchEvent: PointerTouchEvent) => {
+    refs.lassoBar?.classList.remove('editor-lasso__bar--drawing')
+    if (!state.lassoMode.isDraggingMove) return
+    state.lassoMode.isDraggingMove = false
+    updateCurrentTouchData(state, touchEvent, Params.eventEnd, false, false, true)
+    const dx = state.currentTouch.dragX
+    const dy = state.currentTouch.dragY
+    if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) {
+      state.lassoMode.points = lassoMoveOriginPoints
+      state.lassoMode.minX = lassoMoveOriginBounds.minX
+      state.lassoMode.minY = lassoMoveOriginBounds.minY
+      state.lassoMode.maxX = lassoMoveOriginBounds.maxX
+      state.lassoMode.maxY = lassoMoveOriginBounds.maxY
+      Layers.translateLassoSelectionInPlace(0, 0)
+      updateLassoBarPosition(state, refs)
+      return
+    }
+    void Layers.commitLassoMoveSelectionInPlace(dx, dy)
+  }
+
   const onTouchStart = (_e: unknown, touchEvent: PointerTouchEvent) => {
     if (Params.isDesktop && touchEvent?.pointerType === 'mouse') {
       state.desktopPointerDown = true
@@ -236,6 +312,8 @@ export const createEditorPointerHandlers = (deps: PointerRouterDeps) => {
       isResizing: state.resizeMode.isResizing,
       resizeModeActive: state.resizeMode.active,
       lassoModeActive: state.lassoMode?.active,
+      lassoHasSelection: state.lassoMode?.hasSelection,
+      lassoMoveMode: state.lassoMode?.isMoveMode,
       desktopCanvasPanMode: state.desktopCanvasPanMode,
       pointerType: touchEvent?.pointerType,
       currentDeviceHasStylus: state.currentDeviceHasStylus,
@@ -252,6 +330,9 @@ export const createEditorPointerHandlers = (deps: PointerRouterDeps) => {
     else if (action === 'lasso') {
       session.dismissQuickShape?.()
       onLassoTouchStart(touchEvent)
+    } else if (action === 'lassoMove') {
+      session.dismissQuickShape?.()
+      onLassoMoveTouchStart(touchEvent)
     } else if (action === 'pipette') {
       session.dismissQuickShape?.()
       onPipetteTouchStart(touchEvent)
@@ -333,6 +414,8 @@ export const createEditorPointerHandlers = (deps: PointerRouterDeps) => {
         isResizing: state.resizeMode.isResizing,
         resizeModeActive: state.resizeMode.active,
         lassoModeActive: state.lassoMode?.active,
+        lassoHasSelection: state.lassoMode?.hasSelection,
+        lassoMoveMode: state.lassoMode?.isMoveMode,
         desktopCanvasPanMode: state.desktopCanvasPanMode,
         pointerType: touchEvent?.pointerType,
         isZooming: state.currentTouch.isZooming,
@@ -345,6 +428,7 @@ export const createEditorPointerHandlers = (deps: PointerRouterDeps) => {
       else if (action === 'dragLayer') onDragLayerContentTouchMove(touchEvent)
       else if (action === 'dragZoom') onDragZoomTouchMove(touchEvent)
       else if (action === 'lasso') onLassoTouchMove(touchEvent)
+      else if (action === 'lassoMove') onLassoMoveTouchMove(touchEvent)
       else if (action === 'pipette') onPipetteTouchMove(touchEvent)
       else if (action === 'step') session.onStepTouchMove(touchEvent)
     }
@@ -404,6 +488,8 @@ export const createEditorPointerHandlers = (deps: PointerRouterDeps) => {
       isResizing: state.resizeMode.isResizing,
       resizeModeActive: state.resizeMode.active,
       lassoModeActive: state.lassoMode?.active,
+      lassoHasSelection: state.lassoMode?.hasSelection,
+      lassoMoveMode: state.lassoMode?.isMoveMode,
       desktopCanvasPanMode: state.desktopCanvasPanMode,
       pointerType: e?.pointerType,
       currentDeviceHasStylus: state.currentDeviceHasStylus,
@@ -415,6 +501,7 @@ export const createEditorPointerHandlers = (deps: PointerRouterDeps) => {
     else if (action === 'dragLayer') onDragLayerContentTouchEnd(e)
     else if (action === 'dragZoom') onDragZoomTouchEnd()
     else if (action === 'lasso') onLassoTouchEnd(e)
+    else if (action === 'lassoMove') onLassoMoveTouchEnd(e)
     else if (action === 'pipette') onPipetteTouchEnd()
     else if (action === 'step') session.onStepTouchEnd(e)
   }

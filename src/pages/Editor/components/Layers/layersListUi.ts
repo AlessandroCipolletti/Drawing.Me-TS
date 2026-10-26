@@ -13,6 +13,7 @@ import {
   refs,
   isYourLayerYours,
   layerCanBeResized,
+  layerCanUseLasso,
   updateMagnetismCoords,
 } from './layersState'
 import { layersBridge, registerLayersBridge } from './layersBridge'
@@ -21,6 +22,7 @@ import {
   canToggleMaskDown,
   getAdjacentMaskGroup,
   getLayerDomCanvas,
+  paintLayerDisplay,
   refreshMaskDependents,
   syncLayerDisplay,
 } from './layerMask'
@@ -114,9 +116,18 @@ export const discardPendingLassoSelection = () => {
   if (state.lassoSelection) {
     state.lassoSelection.selectedCanvas.width = state.lassoSelection.selectedCanvas.height = 0
     state.lassoSelection.outsideCanvas.width = state.lassoSelection.outsideCanvas.height = 0
+    if (state.lassoSelection.maskCanvas) {
+      state.lassoSelection.maskCanvas.width = state.lassoSelection.maskCanvas.height = 0
+    }
     state.lassoSelection = null
   }
+  state.lassoHistoryDepth = 0
 }
+
+export const hasActiveLassoSelection = (): boolean =>
+  Boolean(state.lassoMode && state.lassoSelection && state.lassoSelection.points.length >= 3)
+
+export const getActiveLassoSelection = () => (state.lassoMode ? state.lassoSelection : null)
 
 export const canCreateLayerFromLasso = (): boolean =>
   Object.keys(state.layers).length < config.maxLayersNumber
@@ -161,6 +172,7 @@ const updateParamsByLayer = (layerId: string | false = state.currentSelectedLaye
     const yourLayers = Object.values(state.layers).filter((l) => isYourLayerYours(l.id))
     const empty = !Number.isFinite(layer.minX)
     const canBeResized = layerCanBeResized(layerId)
+    const canUseLasso = layerCanUseLasso(layerId)
     const canBeDeleted = yourLayers.length > 1
     const opacity = round(layer.opacity * 100, 0)
     const canMergeDown =
@@ -194,7 +206,7 @@ const updateParamsByLayer = (layerId: string | false = state.currentSelectedLaye
     const wasInResizeMode = state.resizeMode
     const wasInLassoMode = state.lassoMode
     updateResizeMode(state.resizeMode && canBeResized, canBeResized)
-    updateLassoMode(state.lassoMode && canBeResized, canBeResized)
+    updateLassoMode(state.lassoMode && canUseLasso, canUseLasso)
     updateGcoMode(
       state.gcoMode && canBeResized,
       !state.resizeMode && !state.lassoMode && canBeResized
@@ -211,6 +223,20 @@ const updateParamsByLayer = (layerId: string | false = state.currentSelectedLaye
   }
 }
 
+const paintResizeFrame = (ctx: CanvasRenderingContext2D) => {
+  if (!refs.imageForResize) return
+  const { x, y, w, h, r } = state.lastResizeCoords
+  const minX = round(x - w / 2, 1)
+  const minY = round(y - h / 2, 1)
+  const rotation = convertAngleDegToRad(r)
+  if (refs.backgroundForResize) {
+    fillCanvasWithImage(ctx, refs.backgroundForResize, 0, 0)
+    fillCanvasWithImage(ctx, refs.imageForResize, minX, minY, w, h, rotation, false)
+  } else {
+    fillCanvasWithImage(ctx, refs.imageForResize, minX, minY, w, h, rotation)
+  }
+}
+
 export const updateCanvasContent = (
   madeChanges: boolean,
   x: number,
@@ -220,19 +246,8 @@ export const updateCanvasContent = (
   r: number
 ) => {
   state.lastResizeCoords = { x, y, w, h, r }
-  const minX = round(x - w / 2, 1)
-  const minY = round(y - h / 2, 1)
-  const rotation = convertAngleDegToRad(r)
   if (state.currentSelectedLayerId && refs.imageForResize) {
-    const ctx = state.layers[state.currentSelectedLayerId].canvas.context
-    if (refs.backgroundForResize) {
-      fillCanvasWithImage(ctx, refs.backgroundForResize, 0, 0)
-      fillCanvasWithImage(ctx, refs.imageForResize, minX, minY, w, h, rotation, false)
-    } else {
-      fillCanvasWithImage(ctx, refs.imageForResize, minX, minY, w, h, rotation)
-    }
-    syncLayerDisplay(state.currentSelectedLayerId)
-    refreshMaskDependents(state.currentSelectedLayerId)
+    paintLayerDisplay(state.currentSelectedLayerId, paintResizeFrame)
   }
   if (madeChanges) {
     editorCalls.toggleButton('undo', true)
@@ -240,11 +255,87 @@ export const updateCanvasContent = (
   }
 }
 
-const endLassoMode = () => {
+const rememberLassoFloatBase = (points: LassoPoint[]) => {
+  state.lassoFloatBasePoints = points.map(([x, y]) => [x, y])
+  state.lassoFloatDirty = false
+}
+
+const previewLassoFloat = (dx = 0, dy = 0) => {
+  if (!state.currentSelectedLayerId || !state.lassoSelection) return
+  const selection = state.lassoSelection
+  const layerId = state.currentSelectedLayerId
+  paintLayerDisplay(layerId, (ctx) => {
+    fillCanvasWithImage(ctx, selection.outsideCanvas, 0, 0)
+    fillCanvasWithImage(
+      ctx,
+      selection.selectedCanvas,
+      round(selection.minX + dx, 1),
+      round(selection.minY + dy, 1),
+      undefined,
+      undefined,
+      undefined,
+      false
+    )
+  })
+}
+
+export const hasPendingLassoFloat = () => Boolean(state.lassoFloatDirty && state.lassoSelection)
+
+export const commitPendingLassoFloat = (recordHistory = true) => {
+  if (!state.lassoFloatDirty || !state.currentSelectedLayerId || !state.lassoSelection) return
+  const layerId = state.currentSelectedLayerId
+  const layer = state.layers[layerId]
+  const selection = state.lassoSelection
+  if (!layer) return
+  const basePoints = state.lassoFloatBasePoints || selection.points
+  fillCanvasWithImage(layer.canvas.context, selection.outsideCanvas, 0, 0)
+  fillCanvasWithImage(
+    layer.canvas.context,
+    selection.selectedCanvas,
+    selection.minX,
+    selection.minY,
+    undefined,
+    undefined,
+    undefined,
+    false
+  )
+  state.lassoFloatDirty = false
+  syncLayerDisplay(layerId)
+  refreshMaskDependents(layerId)
+  const centerX = round(selection.minX + selection.width / 2, 1)
+  const centerY = round(selection.minY + selection.height / 2, 1)
+  if (recordHistory) {
+    void layersBridge.addLayerHistoryContentChangedStep(layerId)
+  }
+  if (Coworking.isOpen()) {
+    Coworking.sendLassoTransformLayer(
+      layerId,
+      basePoints,
+      centerX,
+      centerY,
+      selection.width,
+      selection.height,
+      0,
+      selection.inverted
+    )
+  }
+}
+
+const endLassoMode = (applyPending = true) => {
+  const selectionStillHere = Boolean(state.lassoSelection)
+  if (applyPending) {
+    commitPendingLassoFloat(true)
+  } else if (selectionStillHere) {
+    state.lassoFloatDirty = false
+  }
   discardPendingLassoSelection()
+  if ((applyPending || selectionStillHere) && state.currentSelectedLayerId) {
+    syncLayerDisplay(state.currentSelectedLayerId)
+  }
   editorFacade.setLassoModeActive(false)
   if (state.currentSelectedLayerId && state.layers[state.currentSelectedLayerId]) {
     const canBeResized = layerCanBeResized(state.currentSelectedLayerId)
+    const canUseLasso = layerCanUseLasso(state.currentSelectedLayerId)
     const layerOptionButton = refs.layersList?.querySelector(
       `div[data-id="${state.currentSelectedLayerId}"] .editor-layers__layer-options-button`
     )
@@ -253,12 +344,13 @@ const endLassoMode = () => {
       refs.visibilityLayerButton?.classList.remove('disabled')
       editorCalls.toggleButton('clear', true)
     }
-    updateLassoMode(false, canBeResized)
+    updateLassoMode(false, canUseLasso)
     updateGcoMode(state.gcoMode, !state.resizeMode && canBeResized)
     updateParamsByLayer(state.currentSelectedLayerId)
   } else {
     updateLassoMode(false, false)
   }
+  layersBridge.updateUndoRedoButtons()
 }
 
 const startLassoMode = async () => {
@@ -283,43 +375,134 @@ const startLassoMode = async () => {
 
 export const completeLassoSelection = async (
   points: LassoPoint[]
-): Promise<{ minX: number; minY: number; maxX: number; maxY: number } | null> => {
+): Promise<{
+  minX: number
+  minY: number
+  maxX: number
+  maxY: number
+  hasPixels: boolean
+  inverted: boolean
+} | null> => {
   if (!state.currentSelectedLayerId || !state.lassoMode) return null
   const layer = state.layers[state.currentSelectedLayerId]
-  if (!layer || !Number.isFinite(layer.minX)) return null
+  if (!layer || !layerCanUseLasso(layer.id)) return null
   syncLayerDisplay(layer.id)
-  const result = await extractLassoSelection(layer.canvas, points, getLayerDomCanvas(layer))
+  const result = await extractLassoSelection(layer.canvas, points, getLayerDomCanvas(layer), {
+    inverted: false,
+  })
   if (!result || !state.lassoMode) {
     if (result) {
       result.selectedCanvas.width = result.selectedCanvas.height = 0
       result.outsideCanvas.width = result.outsideCanvas.height = 0
+      result.maskCanvas.width = result.maskCanvas.height = 0
     }
     return null
   }
   discardPendingLassoSelection()
   state.lassoSelection = result
+  rememberLassoFloatBase(result.points)
+  state.lassoHistoryDepth = 0
+  layersBridge.updateUndoRedoButtons()
   return {
     minX: result.minX,
     minY: result.minY,
     maxX: result.maxX,
     maxY: result.maxY,
+    hasPixels: result.hasPixels,
+    inverted: result.inverted,
+  }
+}
+
+export const refreshActiveLassoSelection = async () => {
+  if (!state.currentSelectedLayerId || !state.lassoMode || !state.lassoSelection) return null
+  if (state.lassoFloatDirty) {
+    commitPendingLassoFloat(true)
+  }
+  const layer = state.layers[state.currentSelectedLayerId]
+  if (!layer) return null
+  const { points, inverted } = state.lassoSelection
+  syncLayerDisplay(layer.id)
+  const result = await extractLassoSelection(layer.canvas, points, getLayerDomCanvas(layer), {
+    inverted,
+  })
+  if (!result || !state.lassoMode) {
+    if (result) {
+      result.selectedCanvas.width = result.selectedCanvas.height = 0
+      result.outsideCanvas.width = result.outsideCanvas.height = 0
+      result.maskCanvas.width = result.maskCanvas.height = 0
+    }
+    return null
+  }
+  const prevDepth = state.lassoHistoryDepth
+  discardPendingLassoSelection()
+  state.lassoSelection = result
+  rememberLassoFloatBase(result.points)
+  state.lassoHistoryDepth = prevDepth
+  const bounds = {
+    minX: result.minX,
+    minY: result.minY,
+    maxX: result.maxX,
+    maxY: result.maxY,
+    hasPixels: result.hasPixels,
+    inverted: result.inverted,
+  }
+  editorFacade.updateLassoSelectionUi(bounds)
+  layersBridge.updateUndoRedoButtons()
+  return bounds
+}
+
+export const updateLassoSelectionOptions = async (inverted: boolean) => {
+  if (!state.currentSelectedLayerId || !state.lassoMode || !state.lassoSelection) return null
+  state.lassoSelection.inverted = inverted
+  return refreshActiveLassoSelection()
+}
+
+export const translateLassoSelectionInPlace = (dx: number, dy: number) => {
+  if (!state.currentSelectedLayerId || !state.lassoMode || !state.lassoSelection) return
+  previewLassoFloat(dx, dy)
+}
+
+export const commitLassoMoveSelectionInPlace = async (dx: number, dy: number) => {
+  if (!state.currentSelectedLayerId || !state.lassoMode || !state.lassoSelection) return null
+  if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) {
+    previewLassoFloat(0, 0)
+    return null
+  }
+  const selection = state.lassoSelection
+  selection.points = selection.points.map(([px, py]) => [round(px + dx, 1), round(py + dy, 1)])
+  selection.minX = round(selection.minX + dx, 1)
+  selection.minY = round(selection.minY + dy, 1)
+  selection.maxX = round(selection.maxX + dx, 1)
+  selection.maxY = round(selection.maxY + dy, 1)
+  state.lassoFloatDirty = true
+  previewLassoFloat(0, 0)
+  return {
+    minX: selection.minX,
+    minY: selection.minY,
+    maxX: selection.maxX,
+    maxY: selection.maxY,
+    hasPixels: selection.hasPixels,
+    inverted: selection.inverted,
   }
 }
 
 export const cancelLassoSelection = () => {
-  if (state.lassoSelection) {
-    discardPendingLassoSelection()
-    editorFacade.clearLassoSelectionOverlay()
-  } else if (state.lassoMode) {
+  if (state.lassoMode) {
     endLassoMode()
   }
 }
 
 export const startTransformLassoSelectionInPlace = () => {
-  if (!state.currentSelectedLayerId || !state.lassoSelection) return
+  if (!state.currentSelectedLayerId || !state.lassoSelection || !state.lassoSelection.hasPixels) {
+    return
+  }
   const selection = state.lassoSelection
   state.lassoSelection = null
-  endLassoMode()
+  state.lassoHistoryDepth = 0
+  if (selection.maskCanvas) {
+    selection.maskCanvas.width = selection.maskCanvas.height = 0
+  }
+  endLassoMode(false)
   if (state.canvasPanMode) {
     updateCanvasPanMode(false)
   }
@@ -340,7 +523,13 @@ export const startTransformLassoSelectionInPlace = () => {
   editorCalls.deselectPipette(true, false, true)
   refs.imageForResize = selection.selectedCanvas
   refs.backgroundForResize = selection.outsideCanvas
-  state.lassoTransformPoints = selection.points
+  state.lassoTransformPoints = (state.lassoFloatBasePoints || selection.points).map(([x, y]) => [
+    x,
+    y,
+  ])
+  state.lassoTransformOptions = {
+    inverted: selection.inverted,
+  }
   updateMagnetismCoords(state.currentSelectedLayerId)
   editorFacade.showDragBox(
     round(selection.minX + selection.width / 2, 1),
@@ -378,6 +567,7 @@ const startResizeMode = () => {
     refs.backgroundForResize = null
   }
   state.lassoTransformPoints = null
+  state.lassoTransformOptions = null
   const layer = state.layers[state.currentSelectedLayerId]
   const [image, minX, minY, width, height] = cropImageWithMargin(
     layer.canvas,
@@ -401,7 +591,17 @@ const startResizeMode = () => {
 const saveResizeModeIfNeeded = async () => {
   editorFacade.flushPendingResizeFrame()
   const transformPoints = state.lassoTransformPoints
-  if (state.resizeModeMadeChanges) {
+  const transformOptions = state.lassoTransformOptions
+  const shouldBakeResize =
+    Boolean(refs.imageForResize) && (state.resizeModeMadeChanges || state.lassoFloatDirty)
+  if (shouldBakeResize && state.currentSelectedLayerId) {
+    const layer = state.layers[state.currentSelectedLayerId]
+    if (layer) {
+      paintResizeFrame(layer.canvas.context)
+      state.lassoFloatDirty = false
+      syncLayerDisplay(state.currentSelectedLayerId)
+      refreshMaskDependents(state.currentSelectedLayerId)
+    }
     await layersBridge.addLayerHistoryContentChangedStep()
     layersBridge.updateUndoRedoButtons()
     if (Coworking.isOpen() && state.currentSelectedLayerId) {
@@ -413,7 +613,8 @@ const saveResizeModeIfNeeded = async () => {
           state.lastResizeCoords.y,
           state.lastResizeCoords.w,
           state.lastResizeCoords.h,
-          state.lastResizeCoords.r
+          state.lastResizeCoords.r,
+          transformOptions?.inverted
         )
       } else {
         Coworking.sendResizeLayer(
@@ -426,6 +627,9 @@ const saveResizeModeIfNeeded = async () => {
         )
       }
     }
+  } else if (state.currentSelectedLayerId) {
+    state.lassoFloatDirty = false
+    syncLayerDisplay(state.currentSelectedLayerId)
   }
   state.resizeModeMadeChanges = false
   refs.imageForResize = null
@@ -434,17 +638,19 @@ const saveResizeModeIfNeeded = async () => {
     refs.backgroundForResize = null
   }
   state.lassoTransformPoints = null
+  state.lassoTransformOptions = null
 }
 
 const endResizeMode = async () => {
   if (!state.currentSelectedLayerId) return
   const canBeResized = layerCanBeResized(state.currentSelectedLayerId)
+  const canUseLasso = layerCanUseLasso(state.currentSelectedLayerId)
   const layerOptionButton = refs.layersList?.querySelector(
     `div[data-id="${state.currentSelectedLayerId}"] .editor-layers__layer-options-button`
   )
   layerOptionButton?.classList.remove('disabled')
   updateResizeMode(false, canBeResized)
-  updateLassoMode(false, canBeResized)
+  updateLassoMode(false, canUseLasso)
   updateGcoMode(state.gcoMode, canBeResized)
   editorCalls.toggleButton('clear', true)
   await saveResizeModeIfNeeded()
@@ -467,7 +673,7 @@ export const closeResizeModeIfNeeded = () => {
     if (state.resizeMode) {
       void endResizeMode()
     }
-    if (state.lassoMode) {
+    if (state.lassoMode && !state.lassoSelection) {
       endLassoMode()
     }
   }
@@ -587,10 +793,11 @@ const _updateLayerOpacity = (layerId: string, opacity: number, inProgress = fals
 
   if (!inProgress) {
     const canBeResized = layerCanBeResized(layerId)
+    const canUseLasso = layerCanUseLasso(layerId)
     const wasInResizeMode = state.resizeMode
     const wasInLassoMode = state.lassoMode
     updateResizeMode(state.resizeMode && canBeResized, canBeResized)
-    updateLassoMode(state.lassoMode && canBeResized, canBeResized)
+    updateLassoMode(state.lassoMode && canUseLasso, canUseLasso)
     updateGcoMode(state.gcoMode, !state.resizeMode && !state.lassoMode && canBeResized)
     if (wasInResizeMode && !state.resizeMode) {
       void endResizeMode()
@@ -898,6 +1105,7 @@ registerLayersBridge({
   updateParamsByLayer,
   updateResizeMode,
   updateLassoMode,
+  refreshActiveLassoSelection,
   updateLayerOrger,
   placeMaskGroupAtUpperOrder,
   _updateLayerOpacity,

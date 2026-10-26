@@ -33,9 +33,11 @@ export interface EditorRefs {
   dragBulletRT: HTMLElement | null
   lassoCanvas: HTMLCanvasElement | null
   lassoBar: HTMLElement | null
+  lassoInvertButton: HTMLElement | null
+  lassoMoveButton: HTMLElement | null
+  lassoTransformButton: HTMLElement | null
   lassoCutButton: HTMLElement | null
   lassoCopyButton: HTMLElement | null
-  lassoTransformButton: HTMLElement | null
   lassoClearButton: HTMLElement | null
   lassoCancelButton: HTMLElement | null
   quickShapeBar: HTMLElement | null
@@ -75,9 +77,11 @@ export const createInitialEditorRefs = (): EditorRefs => ({
   dragBulletRT: null,
   lassoCanvas: null,
   lassoBar: null,
+  lassoInvertButton: null,
+  lassoMoveButton: null,
+  lassoTransformButton: null,
   lassoCutButton: null,
   lassoCopyButton: null,
-  lassoTransformButton: null,
   lassoClearButton: null,
   lassoCancelButton: null,
   quickShapeBar: null,
@@ -169,6 +173,10 @@ interface LassoModeState {
   active: boolean
   isDrawing: boolean
   hasSelection: boolean
+  hasPixels: boolean
+  isMoveMode: boolean
+  isDraggingMove: boolean
+  inverted: boolean
   points: Array<[number, number]>
   minX: number
   minY: number
@@ -427,6 +435,10 @@ export const createInitialEditorState = (
     active: false,
     isDrawing: false,
     hasSelection: false,
+    hasPixels: false,
+    isMoveMode: false,
+    isDraggingMove: false,
+    inverted: false,
     points: [],
     minX: -1,
     minY: -1,

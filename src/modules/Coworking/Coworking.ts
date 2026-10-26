@@ -156,7 +156,9 @@ const peerMessageHandlers: Record<string, (data: any) => void> = {
       )
     ),
   [editorEvents.lassoClearLayer]: (data) =>
-    withEditor(() => editorCoworkingPort.receiveLassoClearFromCoworker(data.layerId, data.points)),
+    withEditor(() =>
+      editorCoworkingPort.receiveLassoClearFromCoworker(data.layerId, data.points, data.inverted)
+    ),
   [editorEvents.lassoTransformLayer]: (data) =>
     withEditor(() =>
       editorCoworkingPort.receiveLassoTransformFromCoworker(
@@ -166,7 +168,8 @@ const peerMessageHandlers: Record<string, (data: any) => void> = {
         data.y,
         data.w,
         data.h,
-        data.r
+        data.r,
+        data.inverted
       )
     ),
   [editorEvents.lassoCopyToLayer]: (data) =>
@@ -176,7 +179,8 @@ const peerMessageHandlers: Record<string, (data: any) => void> = {
         data.newLayerId,
         data.insertOrder,
         data.layerName,
-        data.points
+        data.points,
+        data.inverted
       )
     ),
   [editorEvents.lassoCutToLayer]: (data) =>
@@ -186,7 +190,8 @@ const peerMessageHandlers: Record<string, (data: any) => void> = {
         data.newLayerId,
         data.insertOrder,
         data.layerName,
-        data.points
+        data.points,
+        data.inverted
       )
     ),
   [editorEvents.clearLayer]: (data) =>
@@ -293,10 +298,14 @@ export const sendResizeLayer = (
   })
 }
 
-export const sendLassoClearLayer = (layerId: string, points: Array<[number, number]>) => {
+export const sendLassoClearLayer = (
+  layerId: string,
+  points: Array<[number, number]>,
+  inverted?: boolean
+) => {
   peerClient?.sendMessage({
     event: editorEvents.lassoClearLayer,
-    data: { layerId, points },
+    data: { layerId, points, inverted },
   })
 }
 
@@ -307,11 +316,12 @@ export const sendLassoTransformLayer = (
   y: number,
   w: number,
   h: number,
-  r: number
+  r: number,
+  inverted?: boolean
 ) => {
   peerClient?.sendMessage({
     event: editorEvents.lassoTransformLayer,
-    data: { layerId, points, x, y, w, h, r },
+    data: { layerId, points, x, y, w, h, r, inverted },
   })
 }
 
@@ -320,11 +330,12 @@ export const sendLassoCopyToLayer = (
   newLayerId: string,
   insertOrder: number,
   layerName: string,
-  points: Array<[number, number]>
+  points: Array<[number, number]>,
+  inverted?: boolean
 ) => {
   peerClient?.sendMessage({
     event: editorEvents.lassoCopyToLayer,
-    data: { sourceLayerId, newLayerId, insertOrder, layerName, points },
+    data: { sourceLayerId, newLayerId, insertOrder, layerName, points, inverted },
   })
 }
 
@@ -333,11 +344,12 @@ export const sendLassoCutToLayer = (
   newLayerId: string,
   insertOrder: number,
   layerName: string,
-  points: Array<[number, number]>
+  points: Array<[number, number]>,
+  inverted?: boolean
 ) => {
   peerClient?.sendMessage({
     event: editorEvents.lassoCutToLayer,
-    data: { sourceLayerId, newLayerId, insertOrder, layerName, points },
+    data: { sourceLayerId, newLayerId, insertOrder, layerName, points, inverted },
   })
 }
 

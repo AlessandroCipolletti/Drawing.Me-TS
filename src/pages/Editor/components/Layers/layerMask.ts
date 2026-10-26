@@ -1,5 +1,5 @@
 import * as Coworking from 'modules/Coworking'
-import type { ExtendedCanvasContext } from 'utils/canvasUtils'
+import { fillCanvasWithImage, type ExtendedCanvasContext } from 'utils/canvasUtils'
 import { layersBridge } from './layersBridge'
 import {
   createNewLayerCanvas,
@@ -103,9 +103,52 @@ export const compositeSourceToDisplay = (upperId: string) => {
   }
 }
 
+export const paintLayerDisplay = (
+  layerId: string,
+  paint: (ctx: CanvasRenderingContext2D) => void
+) => {
+  const layer = state.layers[layerId]
+  if (!layer) return
+  ensureLayerDisplayCanvas(layer)
+  const display = layer.displayCanvas!
+  const ctx = display.context
+  ctx.save()
+  ctx.setTransform(1, 0, 0, 1, 0, 0)
+  ctx.globalAlpha = 1
+  ctx.globalCompositeOperation = 'source-over'
+  paint(ctx)
+  const maskCanvas = getMaskCanvasForUpper(layerId)
+  if (layer.maskBelowLayerId && maskCanvas) {
+    applyDestinationInMask(ctx, maskCanvas)
+  }
+  ctx.restore()
+}
+
+const paintPendingLassoFloat = (layerId: string) => {
+  const selection = state.lassoSelection
+  if (!selection) return
+  paintLayerDisplay(layerId, (ctx) => {
+    fillCanvasWithImage(ctx, selection.outsideCanvas, 0, 0)
+    fillCanvasWithImage(
+      ctx,
+      selection.selectedCanvas,
+      selection.minX,
+      selection.minY,
+      undefined,
+      undefined,
+      undefined,
+      false
+    )
+  })
+}
+
 export const syncLayerDisplay = (layerId: string) => {
   const layer = state.layers[layerId]
   if (!layer) return
+  if (state.lassoFloatDirty && state.lassoSelection && state.currentSelectedLayerId === layerId) {
+    paintPendingLassoFloat(layerId)
+    return
+  }
   ensureLayerDisplayCanvas(layer)
   if (layer.maskBelowLayerId) {
     compositeSourceToDisplay(layerId)

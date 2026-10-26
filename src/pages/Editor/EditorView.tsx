@@ -149,13 +149,33 @@ export const EditorView = ({ refs }: { refs: EditorRefs }) => (
     >
       <div
         class="editor-lasso__action"
-        data-lasso-action="cut"
+        data-lasso-action="invert"
         ref={(el) => {
-          refs.lassoCutButton = el
+          refs.lassoInvertButton = el
         }}
       >
-        <div class="editor-lasso__action-icon svg-icon-cut-layer svg-icon-dark" />
-        <span class="editor-lasso__action-label">Cut</span>
+        <span class="editor-lasso__action-label">Invert</span>
+      </div>
+      <div class="editor-lasso__divider" />
+      <div
+        class="editor-lasso__action"
+        data-lasso-action="move"
+        ref={(el) => {
+          refs.lassoMoveButton = el
+        }}
+      >
+        <div class="editor-lasso__action-icon svg-icon-move svg-icon-dark" />
+        <span class="editor-lasso__action-label">Move</span>
+      </div>
+      <div
+        class="editor-lasso__action"
+        data-lasso-action="transform"
+        ref={(el) => {
+          refs.lassoTransformButton = el
+        }}
+      >
+        <div class="editor-lasso__action-icon svg-icon-expand svg-icon-dark" />
+        <span class="editor-lasso__action-label">Resize</span>
       </div>
       <div
         class="editor-lasso__action"
@@ -169,13 +189,13 @@ export const EditorView = ({ refs }: { refs: EditorRefs }) => (
       </div>
       <div
         class="editor-lasso__action"
-        data-lasso-action="transform"
+        data-lasso-action="cut"
         ref={(el) => {
-          refs.lassoTransformButton = el
+          refs.lassoCutButton = el
         }}
       >
-        <div class="editor-lasso__action-icon svg-icon-move svg-icon-dark" />
-        <span class="editor-lasso__action-label">Move</span>
+        <div class="editor-lasso__action-icon svg-icon-cut-layer svg-icon-dark" />
+        <span class="editor-lasso__action-label">Cut</span>
       </div>
       <div
         class="editor-lasso__action editor-lasso__action--danger"
