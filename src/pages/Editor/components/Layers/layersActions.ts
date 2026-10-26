@@ -34,13 +34,24 @@ import {
   canToggleMaskDown,
   compositeSourceToDisplay,
   findUpperLayerMaskedBy,
+  getAdjacentMaskGroup,
   getLayerDirectlyBelow,
   getLayerDomCanvas,
+  isLayerOccupiedByCoworker,
+  refreshMaskDependents,
   syncLayerDisplay,
 } from './layerMask'
 
+const claimLayerForLocalUser = (layerId: string) => {
+  const layer = state.layers[layerId]
+  if (!layer || layer.owner === Coworking.getUserId()) return
+  layer.owner = Coworking.getUserId()
+  layersBridge.syncLayerOwnerRow(layerId)
+}
+
 const selectLayer = async (layerId: string) => {
   if (!state.layers[layerId]) return
+  if (isLayerOccupiedByCoworker(layerId)) return
   if (!isYourLayerYours(layerId)) {
     layersBridge.selectCoworkerLayer(layerId)
     return
@@ -83,6 +94,7 @@ const selectLayer = async (layerId: string) => {
     if (Coworking.isOpen()) {
       Coworking.sendSelectedLayer(layerId)
     }
+    layersBridge.updateLayerListMaskAffordances()
   }
 }
 
@@ -210,6 +222,8 @@ const duplicateLayer = async (layerId: string, newId: string) => {
   newLayer.active = true
   newLayer.maskBelowLayerId = null
   newLayer.displayCanvas = null
+  const maskGroup = getAdjacentMaskGroup(layerId)
+  if (maskGroup) newLayer.order = maskGroup.upper.order + 1
   Object.keys(state.layers).forEach((id) => {
     if (state.layers[id].order >= newLayer.order) {
       state.layers[id].order++
@@ -315,6 +329,7 @@ export const mergeDownSelectedLayer = async (e?: Event) => {
   const canMergeDown =
     !empty &&
     !selectedLayer.maskBelowLayerId &&
+    !findUpperLayerMaskedBy(selectedLayer.id) &&
     selectedLayer.order > 0 &&
     Object.values(state.layers).find((l) => l.order === selectedLayer.order - 1)?.owner ===
       Coworking.getUserId()
@@ -437,6 +452,7 @@ const clearLayer = (layerId: string) => {
   if (!layer) return
   layer.canvas.context.clearRect(0, 0, state.canvases.width, state.canvases.height)
   syncLayerDisplay(layerId)
+  refreshMaskDependents(layerId)
   layer.minX = Infinity
   layer.minY = Infinity
   layer.maxY = -Infinity
@@ -490,6 +506,8 @@ const setLayerMaskDown = async (enabled: boolean) => {
   if (enabled) {
     const lower = getLayerDirectlyBelow(layerId)
     if (!lower || !canToggleMaskDown(layerId)) return
+    claimLayerForLocalUser(layerId)
+    claimLayerForLocalUser(lower.id)
     await applyLayerMaskLink(layerId, lower.id)
   } else {
     await applyLayerMaskLink(layerId, null)
@@ -504,10 +522,10 @@ export const toggleMaskDownSelectedLayer = async (e?: Event) => {
   layersBridge.openParams()
 
   const layer = state.layers[state.currentSelectedLayerId]
-  const isMasked = Boolean(layer.maskBelowLayerId)
+  const isMasked = Boolean(layer?.maskBelowLayerId)
   const canEnable = canToggleMaskDown(state.currentSelectedLayerId)
 
-  if (!isMasked && !canEnable) {
+  if (!canEnable) {
     return
   }
   if (state.resizeMode || state.lassoMode) {

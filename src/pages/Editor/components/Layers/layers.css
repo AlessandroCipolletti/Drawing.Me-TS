@@ -168,8 +168,13 @@
 .editor-layers__layer.editor-layers__layer-yours {
   cursor: pointer;
 }
-.editor-layers__layer.editor-layers__layer-coworker {
+.editor-layers__layer.editor-layers__layer-coworker,
+.editor-layers__layer.editor-layers__layer-occupied {
   cursor: not-allowed;
+}
+.editor-layers__container--expanded .editor-layers__layer.editor-layers__layer-occupied {
+  background-color: #d5dee8;
+  border: 1px dashed var(--palette-gray-4);
 }
 
 .editor-layers__container--expanded .editor-layers__layer,

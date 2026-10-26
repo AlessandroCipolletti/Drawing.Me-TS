@@ -12,14 +12,45 @@ import {
   refs,
   clearLayerHistoryStepBitmap,
   createNewLayerCanvas,
+  filterYoursLayers,
   findFirstLayerForUser,
   isYourLayerYours,
   LayerHistoryStep,
   LayerRecord,
 } from './layersState'
 import { layersBridge, registerLayersBridge } from './layersBridge'
-import { getLayerDomCanvas, syncLayerDisplay } from './layerMask'
+import {
+  findSelectableLayerForUser,
+  getLayerDomCanvas,
+  isLayerInMaskPair,
+  isLayerOccupiedByCoworker,
+  syncLayerDisplay,
+} from './layerMask'
 import { clearPolygonFromCanvas, extractLassoSelection, LassoPoint } from './layerLasso'
+
+const releaseCurrentLayerIfBlocked = () => {
+  const current = state.currentSelectedLayerId
+  if (!current) return
+  if (isYourLayerYours(current) && !isLayerOccupiedByCoworker(current)) return
+  state.currentSelectedLayerId = false
+  filterYoursLayers().forEach((layer) => {
+    layer.selected = false
+    refs.layersList
+      ?.querySelector(`div[data-id="${layer.id}"]`)
+      ?.classList.remove('editor-layers__layer-selected')
+  })
+  const next = findSelectableLayerForUser()
+  if (next) void layersBridge.selectLayer(next)
+}
+
+const giveLayerToCoworker = (layerId: string) => {
+  const layer = state.layers[layerId]
+  const coworkerId = Coworking.getCoworkerUserId()
+  if (!layer || !coworkerId || layer.owner === coworkerId) return
+  layer.owner = coworkerId
+  layer.selected = false
+  layersBridge.syncLayerOwnerRow(layerId)
+}
 
 export const selectCoworkerLayer = (layerId: string) => {
   if (state?.layers?.[layerId] && !isYourLayerYours(layerId)) {
@@ -32,6 +63,8 @@ export const selectCoworkerLayer = (layerId: string) => {
       }
     })
   }
+  layersBridge.updateLayerListMaskAffordances()
+  releaseCurrentLayerIfBlocked()
 }
 
 export const addNewLayerFromCoworker = async (layer: LayerRecord) => {
@@ -111,6 +144,7 @@ export const sendCurrentLayerToCoworker = async () => {
     Coworking.isOpen() &&
     isYourLayerYours(state.currentSelectedLayerId) &&
     state.layers[state.currentSelectedLayerId].active &&
+    !isLayerInMaskPair(state.currentSelectedLayerId) &&
     (await Messages.confirm(labels.areYouSureToSendLayer))
   ) {
     const layer = state.layers[state.currentSelectedLayerId]
@@ -149,8 +183,14 @@ export const receiveLayerMaskFromCoworker = async (
   maskBelowLayerId: string | null,
   oldMaskBelowLayerId: string | null
 ) => {
+  if (maskBelowLayerId) {
+    giveLayerToCoworker(layerId)
+    giveLayerToCoworker(maskBelowLayerId)
+  }
   await layersBridge.applyLayerMaskLink(layerId, maskBelowLayerId, false)
   layersBridge.addLayerHistoryMaskStep(layerId, maskBelowLayerId, oldMaskBelowLayerId)
+  layersBridge.updateLayerListMaskAffordances()
+  releaseCurrentLayerIfBlocked()
 }
 
 export const mergeLayersFromCoworker = (
@@ -353,15 +393,22 @@ export const updateLayerOpacityFromCoworker = (
 export const layerDragChangeFromCoworker = (
   layerId: string,
   newOrder: number,
-  oldOrder: number,
+  _oldOrder: number,
   partnerLayerId?: string
 ) => {
-  layersBridge.addLayerHistoryOrderStep(layerId, newOrder, oldOrder, partnerLayerId)
+  const layer = state.layers[layerId]
+  if (!layer) return
   if (partnerLayerId) {
-    layersBridge.placeMaskGroupAtUpperOrder(layerId, partnerLayerId, newOrder)
-  } else {
-    layersBridge.updateLayerOrger(layerId, newOrder)
+    const upperOrder = layersBridge.snapGroupUpperOrder(layerId, partnerLayerId, newOrder)
+    if (layer.order === upperOrder) return
+    layersBridge.addLayerHistoryOrderStep(layerId, upperOrder, layer.order, partnerLayerId)
+    layersBridge.placeMaskGroupAtUpperOrder(layerId, partnerLayerId, upperOrder)
+    return
   }
+  const targetOrder = layersBridge.snapTargetOrder(layerId, newOrder)
+  if (layer.order === targetOrder) return
+  layersBridge.addLayerHistoryOrderStep(layerId, targetOrder, layer.order)
+  layersBridge.updateLayerOrger(layerId, targetOrder)
 }
 
 registerLayersBridge({

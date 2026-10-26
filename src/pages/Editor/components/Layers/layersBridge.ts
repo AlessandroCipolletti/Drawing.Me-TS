@@ -30,6 +30,9 @@ export interface LayersBridge {
     partnerLayerId?: string
   ) => Promise<void>
   placeMaskGroupAtUpperOrder: (upperId: string, lowerId: string, upperOrder: number) => void
+  snapTargetOrder: (layerId: string, targetOrder: number) => number
+  snapGroupUpperOrder: (upperId: string, lowerId: string, upperOrder: number) => number
+  syncLayerOwnerRow: (layerId: string) => void
   addLayerHistoryMaskStep: (
     layerId: string,
     maskBelowLayerId: string | null,

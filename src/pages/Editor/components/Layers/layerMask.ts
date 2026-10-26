@@ -1,13 +1,7 @@
 import * as Coworking from 'modules/Coworking'
 import { fillCanvasWithImage, type ExtendedCanvasContext } from 'utils/canvasUtils'
 import { layersBridge } from './layersBridge'
-import {
-  createNewLayerCanvas,
-  isYourLayerYours,
-  LayerCanvasElement,
-  LayerRecord,
-  state,
-} from './layersState'
+import { createNewLayerCanvas, LayerCanvasElement, LayerRecord, state } from './layersState'
 
 type LayerMaskRole = 'none' | 'upper' | 'lower'
 
@@ -43,13 +37,73 @@ const getLayerMaskRole = (layerId: string): LayerMaskRole => {
   return 'none'
 }
 
+/** Ids linked by a clip mask, including this layer. One id when there is no link. */
+const getMaskPartnerIds = (layerId: string): string[] => {
+  const layer = state.layers[layerId]
+  if (!layer) return []
+  const ids = [layerId]
+  if (layer.maskBelowLayerId && state.layers[layer.maskBelowLayerId]) {
+    ids.push(layer.maskBelowLayerId)
+  }
+  const upper = findUpperLayerMaskedBy(layerId)
+  if (upper && !ids.includes(upper.id)) ids.push(upper.id)
+  return ids
+}
+
+export const isLayerInMaskPair = (layerId: string): boolean => getMaskPartnerIds(layerId).length > 1
+
+const getCoworkerSelectedLayerId = (): string | false => {
+  if (!Coworking.isOpen()) return false
+  const selected = Object.values(state.layers).find(
+    (layer) => layer.owner !== Coworking.getUserId() && layer.selected
+  )
+  return selected?.id || false
+}
+
+/** Coworker selection occupies every layer in that mask pair. */
+export const isLayerOccupiedByCoworker = (layerId: string): boolean => {
+  const selectedId = getCoworkerSelectedLayerId()
+  if (!selectedId) return false
+  return getMaskPartnerIds(selectedId).includes(layerId)
+}
+
+/**
+ * A layer can be taken for a mask when it is already ours or has no owner.
+ * A layer owned by the coworker is not free, even if they are not drawing on it.
+ */
+const isLayerClaimable = (layerId: string): boolean => {
+  const layer = state.layers[layerId]
+  if (!layer || isLayerOccupiedByCoworker(layerId)) return false
+  return !layer.owner || layer.owner === Coworking.getUserId()
+}
+
+export const findSelectableLayerForUser = (): string =>
+  Object.values(state.layers)
+    .filter(
+      (layer) => layer.owner === Coworking.getUserId() && !isLayerOccupiedByCoworker(layer.id)
+    )
+    .sort((a, b) => b.order - a.order)[0]?.id || ''
+
+export const resolveOwnedSelectableLayer = (layerId: string): string => {
+  if (
+    layerId &&
+    state.layers[layerId]?.owner === Coworking.getUserId() &&
+    !isLayerOccupiedByCoworker(layerId)
+  ) {
+    return layerId
+  }
+  return findSelectableLayerForUser()
+}
+
 export const canToggleMaskDown = (layerId: string): boolean => {
   const layer = state.layers[layerId]
-  if (!layer || !isYourLayerYours(layerId)) return false
-  if (layer.order <= 0) return false
+  if (!layer) return false
+  if (layer.maskBelowLayerId) {
+    return isLayerClaimable(layerId) && isLayerClaimable(layer.maskBelowLayerId)
+  }
+  if (!isLayerClaimable(layerId) || layer.order <= 0) return false
   const lower = getLayerDirectlyBelow(layerId)
-  if (!lower || lower.owner !== Coworking.getUserId()) return false
-  if (layer.maskBelowLayerId) return true
+  if (!lower || !isLayerClaimable(lower.id)) return false
   if (getLayerMaskRole(layerId) !== 'none') return false
   if (getLayerMaskRole(lower.id) !== 'none') return false
   return true

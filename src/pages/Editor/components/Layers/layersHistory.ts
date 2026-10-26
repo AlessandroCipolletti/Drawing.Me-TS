@@ -20,7 +20,6 @@ import {
 import {
   UsersLayersHistory,
   config,
-  findFirstLayerForUser,
   findSelectedLayerIdForUser,
   GlobalLayerHistoryAction,
   hardDeleteLayer,
@@ -32,7 +31,12 @@ import {
 } from './layersState'
 import { layersBridge, registerLayersBridge } from './layersBridge'
 import { editorCalls } from 'pages/Editor/editorCalls'
-import { compositeSourceToDisplay, refreshMaskDependents, syncLayerDisplay } from './layerMask'
+import {
+  compositeSourceToDisplay,
+  refreshMaskDependents,
+  resolveOwnedSelectableLayer,
+  syncLayerDisplay,
+} from './layerMask'
 
 const updateUndoRedoButtons = () => {
   const userHistory = UsersLayersHistory[Coworking.getUserId()]
@@ -640,9 +644,7 @@ export const doUndoForUser = async (userId: string) => {
           layersBridge.updateLayerListMaskAffordances()
         }
 
-        if (!isYourLayerYours(selectedLayerId)) {
-          selectedLayerId = findFirstLayerForUser()
-        }
+        selectedLayerId = resolveOwnedSelectableLayer(selectedLayerId)
 
         await layersBridge.selectLayer(selectedLayerId)
       }
@@ -736,9 +738,7 @@ export const doRedoForUser = async (userId: string) => {
         layersBridge.updateLayerListMaskAffordances()
       }
 
-      if (!isYourLayerYours(selectedLayerId)) {
-        selectedLayerId = findFirstLayerForUser()
-      }
+      selectedLayerId = resolveOwnedSelectableLayer(selectedLayerId)
 
       await layersBridge.selectLayer(selectedLayerId)
     }

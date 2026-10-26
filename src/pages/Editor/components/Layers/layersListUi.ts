@@ -20,8 +20,11 @@ import { layersBridge, registerLayersBridge } from './layersBridge'
 import { editorCalls } from 'pages/Editor/editorCalls'
 import {
   canToggleMaskDown,
+  findUpperLayerMaskedBy,
   getAdjacentMaskGroup,
   getLayerDomCanvas,
+  isLayerInMaskPair,
+  isLayerOccupiedByCoworker,
   paintLayerDisplay,
   refreshMaskDependents,
   syncLayerDisplay,
@@ -67,7 +70,11 @@ export const closeParams = async () => {
 const updateLayerListMaskAffordances = () => {
   if (!refs.layersList) return
   refs.layersList.querySelectorAll('.editor-layers__layer').forEach((row) => {
-    row.classList.remove('editor-layers__layer--mask-upper', 'editor-layers__layer--mask-lower')
+    row.classList.remove(
+      'editor-layers__layer--mask-upper',
+      'editor-layers__layer--mask-lower',
+      'editor-layers__layer-occupied'
+    )
     const label = row.querySelector('.editor-layers__layer-mask-label')
     if (label) {
       label.classList.add('displayNone')
@@ -90,6 +97,12 @@ const updateLayerListMaskAffordances = () => {
       lowerLabel.textContent = 'Mask'
       lowerLabel.classList.remove('displayNone')
     }
+  })
+  Object.values(state.layers).forEach((layer) => {
+    if (!isLayerInMaskPair(layer.id) || !isLayerOccupiedByCoworker(layer.id)) return
+    refs.layersList
+      ?.querySelector(`div[data-id="${layer.id}"]`)
+      ?.classList.add('editor-layers__layer-occupied')
   })
 }
 
@@ -207,6 +220,7 @@ const updateParamsByLayer = (layerId: string | false = state.currentSelectedLaye
     const canMergeDown =
       !empty &&
       !layer.maskBelowLayerId &&
+      !findUpperLayerMaskedBy(layer.id) &&
       yourLayers.length > 1 &&
       layer.order > 0 &&
       Object.values(state.layers).find((l) => l.order === layer.order - 1)?.owner ===
@@ -214,7 +228,8 @@ const updateParamsByLayer = (layerId: string | false = state.currentSelectedLaye
     const canMaskDown = canToggleMaskDown(layerId)
     const maskActive = Boolean(layer.maskBelowLayerId)
     const canDuplicate = !empty && Object.values(state.layers).length < config.maxLayersNumber
-    const canTransferLayer = Coworking.isOpen() && yourLayers.length > 1 && layer.active
+    const canTransferLayer =
+      Coworking.isOpen() && yourLayers.length > 1 && layer.active && !isLayerInMaskPair(layerId)
 
     if (refs.opacityLabel) refs.opacityLabel.innerHTML = `${round(opacity, 0)}`
     if (refs.opacityCursor) refs.opacityCursor.style.bottom = `${opacity}%`
@@ -226,7 +241,7 @@ const updateParamsByLayer = (layerId: string | false = state.currentSelectedLaye
     refs.mergeDownLayerButton?.classList.toggle('disabled', !canMergeDown)
     refs.maskDownLayerButton?.classList.toggle(
       'disabled',
-      state.resizeMode || state.lassoMode || (!canMaskDown && !maskActive)
+      state.resizeMode || state.lassoMode || !canMaskDown
     )
     refs.maskDownLayerButton?.classList.toggle('selected', maskActive)
     refs.flipVerticalButton?.classList.toggle('disabled', empty)
@@ -1005,6 +1020,7 @@ const isMaskPair = (
 ) => upper.maskBelowLayerId === lower.id && upper.order === lower.order + 1
 
 const snapTargetOrder = (layerId: string, targetOrder: number) => {
+  if (!state.layers[layerId]) return targetOrder
   const without = layersByOrder().filter((layer) => layer.id !== layerId)
   const current = state.layers[layerId].order
   let target = Math.max(0, Math.min(without.length, targetOrder))
@@ -1020,6 +1036,7 @@ const snapTargetOrder = (layerId: string, targetOrder: number) => {
 }
 
 const snapGroupUpperOrder = (upperId: string, lowerId: string, upperOrder: number) => {
+  if (!state.layers[upperId] || !state.layers[lowerId]) return upperOrder
   const others = layersByOrder().filter((layer) => layer.id !== upperId && layer.id !== lowerId)
   const currentLowerOrder = state.layers[lowerId].order
   let belowCount = Math.max(0, Math.min(others.length, upperOrder - 1))
@@ -1175,6 +1192,7 @@ const findListTargetLayerParent = (target: EventTarget | null): HTMLElement | fa
 }
 
 const onLayerTouchDown = (layerId: string) => {
+  if (isLayerOccupiedByCoworker(layerId)) return
   if (isYourLayerYours(layerId)) {
     if (layerId === state.currentSelectedLayerId) {
       updateParamsByLayer(layerId)
@@ -1223,7 +1241,7 @@ export const onListLongPress = async (e: Event) => {
     const layerListDom = findListTargetLayerParent(e.target)
     if (layerListDom) {
       const id = layerListDom.getAttribute('data-id')
-      if (id) {
+      if (id && isYourLayerYours(id) && !isLayerOccupiedByCoworker(id)) {
         await layersBridge.selectLayer(id)
         startDragLayer(e, layerListDom)
       }
@@ -1235,6 +1253,18 @@ export const onContainerTouchStart = (e: Event) => {
   if (e.target === refs.layersContainer) {
     preventDefault(e)
   }
+}
+
+const syncLayerOwnerRow = (layerId: string) => {
+  const row = refs.layersList?.querySelector(`div[data-id="${layerId}"]`)
+  if (!row || !state.layers[layerId]) return
+  const yours = isYourLayerYours(layerId)
+  row.classList.toggle('editor-layers__layer-yours', yours)
+  row.classList.toggle('editor-layers__layer-coworker', !yours)
+  if (!yours) row.classList.remove('editor-layers__layer-selected')
+  row
+    .querySelector('.editor-layers__layer-options-button')
+    ?.classList.toggle('svg-icon-visible', !yours)
 }
 
 registerLayersBridge({
@@ -1253,6 +1283,9 @@ registerLayersBridge({
   refreshActiveLassoSelection,
   updateLayerOrger,
   placeMaskGroupAtUpperOrder,
+  snapTargetOrder,
+  snapGroupUpperOrder,
+  syncLayerOwnerRow,
   _updateLayerOpacity,
   updateLayerListMaskAffordances,
 })

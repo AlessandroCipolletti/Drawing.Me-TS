@@ -322,14 +322,10 @@ let statusLabelNext: ChildNode | null = null
 
 const moveStatusLabelIntoHeader = () => {
   const label = document.querySelector('.messages__update')
-  if (!label || !refs.rightSide) return
+  if (!label || !refs.leftSide) return
   statusLabelParent = label.parentElement
   statusLabelNext = label.nextSibling
-  if (refs.saveCopyButton?.parentElement === refs.rightSide) {
-    refs.rightSide.insertBefore(label, refs.saveCopyButton)
-  } else {
-    refs.rightSide.appendChild(label)
-  }
+  refs.leftSide.insertBefore(label, refs.leftSide.firstChild)
 }
 
 const restoreStatusLabel = () => {
