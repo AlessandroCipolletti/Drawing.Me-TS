@@ -93,6 +93,7 @@ export interface LayersState {
   canvasPanMode: boolean
   resizeMode: boolean
   lassoMode: boolean
+  lassoArmed: boolean
   wandMode: boolean
   lassoSelection: LassoExtractionResult | null
   lassoFloatDirty: boolean
@@ -127,6 +128,7 @@ const initialState: LayersState = {
   canvasPanMode: false,
   resizeMode: false,
   lassoMode: false,
+  lassoArmed: false,
   wandMode: false,
   lassoSelection: null,
   lassoFloatDirty: false,

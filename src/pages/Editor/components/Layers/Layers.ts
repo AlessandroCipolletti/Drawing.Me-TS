@@ -164,7 +164,10 @@ const initDom = async (moduleContainer: HTMLElement, sidebarExpanded = false) =>
   )
   refs.gcoButton = createDom('svg-icon-source-over')
   refs.resizeButton?.classList.toggle('selected', state.resizeMode)
-  refs.lassoButton?.classList.toggle('selected', state.lassoMode && !state.wandMode)
+  refs.lassoButton?.classList.toggle(
+    'selected',
+    state.lassoMode && state.lassoArmed && !state.wandMode
+  )
   if (Params.isDesktop) {
     const panBtn = createDom()
     panBtn.appendChild(createDom('editor-layers__pan-button', 'svg-icon-hand', 'svg-icon-dark'))

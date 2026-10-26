@@ -1,7 +1,10 @@
 import Params from 'main/Params'
 import * as Layers from './components/Layers'
 import { isLayerMasked } from './components/Layers/layerMask'
-import { renderLassoOverlayFrame } from './components/Layers/layerLasso'
+import {
+  invalidateLassoOverlayRenderCache,
+  renderLassoOverlayFrame,
+} from './components/Layers/layerLasso'
 import * as Toolbar from './components/Toolbar'
 import * as Tools from './components/Tools'
 import { fadeInElements, fadeOutElements } from 'utils/animationsUtils'
@@ -151,6 +154,7 @@ const cancelPendingResizeRaf = () => {
 
 let lassoAntsRafId: number | null = null
 let lassoDashOffset = 0
+let lassoMoveDragSnapshot: HTMLCanvasElement | null = null
 
 export const stopLassoMarchingAnts = () => {
   if (lassoAntsRafId !== null) {
@@ -162,7 +166,12 @@ export const stopLassoMarchingAnts = () => {
 const startLassoMarchingAnts = (state: EditorState, refs: EditorRefs) => {
   stopLassoMarchingAnts()
   const step = () => {
-    if (!state.lassoMode?.active || !state.lassoMode.hasSelection || !refs.lassoCanvas) {
+    if (
+      !state.lassoMode?.active ||
+      !state.lassoMode.hasSelection ||
+      state.lassoMode.isDraggingMove ||
+      !refs.lassoCanvas
+    ) {
       lassoAntsRafId = null
       return
     }
@@ -257,8 +266,45 @@ export const updateLassoBarPosition = (state: EditorState, refs: EditorRefs) => 
   refs.lassoBar.style.top = `${round(targetTop, 0)}px`
 }
 
+export const beginLassoSelectionMoveDrag = (refs: EditorRefs) => {
+  stopLassoMarchingAnts()
+  if (!refs.lassoCanvas?.width || !refs.lassoCanvas.height) return
+  lassoMoveDragSnapshot = document.createElement('canvas')
+  lassoMoveDragSnapshot.width = refs.lassoCanvas.width
+  lassoMoveDragSnapshot.height = refs.lassoCanvas.height
+  lassoMoveDragSnapshot.getContext('2d')?.drawImage(refs.lassoCanvas, 0, 0)
+}
+
+export const paintLassoSelectionMoveDrag = (refs: EditorRefs, dx: number, dy: number) => {
+  if (!lassoMoveDragSnapshot || !refs.lassoCanvas) return
+  const ctx = refs.lassoCanvas.getContext('2d')
+  if (!ctx) return
+  ctx.clearRect(0, 0, refs.lassoCanvas.width, refs.lassoCanvas.height)
+  ctx.drawImage(lassoMoveDragSnapshot, dx, dy)
+}
+
+export const endLassoSelectionMoveDrag = (state: EditorState, refs: EditorRefs) => {
+  lassoMoveDragSnapshot = null
+  invalidateLassoOverlayRenderCache()
+  if (!state.lassoMode?.hasSelection || !refs.lassoCanvas) return
+  renderLassoOverlayFrame(
+    refs.lassoCanvas,
+    state.lassoMode.points,
+    true,
+    state.canvas.scale,
+    lassoDashOffset,
+    {
+      inverted: state.lassoMode.inverted,
+      rings: state.lassoMode.rings,
+    }
+  )
+  startLassoMarchingAnts(state, refs)
+}
+
 export const clearLassoSelectionOverlay = (state: EditorState, refs: EditorRefs) => {
   stopLassoMarchingAnts()
+  lassoMoveDragSnapshot = null
+  invalidateLassoOverlayRenderCache()
   if (state.lassoMode) {
     state.lassoMode.isDrawing = false
     state.lassoMode.hasSelection = false
@@ -288,6 +334,12 @@ export const setLassoModeIsWand = (state: EditorState, isWand: boolean) => {
   }
 }
 
+export const setLassoInputCapture = (state: EditorState, capture: boolean) => {
+  if (state.lassoMode) {
+    state.lassoMode.captureInput = capture
+  }
+}
+
 export const setLassoModeActive = (
   state: EditorState,
   refs: EditorRefs,
@@ -298,6 +350,7 @@ export const setLassoModeActive = (
   if (state.lassoMode) {
     state.lassoMode.active = active
     state.lassoMode.isWand = active ? isWand : false
+    state.lassoMode.captureInput = active
   }
   refs.lassoCanvas?.classList.toggle('displayNone', !active)
 }
@@ -337,6 +390,7 @@ export const showLassoSelectionOverlay = (
   state.lassoMode.maxX = bounds.maxX
   state.lassoMode.maxY = bounds.maxY
   refs.lassoBar?.classList.remove('displayNone')
+  invalidateLassoOverlayRenderCache()
   updateLassoBarPosition(state, refs)
   startLassoMarchingAnts(state, refs)
 }

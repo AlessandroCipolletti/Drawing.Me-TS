@@ -172,6 +172,7 @@ export interface ResizeModeState {
 interface LassoModeState {
   active: boolean
   isWand: boolean
+  captureInput: boolean
   isDrawing: boolean
   hasSelection: boolean
   hasPixels: boolean
@@ -436,6 +437,7 @@ export const createInitialEditorState = (
   lassoMode: {
     active: false,
     isWand: false,
+    captureInput: false,
     isDrawing: false,
     hasSelection: false,
     hasPixels: false,

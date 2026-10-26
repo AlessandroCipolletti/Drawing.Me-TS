@@ -20,6 +20,7 @@ export interface EditorFacade {
   flushPendingResizeFrame: () => void
   setLassoModeActive: (active: boolean, isWand?: boolean) => void
   setLassoModeIsWand: (isWand: boolean) => void
+  setLassoInputCapture: (capture: boolean) => void
   clearLassoSelectionOverlay: () => void
   updateLassoSelectionUi: (bounds: {
     minX: number
@@ -66,6 +67,7 @@ export const editorFacade: EditorFacade = {
   flushPendingResizeFrame: () => currentFacade?.flushPendingResizeFrame(),
   setLassoModeActive: (active, isWand) => currentFacade?.setLassoModeActive(active, isWand),
   setLassoModeIsWand: (isWand) => currentFacade?.setLassoModeIsWand(isWand),
+  setLassoInputCapture: (capture) => currentFacade?.setLassoInputCapture(capture),
   clearLassoSelectionOverlay: () => currentFacade?.clearLassoSelectionOverlay(),
   updateLassoSelectionUi: (bounds) => currentFacade?.updateLassoSelectionUi(bounds),
   dismissQuickShape: () => currentFacade?.dismissQuickShape(),

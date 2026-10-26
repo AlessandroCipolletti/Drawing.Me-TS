@@ -162,9 +162,10 @@ const updateLassoMode = (selected: boolean, active: boolean) => {
   state.lassoMode = selected
   if (!selected) {
     state.wandMode = false
+    state.lassoArmed = false
   }
-  refs.lassoButton?.classList.toggle('selected', selected && !state.wandMode)
-  if (modeChanged || selected) {
+  refs.lassoButton?.classList.toggle('selected', selected && state.lassoArmed && !state.wandMode)
+  if (modeChanged || (selected && !state.lassoSelection)) {
     editorFacade.setLassoModeActive(selected, state.wandMode)
   }
   if (!selected && modeChanged) {
@@ -393,6 +394,7 @@ const startLassoMode = async (isWand = false) => {
     await endResizeMode()
   }
   state.wandMode = isWand
+  state.lassoArmed = !isWand
   const layerOptionButton = refs.layersList?.querySelector(
     `div[data-id="${state.currentSelectedLayerId}"] .editor-layers__layer-options-button`
   )
@@ -410,16 +412,36 @@ export const syncMagicWandTool = (active: boolean) => {
     if (state.wandMode && state.lassoMode) return
     if (state.lassoMode) {
       state.wandMode = true
+      state.lassoArmed = false
       refs.lassoButton?.classList.remove('selected')
       editorFacade.setLassoModeIsWand(true)
+      editorFacade.setLassoInputCapture(true)
       return
     }
     void startLassoMode(true)
     return
   }
-  if (state.wandMode) {
-    endLassoMode()
+  if (!state.wandMode) return
+  if (hasActiveLassoSelection() && state.lassoSelection) {
+    const selection = state.lassoSelection
+    state.wandMode = false
+    state.lassoArmed = false
+    refs.lassoButton?.classList.remove('selected')
+    editorFacade.setLassoModeIsWand(false)
+    editorFacade.setLassoInputCapture(false)
+    editorFacade.updateLassoSelectionUi({
+      minX: selection.minX,
+      minY: selection.minY,
+      maxX: selection.maxX,
+      maxY: selection.maxY,
+      hasPixels: selection.hasPixels,
+      inverted: selection.inverted,
+      points: selection.points,
+      rings: selection.rings,
+    })
+    return
   }
+  endLassoMode()
 }
 
 export const prepareMagicWandStroke = async () => {
@@ -879,7 +901,7 @@ export const lassoButtonTouchStart = (e: Event) => {
     if (state.wandMode) {
       editorCalls.selectLastUsedTool(false)
     }
-    if (state.lassoMode && !state.wandMode) {
+    if (state.lassoArmed && !state.wandMode) {
       endLassoMode()
     } else {
       if (state.lassoMode) {

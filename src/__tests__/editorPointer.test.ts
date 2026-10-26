@@ -551,6 +551,21 @@ describe('Editor pointer dispatch & coalesced 120Hz stroke safety net', () => {
     ).toBe('step')
 
     expect(
+      resolveTouchStartAction({
+        isResizing: false,
+        resizeModeActive: false,
+        lassoModeActive: true,
+        lassoCapture: false,
+        lassoHasSelection: true,
+        currentDeviceHasStylus: false,
+        touchType: 'mouse',
+        hasZoom: false,
+        toolName: 'pencil',
+        currentLayerIsActive: true,
+      })
+    ).toBe('step')
+
+    expect(
       resolveTouchMoveAction({
         isResizing: false,
         resizeModeActive: false,
@@ -729,7 +744,6 @@ describe('Editor pointer dispatch & coalesced 120Hz stroke safety net', () => {
     expect(tol0.maxX).toBe(11)
     expect(tol0.mask[4 * w + 5]).toBe(1)
     expect(tol0.mask[6 * w + 6]).toBe(0)
-
     const tol40 = floodFillMagicWandMask(rgba, w, h, 4, 4, 40, false)
     expect(tol40.minX).toBe(3)
     expect(tol40.maxX).toBe(12)

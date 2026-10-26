@@ -14,7 +14,10 @@ import { getEventCoordX, getEventCoordY } from 'utils/domUtils'
 import { TOUCH_TYPE_STYLUS } from 'main/constants'
 import { updateCurrentTouchData } from './editorUtils'
 import {
+  beginLassoSelectionMoveDrag,
   clearLassoSelectionOverlay,
+  endLassoSelectionMoveDrag,
+  paintLassoSelectionMoveDrag,
   showLassoSelectionOverlay,
   updateLassoBarPosition,
   updateLayerContentCoordsAfterDragResize,
@@ -40,6 +43,7 @@ export const resolveTouchStartAction = (params: {
   isResizing: boolean
   resizeModeActive: boolean
   lassoModeActive?: boolean
+  lassoCapture?: boolean
   lassoHasSelection?: boolean
   lassoMoveMode?: boolean
   desktopCanvasPanMode?: boolean
@@ -58,7 +62,7 @@ export const resolveTouchStartAction = (params: {
   if (params.resizeModeActive) return 'dragLayer'
   if (params.lassoModeActive && params.lassoHasSelection && params.lassoMoveMode) return 'lassoMove'
   if (params.toolName === 'magicWand') return 'lasso'
-  if (params.lassoModeActive) {
+  if (params.lassoCapture !== false && params.lassoModeActive) {
     if (!params.lassoHasSelection) return 'lasso'
     if (params.lassoMoveMode) return 'lassoMove'
   }
@@ -71,6 +75,7 @@ export const resolveTouchMoveAction = (params: {
   isResizing: boolean
   resizeModeActive: boolean
   lassoModeActive?: boolean
+  lassoCapture?: boolean
   lassoHasSelection?: boolean
   lassoMoveMode?: boolean
   desktopCanvasPanMode?: boolean
@@ -89,7 +94,7 @@ export const resolveTouchMoveAction = (params: {
   if (params.resizeModeActive) return 'dragLayer'
   if (params.lassoModeActive && params.lassoHasSelection && params.lassoMoveMode) return 'lassoMove'
   if (params.toolName === 'magicWand') return 'lasso'
-  if (params.lassoModeActive) {
+  if (params.lassoCapture !== false && params.lassoModeActive) {
     if (!params.lassoHasSelection) return 'lasso'
     if (params.lassoMoveMode) return 'lassoMove'
   }
@@ -102,6 +107,7 @@ export const resolveTouchEndAction = (params: {
   isResizing: boolean
   resizeModeActive: boolean
   lassoModeActive?: boolean
+  lassoCapture?: boolean
   lassoHasSelection?: boolean
   lassoMoveMode?: boolean
   desktopCanvasPanMode?: boolean
@@ -117,7 +123,7 @@ export const resolveTouchEndAction = (params: {
   if (params.resizeModeActive) return 'dragLayer'
   if (params.lassoModeActive && params.lassoHasSelection && params.lassoMoveMode) return 'lassoMove'
   if (params.toolName === 'magicWand') return 'lasso'
-  if (params.lassoModeActive) {
+  if (params.lassoCapture !== false && params.lassoModeActive) {
     if (!params.lassoHasSelection) return 'lasso'
     if (params.lassoMoveMode) return 'lassoMove'
   }
@@ -401,6 +407,7 @@ export const createEditorPointerHandlers = (deps: PointerRouterDeps) => {
       maxX: state.lassoMode.maxX,
       maxY: state.lassoMode.maxY,
     }
+    beginLassoSelectionMoveDrag(refs)
   }
 
   const onLassoMoveTouchMove = (touchEvent: PointerTouchEvent) => {
@@ -408,18 +415,12 @@ export const createEditorPointerHandlers = (deps: PointerRouterDeps) => {
     updateCurrentTouchData(state, touchEvent, Params.eventMove, false, false, true)
     const dx = state.currentTouch.dragX
     const dy = state.currentTouch.dragY
-    state.lassoMode.points = lassoMoveOriginPoints.map(([px, py]) => [
-      round(px + dx, 1),
-      round(py + dy, 1),
-    ])
-    state.lassoMode.rings = lassoMoveOriginRings.map((ring) =>
-      ring.map(([px, py]) => [round(px + dx, 1), round(py + dy, 1)])
-    )
     state.lassoMode.minX = round(lassoMoveOriginBounds.minX + dx, 1)
     state.lassoMode.minY = round(lassoMoveOriginBounds.minY + dy, 1)
     state.lassoMode.maxX = round(lassoMoveOriginBounds.maxX + dx, 1)
     state.lassoMode.maxY = round(lassoMoveOriginBounds.maxY + dy, 1)
     Layers.translateLassoSelectionInPlace(dx, dy)
+    paintLassoSelectionMoveDrag(refs, dx, dy)
     updateLassoBarPosition(state, refs)
   }
 
@@ -438,10 +439,19 @@ export const createEditorPointerHandlers = (deps: PointerRouterDeps) => {
       state.lassoMode.maxX = lassoMoveOriginBounds.maxX
       state.lassoMode.maxY = lassoMoveOriginBounds.maxY
       Layers.translateLassoSelectionInPlace(0, 0)
+      endLassoSelectionMoveDrag(state, refs)
       updateLassoBarPosition(state, refs)
       return
     }
+    state.lassoMode.points = lassoMoveOriginPoints.map(([px, py]) => [
+      round(px + dx, 1),
+      round(py + dy, 1),
+    ])
+    state.lassoMode.rings = lassoMoveOriginRings.map((ring) =>
+      ring.map(([px, py]) => [round(px + dx, 1), round(py + dy, 1)])
+    )
     void Layers.commitLassoMoveSelectionInPlace(dx, dy)
+    endLassoSelectionMoveDrag(state, refs)
   }
 
   const onTouchStart = (_e: unknown, touchEvent: PointerTouchEvent) => {
@@ -455,6 +465,7 @@ export const createEditorPointerHandlers = (deps: PointerRouterDeps) => {
       isResizing: state.resizeMode.isResizing,
       resizeModeActive: state.resizeMode.active,
       lassoModeActive: state.lassoMode?.active,
+      lassoCapture: state.lassoMode?.captureInput !== false,
       lassoHasSelection: state.lassoMode?.hasSelection,
       lassoMoveMode: state.lassoMode?.isMoveMode,
       desktopCanvasPanMode: state.desktopCanvasPanMode,
@@ -557,6 +568,7 @@ export const createEditorPointerHandlers = (deps: PointerRouterDeps) => {
         isResizing: state.resizeMode.isResizing,
         resizeModeActive: state.resizeMode.active,
         lassoModeActive: state.lassoMode?.active,
+        lassoCapture: state.lassoMode?.captureInput !== false,
         lassoHasSelection: state.lassoMode?.hasSelection,
         lassoMoveMode: state.lassoMode?.isMoveMode,
         desktopCanvasPanMode: state.desktopCanvasPanMode,
@@ -631,6 +643,7 @@ export const createEditorPointerHandlers = (deps: PointerRouterDeps) => {
       isResizing: state.resizeMode.isResizing,
       resizeModeActive: state.resizeMode.active,
       lassoModeActive: state.lassoMode?.active,
+      lassoCapture: state.lassoMode?.captureInput !== false,
       lassoHasSelection: state.lassoMode?.hasSelection,
       lassoMoveMode: state.lassoMode?.isMoveMode,
       desktopCanvasPanMode: state.desktopCanvasPanMode,

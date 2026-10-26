@@ -576,6 +576,214 @@ export const extractLassoSelection = async (
   }
 }
 
+const MAX_LASSO_OVERLAY_RING_POINTS = 512
+
+const decimateRingForOverlay = (
+  ring: LassoPoint[],
+  maxPoints = MAX_LASSO_OVERLAY_RING_POINTS
+): LassoPoint[] => {
+  if (ring.length <= maxPoints) return ring
+  const out: LassoPoint[] = []
+  const n = ring.length
+  for (let i = 0; i < maxPoints; i++) {
+    out.push(ring[Math.floor((i * n) / maxPoints)])
+  }
+  return out
+}
+
+const decimateRingsForOverlay = (rings: LassoPoint[][], linear: boolean): LassoPoint[][] =>
+  rings.map((ring) => {
+    const cap = linear
+      ? MAX_LASSO_OVERLAY_RING_POINTS
+      : Math.min(MAX_LASSO_OVERLAY_RING_POINTS, 320)
+    return decimateRingForOverlay(ring, cap)
+  })
+
+const appendRingToPath2D = (
+  path: Path2D,
+  ring: LassoPoint[],
+  closePath: boolean,
+  linear: boolean
+) => {
+  if (ring.length < 2) return
+  if (linear) {
+    path.moveTo(ring[0][0], ring[0][1])
+    for (let i = 1; i < ring.length; i++) {
+      path.lineTo(ring[i][0], ring[i][1])
+    }
+    if (closePath && ring.length > 2) {
+      path.closePath()
+    }
+    return
+  }
+  const curvePoints = getLassoBezierCurvePoints(ring, closePath)
+  path.moveTo(curvePoints[0][0], curvePoints[0][1])
+  for (let i = 1; i < curvePoints.length; i++) {
+    path.lineTo(curvePoints[i][0], curvePoints[i][1])
+  }
+  if (closePath && curvePoints.length > 2) {
+    path.closePath()
+  }
+}
+
+type LassoOverlayAnimCache = {
+  key: string
+  staticCanvas: HTMLCanvasElement
+  strokePath: Path2D
+  inverted: boolean
+  canvasWidth: number
+  canvasHeight: number
+}
+
+let lassoOverlayAnimCache: LassoOverlayAnimCache | null = null
+
+export const invalidateLassoOverlayRenderCache = () => {
+  lassoOverlayAnimCache = null
+}
+
+const lassoOverlayGeometryKey = (
+  canvas: HTMLCanvasElement,
+  points: LassoPoint[],
+  rings: LassoPoint[][] | undefined,
+  inverted: boolean
+): string => {
+  let key = `${canvas.width}x${canvas.height}:${inverted}:${points.length}`
+  if (rings?.length) {
+    key += `:rings${rings.length}`
+    for (let r = 0; r < rings.length && r < 4; r++) {
+      const ring = rings[r]
+      if (!ring.length) continue
+      const a = ring[0]
+      const b = ring[Math.floor(ring.length / 2)]
+      const c = ring[ring.length - 1]
+      key += `|${ring.length}:${a[0]},${a[1]},${b[0]},${b[1]},${c[0]},${c[1]}`
+    }
+  }
+  return key
+}
+
+const paintLassoOverlayStaticLayer = (
+  ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+  canvasWidth: number,
+  canvasHeight: number,
+  points: LassoPoint[],
+  closed: boolean,
+  canvasScale: number,
+  effectiveRings: LassoPoint[][],
+  inverted: boolean,
+  hasRings: boolean
+) => {
+  const unit = Math.max(0.5, Params.pxScale / Math.max(0.25, canvasScale || 1))
+  const lineWidth = 1.8 * unit
+
+  ctx.save()
+  ctx.lineCap = 'round'
+  ctx.lineJoin = 'round'
+
+  if ((inverted && typeof ctx.rect === 'function') || hasRings) {
+    ctx.beginPath()
+    if (inverted && typeof ctx.rect === 'function') {
+      ctx.rect(0, 0, canvasWidth, canvasHeight)
+    }
+    for (const ring of effectiveRings) {
+      if (ring.length >= 2) {
+        appendLassoRingSubpath(ctx, ring, closed, hasRings)
+      }
+    }
+    ctx.fillStyle = closed ? 'rgba(2, 132, 199, 0.09)' : 'rgba(2, 132, 199, 0.05)'
+    ctx.fill('evenodd')
+  } else {
+    traceLassoPolygon(ctx, points, closed, false)
+    ctx.fillStyle = closed ? 'rgba(2, 132, 199, 0.09)' : 'rgba(2, 132, 199, 0.05)'
+    ctx.fill()
+  }
+
+  ctx.beginPath()
+  for (const ring of effectiveRings) {
+    if (ring.length >= 2) {
+      appendLassoRingSubpath(ctx, ring, closed, hasRings)
+    }
+  }
+  ctx.lineWidth = lineWidth + 1.4 * unit
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.92)'
+  ctx.setLineDash([])
+  ctx.stroke()
+  ctx.restore()
+}
+
+const ensureLassoOverlayAnimCache = (
+  canvas: HTMLCanvasElement,
+  points: LassoPoint[],
+  closed: boolean,
+  canvasScale: number,
+  effectiveRings: LassoPoint[][],
+  inverted: boolean,
+  hasRings: boolean
+) => {
+  const key = lassoOverlayGeometryKey(canvas, points, effectiveRings, inverted)
+  if (
+    lassoOverlayAnimCache &&
+    lassoOverlayAnimCache.key === key &&
+    lassoOverlayAnimCache.canvasWidth === canvas.width &&
+    lassoOverlayAnimCache.canvasHeight === canvas.height
+  ) {
+    return lassoOverlayAnimCache
+  }
+
+  const displayRings = decimateRingsForOverlay(effectiveRings, hasRings)
+  const staticCanvas = document.createElement('canvas')
+  staticCanvas.width = canvas.width
+  staticCanvas.height = canvas.height
+  const staticCtx = staticCanvas.getContext('2d')
+  if (staticCtx) {
+    paintLassoOverlayStaticLayer(
+      staticCtx,
+      canvas.width,
+      canvas.height,
+      points,
+      closed,
+      canvasScale,
+      displayRings,
+      inverted,
+      hasRings
+    )
+  }
+
+  const strokePath = new Path2D()
+  for (const ring of displayRings) {
+    appendRingToPath2D(strokePath, ring, closed, hasRings)
+  }
+
+  lassoOverlayAnimCache = {
+    key,
+    staticCanvas,
+    strokePath,
+    inverted,
+    canvasWidth: canvas.width,
+    canvasHeight: canvas.height,
+  }
+  return lassoOverlayAnimCache
+}
+
+const paintLassoOverlayOpenStroke = (
+  ctx: CanvasRenderingContext2D,
+  points: LassoPoint[],
+  canvasScale: number
+) => {
+  if (points.length <= 2) return
+  const unit = Math.max(0.5, Params.pxScale / Math.max(0.25, canvasScale || 1))
+  const first = points[0]
+  const last = points[points.length - 1]
+  ctx.beginPath()
+  ctx.moveTo(last[0], last[1])
+  ctx.lineTo(first[0], first[1])
+  ctx.lineWidth = 1.2 * unit
+  ctx.strokeStyle = 'rgba(2, 132, 199, 0.55)'
+  ctx.setLineDash([3 * unit, 4 * unit])
+  ctx.lineDashOffset = 0
+  ctx.stroke()
+}
+
 export const renderLassoOverlayFrame = (
   canvas: HTMLCanvasElement | null,
   points: LassoPoint[],
@@ -598,73 +806,64 @@ export const renderLassoOverlayFrame = (
   const dashLen = 6 * unit
   const gapLen = 5 * unit
 
+  if (closed) {
+    const cache = ensureLassoOverlayAnimCache(
+      canvas,
+      points,
+      closed,
+      canvasScale,
+      effectiveRings,
+      inverted,
+      hasRings
+    )
+    ctx.drawImage(cache.staticCanvas, 0, 0)
+    ctx.save()
+    ctx.lineCap = 'round'
+    ctx.lineJoin = 'round'
+    ctx.lineWidth = lineWidth
+    ctx.strokeStyle = '#0f172a'
+    ctx.setLineDash([dashLen, gapLen])
+    ctx.lineDashOffset = -dashOffset * unit
+    ctx.stroke(cache.strokePath)
+
+    if (cache.inverted && typeof ctx.strokeRect === 'function') {
+      const inset = lineWidth
+      ctx.lineWidth = lineWidth
+      ctx.strokeStyle = '#0284c7'
+      ctx.setLineDash([dashLen, gapLen])
+      ctx.lineDashOffset = -dashOffset * unit
+      ctx.strokeRect(inset, inset, canvas.width - inset * 2, canvas.height - inset * 2)
+    }
+    ctx.restore()
+    return
+  }
+
   ctx.save()
   ctx.lineCap = 'round'
   ctx.lineJoin = 'round'
-
-  if ((inverted && typeof ctx.rect === 'function') || hasRings) {
-    ctx.beginPath()
-    if (inverted && typeof ctx.rect === 'function') {
-      ctx.rect(0, 0, canvas.width, canvas.height)
-    }
-    for (const ring of effectiveRings) {
-      if (ring.length >= 2) {
-        appendLassoRingSubpath(ctx, ring, closed, hasRings)
-      }
-    }
-    ctx.fillStyle = closed ? 'rgba(2, 132, 199, 0.09)' : 'rgba(2, 132, 199, 0.05)'
-    ctx.fill('evenodd')
-  } else {
-    traceLassoPolygon(ctx, points, closed, false)
-    ctx.fillStyle = closed ? 'rgba(2, 132, 199, 0.09)' : 'rgba(2, 132, 199, 0.05)'
-    ctx.fill()
-  }
-
+  paintLassoOverlayStaticLayer(
+    ctx,
+    canvas.width,
+    canvas.height,
+    points,
+    closed,
+    canvasScale,
+    effectiveRings,
+    inverted,
+    hasRings
+  )
   ctx.beginPath()
   for (const ring of effectiveRings) {
     if (ring.length >= 2) {
       appendLassoRingSubpath(ctx, ring, closed, hasRings)
     }
   }
-
-  ctx.lineWidth = lineWidth + 1.4 * unit
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.92)'
-  ctx.setLineDash([])
-  ctx.stroke()
-
   ctx.lineWidth = lineWidth
   ctx.strokeStyle = '#0f172a'
   ctx.setLineDash([dashLen, gapLen])
   ctx.lineDashOffset = -dashOffset * unit
   ctx.stroke()
-
-  if (inverted && typeof ctx.strokeRect === 'function') {
-    const inset = lineWidth
-    ctx.lineWidth = lineWidth + 1.2 * unit
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)'
-    ctx.setLineDash([])
-    ctx.strokeRect(inset, inset, canvas.width - inset * 2, canvas.height - inset * 2)
-
-    ctx.lineWidth = lineWidth
-    ctx.strokeStyle = '#0284c7'
-    ctx.setLineDash([dashLen, gapLen])
-    ctx.lineDashOffset = -dashOffset * unit
-    ctx.strokeRect(inset, inset, canvas.width - inset * 2, canvas.height - inset * 2)
-  }
-
-  if (!closed && points.length > 2) {
-    const first = points[0]
-    const last = points[points.length - 1]
-    ctx.beginPath()
-    ctx.moveTo(last[0], last[1])
-    ctx.lineTo(first[0], first[1])
-    ctx.lineWidth = 1.2 * unit
-    ctx.strokeStyle = 'rgba(2, 132, 199, 0.55)'
-    ctx.setLineDash([3 * unit, 4 * unit])
-    ctx.lineDashOffset = 0
-    ctx.stroke()
-  }
-
+  paintLassoOverlayOpenStroke(ctx, points, canvasScale)
   ctx.restore()
 }
 
