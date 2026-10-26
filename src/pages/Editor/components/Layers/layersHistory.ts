@@ -325,11 +325,17 @@ const addLayerHistoryDisableStep = async (layerId: string) => {
   )
 }
 
-const addLayerHistoryOrderStep = async (layerId: string, newValue: number, oldValue: number) => {
+const addLayerHistoryOrderStep = async (
+  layerId: string,
+  newValue: number,
+  oldValue: number,
+  partnerLayerId?: string
+) => {
   const layer = state.layers[layerId] || state.deletedLayers[layerId]
   addGlobalLayersHistoryAction(
     {
       layerId,
+      partnerLayerId,
       type: HISTORY_STEP_LAYER_ORDER,
       newValue,
       oldValue,
@@ -479,7 +485,15 @@ export const doUndoForUser = async (userId: string) => {
         } else if (action.type === HISTORY_STEP_LAYER_HIDE && action.layerId) {
           layersBridge.enableLayer(action.layerId)
         } else if (action.type === HISTORY_STEP_LAYER_ORDER && action.layerId) {
-          layersBridge.updateLayerOrger(action.layerId, action.oldValue || 0)
+          if (action.partnerLayerId) {
+            layersBridge.placeMaskGroupAtUpperOrder(
+              action.layerId,
+              action.partnerLayerId,
+              action.oldValue || 0
+            )
+          } else {
+            layersBridge.updateLayerOrger(action.layerId, action.oldValue || 0)
+          }
         } else if (action.type === HISTORY_STEP_LAYER_DUPLICATE && action.newLayerId) {
           await layersBridge._deleteLayer(action.newLayerId, action.layerId || 0)
         } else if (action.type === HISTORY_STEP_LAYER_NEW && action.layerId) {
@@ -565,7 +579,15 @@ export const doRedoForUser = async (userId: string) => {
       } else if (action.type === HISTORY_STEP_LAYER_HIDE && action.layerId) {
         layersBridge.disableLayer(action.layerId)
       } else if (action.type === HISTORY_STEP_LAYER_ORDER && action.layerId) {
-        layersBridge.updateLayerOrger(action.layerId, action.newValue || 0)
+        if (action.partnerLayerId) {
+          layersBridge.placeMaskGroupAtUpperOrder(
+            action.layerId,
+            action.partnerLayerId,
+            action.newValue || 0
+          )
+        } else {
+          layersBridge.updateLayerOrger(action.layerId, action.newValue || 0)
+        }
       } else if (action.type === HISTORY_STEP_LAYER_DUPLICATE && action.newLayerId) {
         await layersBridge.restoreDeletedLayer(action.newLayerId)
         selectedLayerId = action.newLayerId

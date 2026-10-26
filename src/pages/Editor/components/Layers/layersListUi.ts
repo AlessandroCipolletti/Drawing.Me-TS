@@ -19,6 +19,7 @@ import { layersBridge, registerLayersBridge } from './layersBridge'
 import { editorCalls } from 'pages/Editor/editorCalls'
 import {
   canToggleMaskDown,
+  getAdjacentMaskGroup,
   getLayerDomCanvas,
   refreshMaskDependents,
   syncLayerDisplay,
@@ -644,34 +645,171 @@ const updateLayerOrger = (layerId: string, newOrder: number) => {
   layersBridge.reorderLayersList()
 }
 
+const layersByOrder = () => Object.values(state.layers).sort((a, b) => a.order - b.order)
+
+const isMaskPair = (
+  lower: { id: string; order: number },
+  upper: { id: string; order: number; maskBelowLayerId: string | null }
+) => upper.maskBelowLayerId === lower.id && upper.order === lower.order + 1
+
+const snapTargetOrder = (layerId: string, targetOrder: number) => {
+  const without = layersByOrder().filter((layer) => layer.id !== layerId)
+  const current = state.layers[layerId].order
+  let target = Math.max(0, Math.min(without.length, targetOrder))
+  let guard = 0
+  while (guard++ < without.length) {
+    const before = without[target - 1]
+    const after = without[target]
+    if (!before || !after || !isMaskPair(before, after)) break
+    target += current > after.order ? 1 : -1
+    target = Math.max(0, Math.min(without.length, target))
+  }
+  return target
+}
+
+const snapGroupUpperOrder = (upperId: string, lowerId: string, upperOrder: number) => {
+  const others = layersByOrder().filter((layer) => layer.id !== upperId && layer.id !== lowerId)
+  const currentLowerOrder = state.layers[lowerId].order
+  let belowCount = Math.max(0, Math.min(others.length, upperOrder - 1))
+  let guard = 0
+  while (guard++ < others.length) {
+    const before = others[belowCount - 1]
+    const after = others[belowCount]
+    if (!before || !after || !isMaskPair(before, after)) break
+    belowCount += currentLowerOrder > after.order ? 1 : -1
+    belowCount = Math.max(0, Math.min(others.length, belowCount))
+  }
+  return belowCount + 1
+}
+
+const placeMaskGroupAtUpperOrder = (upperId: string, lowerId: string, upperOrder: number) => {
+  const upper = state.layers[upperId]
+  const lower = state.layers[lowerId]
+  if (!upper || !lower) return
+  const others = layersByOrder().filter((layer) => layer.id !== upperId && layer.id !== lowerId)
+  const belowCount = Math.max(0, Math.min(others.length, upperOrder - 1))
+  if (upper.order === belowCount + 1 && lower.order === belowCount) return
+  const ordered = [...others.slice(0, belowCount), lower, upper, ...others.slice(belowCount)]
+  ordered.forEach((layer, order) => {
+    layer.order = order
+  })
+  layersBridge.reorderLayersList()
+}
+
+type MaskDragOrigin = {
+  upperId: string
+  lowerId: string
+  groupStart: number
+  groupEnd: number
+  upperOrder: number
+}
+
+let maskDragOrigin: MaskDragOrigin | null = null
+
+const upperOrderFromDomIndex = (domIndex: number, origin: MaskDragOrigin, count: number) => {
+  const span = origin.groupEnd - origin.groupStart
+  let groupStart = origin.groupStart
+  if (domIndex < origin.groupStart) groupStart = domIndex
+  else if (domIndex > origin.groupEnd) groupStart = domIndex - span
+  groupStart = Math.max(0, Math.min(count - 2, groupStart))
+  return count - 1 - groupStart
+}
+
 const onListDragChange = (draggedElement: HTMLElement, domOrder: number, inProgress = true) => {
   const layerId = draggedElement.getAttribute('data-id')
-  if (!layerId) return
-  const layers = Object.values(state.layers)
-  const newOrder = layers.length - 1 - domOrder
+  if (!layerId || !state.layers[layerId] || typeof domOrder !== 'number') {
+    if (!inProgress) {
+      maskDragOrigin = null
+      state.listDragStartIndex = -1
+    }
+    return
+  }
+  const count = Object.keys(state.layers).length
+  const rawOrder = count - 1 - domOrder
 
+  if (maskDragOrigin) {
+    const upperOrder = snapGroupUpperOrder(
+      maskDragOrigin.upperId,
+      maskDragOrigin.lowerId,
+      upperOrderFromDomIndex(domOrder, maskDragOrigin, count)
+    )
+    placeMaskGroupAtUpperOrder(maskDragOrigin.upperId, maskDragOrigin.lowerId, upperOrder)
+    if (!inProgress) {
+      const upper = state.layers[maskDragOrigin.upperId]
+      if (upper && upper.order !== maskDragOrigin.upperOrder) {
+        layersBridge.addLayerHistoryOrderStep(
+          maskDragOrigin.upperId,
+          upper.order,
+          maskDragOrigin.upperOrder,
+          maskDragOrigin.lowerId
+        )
+        if (Coworking.isOpen()) {
+          Coworking.sendOrderDragLayer(
+            maskDragOrigin.upperId,
+            upper.order,
+            maskDragOrigin.upperOrder,
+            maskDragOrigin.lowerId
+          )
+        }
+      }
+      maskDragOrigin = null
+      state.listDragStartIndex = -1
+    }
+    return
+  }
+
+  const targetOrder = snapTargetOrder(layerId, rawOrder)
   if (!inProgress) {
-    if (newOrder !== state.listDragStartIndex) {
-      layersBridge.addLayerHistoryOrderStep(layerId, newOrder, state.listDragStartIndex)
+    if (targetOrder !== state.listDragStartIndex) {
+      layersBridge.addLayerHistoryOrderStep(layerId, targetOrder, state.listDragStartIndex)
       if (Coworking.isOpen()) {
-        Coworking.sendOrderDragLayer(layerId, newOrder, state.listDragStartIndex)
+        Coworking.sendOrderDragLayer(layerId, targetOrder, state.listDragStartIndex)
       }
     }
     state.listDragStartIndex = -1
   }
 
-  updateLayerOrger(layerId, newOrder)
+  updateLayerOrger(layerId, targetOrder)
 }
+
+const layerRow = (layerId: string) =>
+  refs.layersList?.querySelector(`div[data-id="${layerId}"]`) as HTMLElement | null
 
 const startDragLayer = (e: Event, layerListDom: HTMLElement) => {
   closeParams()
   const id = layerListDom.getAttribute('data-id')
-  if (!id || !refs.layersList) return
+  if (!id || !refs.layersList || !state.layers[id]) return
   state.listDragStartIndex = state.layers[id].order
+  const group = getAdjacentMaskGroup(id)
+  const count = Object.keys(state.layers).length
+  const upperRow = group ? layerRow(group.upper.id) : null
+  const lowerRow = group ? layerRow(group.lower.id) : null
+  maskDragOrigin =
+    group && upperRow && lowerRow
+      ? {
+          upperId: group.upper.id,
+          lowerId: group.lower.id,
+          groupStart: count - 1 - group.upper.order,
+          groupEnd: count - 1 - group.lower.order,
+          upperOrder: group.upper.order,
+        }
+      : null
+  const preview = maskDragOrigin && upperRow && lowerRow ? [upperRow, lowerRow] : undefined
   const expanded = Boolean(layerListDom.closest('.editor-layers__container--expanded'))
-  if (expanded) layerListDom.classList.add('editor-layers__layer-drag-expanded')
-  handleElementsListDragAndDrop(e, refs.layersList, layerListDom, onListDragChange, 'vertical')
-  if (expanded) layerListDom.classList.remove('editor-layers__layer-drag-expanded')
+  const expandedRows = preview ?? [layerListDom]
+  if (expanded)
+    expandedRows.forEach((row) => row.classList.add('editor-layers__layer-drag-expanded'))
+  handleElementsListDragAndDrop(
+    e,
+    refs.layersList,
+    layerListDom,
+    onListDragChange,
+    'vertical',
+    preview
+  )
+  if (expanded) {
+    expandedRows.forEach((row) => row.classList.remove('editor-layers__layer-drag-expanded'))
+  }
 }
 
 const findListTargetLayerParent = (target: EventTarget | null): HTMLElement | false => {
@@ -761,6 +899,7 @@ registerLayersBridge({
   updateResizeMode,
   updateLassoMode,
   updateLayerOrger,
+  placeMaskGroupAtUpperOrder,
   _updateLayerOpacity,
   updateLayerListMaskAffordances,
 })

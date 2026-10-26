@@ -20,6 +20,21 @@ export const getLayerDirectlyBelow = (layerId: string): LayerRecord | undefined 
 export const findUpperLayerMaskedBy = (lowerLayerId: string): LayerRecord | undefined =>
   Object.values(state.layers).find((l) => l.maskBelowLayerId === lowerLayerId)
 
+export const getAdjacentMaskGroup = (
+  layerId: string
+): { upper: LayerRecord; lower: LayerRecord } | null => {
+  const layer = state.layers[layerId]
+  if (!layer) return null
+  if (layer.maskBelowLayerId) {
+    const lower = state.layers[layer.maskBelowLayerId]
+    if (lower && lower.order === layer.order - 1) return { upper: layer, lower }
+    return null
+  }
+  const upper = findUpperLayerMaskedBy(layerId)
+  if (upper && upper.order === layer.order + 1) return { upper, lower: layer }
+  return null
+}
+
 const getLayerMaskRole = (layerId: string): LayerMaskRole => {
   const layer = state.layers[layerId]
   if (!layer) return 'none'

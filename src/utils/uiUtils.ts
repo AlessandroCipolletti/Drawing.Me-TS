@@ -555,23 +555,54 @@ export const handleElementsListDragAndDrop = (() => {
     })
   }
 
+  const copyElementCanvases = (source: HTMLElement, clone: HTMLElement) => {
+    const sources = source.querySelectorAll('canvas')
+    const clones = clone.querySelectorAll('canvas')
+    sources.forEach((oldCanvas, index) => {
+      const newCanvas = clones[index] as HTMLCanvasElement | undefined
+      if (!(oldCanvas instanceof HTMLCanvasElement) || !newCanvas) return
+      newCanvas.width = oldCanvas.width
+      newCanvas.height = oldCanvas.height
+      newCanvas.getContext('2d')?.drawImage(oldCanvas, 0, 0)
+    })
+  }
+
+  const buildDraggedElement = (selectedElement: HTMLElement, previewElements?: HTMLElement[]) => {
+    const sources =
+      previewElements && previewElements.length > 1 ? previewElements : [selectedElement]
+    if (sources.length === 1) {
+      const source = sources[0]
+      const clone = source.cloneNode(true) as HTMLElement
+      const rect = source.getBoundingClientRect()
+      clone.style.width = `${rect.width}px`
+      clone.style.height = `${rect.height}px`
+      copyElementCanvases(source, clone)
+      return clone
+    }
+    const wrap = document.createElement('div')
+    wrap.classList.add('editor-layers__drag-group')
+    let width = 0
+    sources.forEach((source) => {
+      const clone = source.cloneNode(true) as HTMLElement
+      const rect = source.getBoundingClientRect()
+      clone.style.width = `${rect.width}px`
+      clone.style.height = `${rect.height}px`
+      copyElementCanvases(source, clone)
+      width = Math.max(width, rect.width)
+      wrap.appendChild(clone)
+    })
+    wrap.style.width = `${width}px`
+    return wrap
+  }
+
   const initDragAndDropDom = (
     selectedElement: HTMLElement,
     startEventX: number,
-    startEventY: number
+    startEventY: number,
+    previewElements?: HTMLElement[]
   ) => {
     animationScale = Params.isPhone ? 1.7 : 1.2
-    const draggedEl = selectedElement.cloneNode(true) as HTMLElement
-    const selectedRect = selectedElement.getBoundingClientRect()
-    draggedEl.style.width = `${selectedRect.width}px`
-    draggedEl.style.height = `${selectedRect.height}px`
-    if (draggedEl.querySelector('canvas')) {
-      const newCanvas = draggedEl.querySelector('canvas')!
-      const oldCanvas = selectedElement.querySelector('canvas')!
-      newCanvas.width = oldCanvas.width
-      newCanvas.height = oldCanvas.height
-      newCanvas.getContext('2d')!.drawImage(oldCanvas, 0, 0)
-    }
+    const draggedEl = buildDraggedElement(selectedElement, previewElements)
     draggedEl.classList.add('displayNone', 'drawith__dragNdrop-element-dragging')
     moveEventX = startEventX
     moveEventY = startEventY
@@ -654,9 +685,9 @@ export const handleElementsListDragAndDrop = (() => {
     })
     cancelElementAnimationIfExists(draggedEl, 'drop')
     draggedEl.remove()
-    if (draggedEl.querySelector('canvas')) {
-      draggedEl.querySelector('canvas').width = 0
-    }
+    draggedEl.querySelectorAll('canvas').forEach((canvas: HTMLCanvasElement) => {
+      canvas.width = 0
+    })
   }
 
   const updateVerticalDrop = debounceThrottle(() => {
@@ -836,14 +867,20 @@ export const handleElementsListDragAndDrop = (() => {
     listElement: HTMLElement,
     selectedElement: HTMLElement,
     saveDrag: (...args: any[]) => void,
-    direction = 'vertical'
+    direction = 'vertical',
+    previewElements?: HTMLElement[]
   ) => {
     preventDefault(e)
     list = listElement
     element = selectedElement
     directionVertical = direction === 'vertical'
     listRect = list.getBoundingClientRect()
-    draggedElement = initDragAndDropDom(selectedElement, getEventCoordX(e), getEventCoordY(e))
+    draggedElement = initDragAndDropDom(
+      selectedElement,
+      getEventCoordX(e),
+      getEventCoordY(e),
+      previewElements
+    )
     listHasVerticalScroll = list.scrollHeight > list.clientHeight
     listHasHorizontalScroll = list.scrollWidth > list.clientWidth
     listMaxScrollTop = list.scrollHeight - list.clientHeight

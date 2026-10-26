@@ -52,7 +52,12 @@ export interface EditorCoworkingPort {
   updateLayerOpacityFromCoworker: (layerId: string, opacity: number, oldValue: number) => void
   enableLayerFromCoworker: (layerId: string) => void
   disableLayerFromCoworker: (layerId: string) => void
-  layerDragChangeFromCoworker: (layerId: string, newOrder: number, oldOrder: number) => void
+  layerDragChangeFromCoworker: (
+    layerId: string,
+    newOrder: number,
+    oldOrder: number,
+    partnerLayerId?: string
+  ) => void
   receiveFlipLayerFromCoworker: (layerId: string, horizontally: boolean) => void
   receiveResizeLayerFromCoworker: (
     layerId: string,

@@ -334,10 +334,15 @@ export const updateLayerOpacityFromCoworker = (
 export const layerDragChangeFromCoworker = (
   layerId: string,
   newOrder: number,
-  oldOrder: number
+  oldOrder: number,
+  partnerLayerId?: string
 ) => {
-  layersBridge.addLayerHistoryOrderStep(layerId, newOrder, oldOrder)
-  layersBridge.updateLayerOrger(layerId, newOrder)
+  layersBridge.addLayerHistoryOrderStep(layerId, newOrder, oldOrder, partnerLayerId)
+  if (partnerLayerId) {
+    layersBridge.placeMaskGroupAtUpperOrder(layerId, partnerLayerId, newOrder)
+  } else {
+    layersBridge.updateLayerOrger(layerId, newOrder)
+  }
 }
 
 registerLayersBridge({

@@ -211,6 +211,7 @@ export interface GlobalLayerHistoryAction {
   oldName?: string
   maskBelowLayerId?: string | null
   oldMaskBelowLayerId?: string | null
+  partnerLayerId?: string
 }
 
 export let UsersLayersHistory: Record<string, History<GlobalLayerHistoryAction>> = {}

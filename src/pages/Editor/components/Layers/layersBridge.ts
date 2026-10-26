@@ -23,7 +23,13 @@ export interface LayersBridge {
   addLayerHistoryNewStep: (layerId: string) => Promise<void>
   addLayerHistoryRenameStep: (layerId: string, newName: string, oldName: string) => Promise<void>
   addLayerHistoryOpacityStep: (layerId: string, newValue: number, oldValue: number) => Promise<void>
-  addLayerHistoryOrderStep: (layerId: string, newValue: number, oldValue: number) => Promise<void>
+  addLayerHistoryOrderStep: (
+    layerId: string,
+    newValue: number,
+    oldValue: number,
+    partnerLayerId?: string
+  ) => Promise<void>
+  placeMaskGroupAtUpperOrder: (upperId: string, lowerId: string, upperOrder: number) => void
   addLayerHistoryMaskStep: (
     layerId: string,
     maskBelowLayerId: string | null,

@@ -133,7 +133,12 @@ const peerMessageHandlers: Record<string, (data: any) => void> = {
     withEditor(() => editorCoworkingPort.disableLayerFromCoworker(data.layerId)),
   [editorEvents.orderDragLayer]: (data) =>
     withEditor(() =>
-      editorCoworkingPort.layerDragChangeFromCoworker(data.layerId, data.newOrder, data.oldOrder)
+      editorCoworkingPort.layerDragChangeFromCoworker(
+        data.layerId,
+        data.newOrder,
+        data.oldOrder,
+        data.partnerLayerId
+      )
     ),
   [editorEvents.flipLayer]: (data) =>
     withEditor(() =>
@@ -255,10 +260,15 @@ export const sendDisableLayer = (layerId: string) => {
   })
 }
 
-export const sendOrderDragLayer = (layerId: string, newOrder: number, oldOrder: number) => {
+export const sendOrderDragLayer = (
+  layerId: string,
+  newOrder: number,
+  oldOrder: number,
+  partnerLayerId?: string
+) => {
   peerClient?.sendMessage({
     event: editorEvents.orderDragLayer,
-    data: { layerId, newOrder, oldOrder },
+    data: { layerId, newOrder, oldOrder, partnerLayerId },
   })
 }
 
