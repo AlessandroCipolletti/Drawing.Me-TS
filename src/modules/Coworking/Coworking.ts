@@ -115,6 +115,14 @@ const peerMessageHandlers: Record<string, (data: any) => void> = {
     withEditor(() =>
       editorCoworkingPort.mergeLayersFromCoworker(data.layerOneId, data.layerTwoId, data.newLayerId)
     ),
+  [editorEvents.layerMask]: (data) =>
+    withEditor(() =>
+      editorCoworkingPort.receiveLayerMaskFromCoworker(
+        data.layerId,
+        data.maskBelowLayerId,
+        data.oldMaskBelowLayerId
+      )
+    ),
   [editorEvents.opacityLayer]: (data) =>
     withEditor(() =>
       editorCoworkingPort.updateLayerOpacityFromCoworker(data.layerId, data.newValue, data.oldValue)
@@ -178,6 +186,17 @@ export const sendMergeDownLayer = (layerOneId: string, layerTwoId: string, newLa
   peerClient?.sendMessage({
     event: editorEvents.mergeLayers,
     data: { layerOneId, layerTwoId, newLayerId },
+  })
+}
+
+export const sendLayerMask = (
+  layerId: string,
+  maskBelowLayerId: string | null,
+  oldMaskBelowLayerId: string | null
+) => {
+  peerClient?.sendMessage({
+    event: editorEvents.layerMask,
+    data: { layerId, maskBelowLayerId, oldMaskBelowLayerId },
   })
 }
 

@@ -596,6 +596,10 @@ iframe {
   mask-image: url('../static/icons/svg/merge-down.svg');
   -webkit-mask-image: url('../static/icons/svg/merge-down.svg');
 }
+.svg-icon-layer-mask-down {
+  mask-image: url('../static/icons/svg/layer-mask-down.svg');
+  -webkit-mask-image: url('../static/icons/svg/layer-mask-down.svg');
+}
 .svg-icon-undo {
   mask-image: url('../static/icons/svg/undo.svg');
   -webkit-mask-image: url('../static/icons/svg/undo.svg');

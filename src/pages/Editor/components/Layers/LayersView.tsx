@@ -10,6 +10,7 @@ export interface LayersRefs {
   editLayerNameButton: HTMLElement | null
   duplicateLayerButton: HTMLElement | null
   mergeDownLayerButton: HTMLElement | null
+  maskDownLayerButton: HTMLElement | null
   flipVerticalButton: HTMLElement | null
   flipHorizontalButton: HTMLElement | null
   sendLayerButton: HTMLElement | null
@@ -70,6 +71,7 @@ export const LayersView = ({ maxLength, refs }: { maxLength: number; refs: Layer
         <div class="editor-layers__layer-options">
           <div class="editor-layers__layer-options-name">
             <input type="text" maxlength={maxLength} />
+            <span class="editor-layers__layer-mask-label displayNone">Mask</span>
           </div>
           <div class="editor-layers__layer-options-button svg-icon-gray" />
         </div>
@@ -129,6 +131,14 @@ export const LayersView = ({ maxLength, refs }: { maxLength: number; refs: Layer
         }}
       >
         <div class="editor-layers__params-icon svg-icon-merge-down svg-icon-dark" />
+      </div>
+      <div
+        class="editor-layers__params-mask-down"
+        ref={(el) => {
+          refs.maskDownLayerButton = el
+        }}
+      >
+        <div class="editor-layers__params-icon svg-icon-layer-mask-down svg-icon-dark" />
       </div>
       <div
         class="editor-layers__params-send"

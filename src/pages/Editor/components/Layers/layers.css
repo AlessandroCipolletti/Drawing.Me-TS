@@ -25,7 +25,8 @@
 .editor-layers__container {
   transition:
     transform var(--options-show-transition) cubic-bezier(0.22, 1, 0.36, 1),
-    width var(--options-show-transition) cubic-bezier(0.22, 1, 0.36, 1);
+    width var(--options-show-transition) cubic-bezier(0.22, 1, 0.36, 1),
+    padding var(--options-show-transition) cubic-bezier(0.22, 1, 0.36, 1);
   position: absolute;
   right: var(--layers-panel-right);
   top: var(--layers-panel-top);
@@ -126,7 +127,7 @@
   display: flex;
   flex-direction: column;
   gap: 0.56rem;
-  padding: 0;
+  padding: 0.22rem 0.12rem;
 }
 .editor-layers__list::-webkit-scrollbar {
   display: none;
@@ -135,7 +136,7 @@
 .editor-layers__layer {
   position: relative;
   width: 100%;
-  height: auto;
+  height: calc(3.95rem + 2px);
   border-radius: 0.9rem;
   background-color: transparent;
   border: 1px solid transparent;
@@ -148,10 +149,16 @@
   gap: 0;
   flex-shrink: 0;
   transition:
+    height var(--options-show-transition) cubic-bezier(0.22, 1, 0.36, 1),
+    padding var(--options-show-transition) cubic-bezier(0.22, 1, 0.36, 1),
+    margin var(--options-show-transition) cubic-bezier(0.22, 1, 0.36, 1),
+    width var(--options-show-transition) cubic-bezier(0.22, 1, 0.36, 1),
+    gap var(--options-show-transition) cubic-bezier(0.22, 1, 0.36, 1),
+    border-radius var(--options-show-transition) cubic-bezier(0.22, 1, 0.36, 1),
     background-color 150ms ease,
     border-color 150ms ease,
     opacity 150ms ease;
-  overflow: hidden;
+  overflow: visible;
   opacity: 0.72;
   box-shadow: none;
 }
@@ -163,12 +170,6 @@
 }
 .editor-layers__layer.editor-layers__layer-coworker {
   cursor: not-allowed;
-}
-.editor-layers__layer-selected .editor-layers__layer-thumb {
-  border: 1.5px solid var(--accent-ink-strong);
-}
-.editor-layers__layer-coworker.editor-layers__layer-selected .editor-layers__layer-thumb {
-  border-color: var(--palette-gray-3);
 }
 
 .editor-layers__container--expanded .editor-layers__layer,
@@ -198,33 +199,38 @@
   .editor-layers__layer.editor-layers__layer-coworker.editor-layers__layer-selected,
 .editor-layers__layer-drag-expanded.editor-layers__layer-selected {
   background-color: #d5dee8;
-  border-color: transparent;
+  border-color: rgba(15, 23, 42, 0.22);
   box-shadow: none;
 }
 .editor-layers__container--expanded
   .editor-layers__layer.editor-layers__layer-selected.editor-layers__layer-yours:hover {
   background-color: #d5dee8;
 }
-.editor-layers__container--expanded .editor-layers__layer-selected .editor-layers__layer-thumb,
-.editor-layers__layer-drag-expanded.editor-layers__layer-selected .editor-layers__layer-thumb {
-  border: 1px solid rgba(15, 23, 42, 0.1);
-}
 
 .editor-layers__layer-thumb {
   position: relative;
+  z-index: 1;
   width: 3.95rem;
   height: 3.95rem;
   border-radius: 0.7rem;
   background-color: #ffffff;
-  border: 1px solid rgba(15, 23, 42, 0.1);
+  border: 1px solid rgba(15, 23, 42, 0.12);
   flex-shrink: 0;
   overflow: hidden;
   box-sizing: border-box;
+  transition:
+    width var(--options-show-transition) cubic-bezier(0.22, 1, 0.36, 1),
+    height var(--options-show-transition) cubic-bezier(0.22, 1, 0.36, 1),
+    margin var(--options-show-transition) cubic-bezier(0.22, 1, 0.36, 1),
+    border-radius var(--options-show-transition) cubic-bezier(0.22, 1, 0.36, 1),
+    transform var(--options-show-transition) cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 140ms ease,
+    box-shadow 140ms ease;
 }
 .editor-layers__container--expanded .editor-layers__layer-thumb,
 .editor-layers__layer-drag-expanded .editor-layers__layer-thumb {
-  width: 4.8rem;
-  height: 4.8rem;
+  width: 4.4rem;
+  height: 4.4rem;
   border-radius: 0.75rem;
 }
 
@@ -274,6 +280,91 @@
 .editor-layers__layer-coworker:not(.editor-layers__layer-selected)
   .editor-layers__layer-selected-icon {
   display: none;
+}
+
+/* MASK PAIR AFFORDANCES (grayscale palette, distinct from solid dark selection border) */
+.editor-layers__layer--mask-lower {
+  height: calc(3.15rem + 2px);
+}
+.editor-layers__layer--mask-upper::before {
+  content: '';
+  position: absolute;
+  top: -0.18rem;
+  left: 0.04rem;
+  right: 0.04rem;
+  height: calc(3.95rem + 0.56rem + 3.15rem + 0.36rem);
+  transition:
+    height var(--options-show-transition) cubic-bezier(0.22, 1, 0.36, 1),
+    left var(--options-show-transition) cubic-bezier(0.22, 1, 0.36, 1),
+    right var(--options-show-transition) cubic-bezier(0.22, 1, 0.36, 1),
+    border-radius var(--options-show-transition) cubic-bezier(0.22, 1, 0.36, 1);
+  border-radius: 0.88rem;
+  background-color: rgba(15, 23, 42, 0.055);
+  border: 1.5px solid rgba(15, 23, 42, 0.24);
+  pointer-events: none;
+  z-index: 0;
+}
+.editor-layers__container--expanded .editor-layers__layer--mask-upper,
+.editor-layers__container--expanded .editor-layers__layer--mask-lower {
+  width: calc(100% - 1rem);
+  margin-left: 0.5rem;
+  margin-right: 0.5rem;
+}
+.editor-layers__container--expanded .editor-layers__layer--mask-upper::before {
+  left: calc(-0.5rem - 1px);
+  right: calc(-0.5rem - 1px);
+  height: calc(5.2rem + 0.56rem + 5.2rem + 0.36rem);
+  border-radius: 1.12rem;
+}
+.editor-layers__layer--mask-upper .editor-layers__layer-thumb {
+  border: 1px solid rgba(15, 23, 42, 0.18);
+  transform: translateY(-2px);
+}
+.editor-layers__container--expanded .editor-layers__layer--mask-upper .editor-layers__layer-thumb,
+.editor-layers__container--expanded .editor-layers__layer--mask-lower .editor-layers__layer-thumb {
+  transform: none;
+  align-self: center;
+}
+.editor-layers__layer--mask-lower .editor-layers__layer-thumb {
+  width: 3.15rem;
+  height: 3.15rem;
+  border: 1.5px dashed var(--palette-gray-2);
+}
+.editor-layers__container--expanded .editor-layers__layer--mask-lower .editor-layers__layer-thumb,
+.editor-layers__layer-drag-expanded.editor-layers__layer--mask-lower .editor-layers__layer-thumb {
+  width: 3.6rem;
+  height: 3.6rem;
+  margin: 0 0.4rem;
+}
+.editor-layers__layer-mask-label {
+  flex-shrink: 0;
+  margin-left: 0.35rem;
+  padding: 0.12rem 0.42rem;
+  border-radius: 0.45rem;
+  background-color: rgba(15, 23, 42, 0.07);
+  border: 1px solid rgba(15, 23, 42, 0.22);
+  font-family: 'Poppins-Medium', sans-serif;
+  font-size: 0.65rem;
+  line-height: 1.1;
+  letter-spacing: 0.04rem;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+/* SELECTED LAYER (always overrides default/mask thumb border with dark ink) */
+.editor-layers__layer.editor-layers__layer-yours.editor-layers__layer-selected
+  .editor-layers__layer-thumb,
+.editor-layers__container--expanded
+  .editor-layers__layer.editor-layers__layer-yours.editor-layers__layer-selected
+  .editor-layers__layer-thumb,
+.editor-layers__layer-drag-expanded.editor-layers__layer-selected .editor-layers__layer-thumb {
+  border: 2.5px solid var(--accent-ink-strong);
+  box-shadow:
+    0 0 0 2px rgba(15, 23, 42, 0.16),
+    0 2px 6px rgba(15, 23, 42, 0.14);
+}
+.editor-layers__layer-coworker.editor-layers__layer-selected .editor-layers__layer-thumb {
+  border-color: var(--palette-gray-3);
 }
 
 .editor-layers__layer-options {
@@ -375,6 +466,7 @@
 .editor-layers__params-duplicate,
 .editor-layers__params-delete,
 .editor-layers__params-merge-down,
+.editor-layers__params-mask-down,
 .editor-layers__params-resize,
 .editor-layers__params-send,
 .editor-layers__params-flip-horizontal,
@@ -412,6 +504,7 @@
 .editor-layers__params-name:hover:not(.disabled),
 .editor-layers__params-duplicate:hover:not(.disabled),
 .editor-layers__params-merge-down:hover:not(.disabled),
+.editor-layers__params-mask-down:hover:not(.disabled),
 .editor-layers__params-resize:hover:not(.disabled),
 .editor-layers__params-send:hover:not(.disabled),
 .editor-layers__params-flip-horizontal:hover:not(.disabled),
@@ -422,6 +515,7 @@
 .editor-layers__params-name:hover:not(.disabled) .editor-layers__params-icon,
 .editor-layers__params-duplicate:hover:not(.disabled) .editor-layers__params-icon,
 .editor-layers__params-merge-down:hover:not(.disabled) .editor-layers__params-icon,
+.editor-layers__params-mask-down:hover:not(.disabled) .editor-layers__params-icon,
 .editor-layers__params-resize:hover:not(.disabled) .editor-layers__params-icon,
 .editor-layers__params-send:hover:not(.disabled) .editor-layers__params-icon,
 .editor-layers__params-flip-horizontal:hover:not(.disabled) .editor-layers__params-icon,
@@ -434,11 +528,19 @@
 .editor-layers__params-delete:hover:not(.disabled) .editor-layers__params-icon {
   background-color: var(--palette-red-1);
 }
+.editor-layers__params-mask-down.selected:not(.disabled) {
+  background-color: var(--editor-well-bg);
+  border-color: var(--accent-ink-strong);
+}
+.editor-layers__params-mask-down.selected:not(.disabled) .editor-layers__params-icon {
+  background-color: var(--accent-ink-strong);
+}
 .editor-layers__params-visibility:active:not(.disabled),
 .editor-layers__params-name:active:not(.disabled),
 .editor-layers__params-duplicate:active:not(.disabled),
 .editor-layers__params-delete:active:not(.disabled),
 .editor-layers__params-merge-down:active:not(.disabled),
+.editor-layers__params-mask-down:active:not(.disabled),
 .editor-layers__params-resize:active:not(.disabled),
 .editor-layers__params-send:active:not(.disabled),
 .editor-layers__params-flip-horizontal:active:not(.disabled),

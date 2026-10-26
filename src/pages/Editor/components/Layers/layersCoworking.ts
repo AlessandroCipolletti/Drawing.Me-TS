@@ -18,6 +18,7 @@ import {
   LayerRecord,
 } from './layersState'
 import { layersBridge, registerLayersBridge } from './layersBridge'
+import { getLayerDomCanvas } from './layerMask'
 
 export const selectCoworkerLayer = (layerId: string) => {
   if (state?.layers?.[layerId] && !isYourLayerYours(layerId)) {
@@ -57,6 +58,8 @@ export const addNewLayerFromCoworker = async (layer: LayerRecord) => {
   }
 
   layer.canvas = createNewLayerCanvas()
+  layer.maskBelowLayerId = layer.maskBelowLayerId ?? null
+  layer.displayCanvas = null
   layer.history = new History<LayerHistoryStep>(
     config.stepHistoryMaxLength,
     clearLayerHistoryStepBitmap
@@ -140,6 +143,15 @@ export const duplicateLayerFromCoworker = (layerId: string, newId: string) => {
   layersBridge.duplicateLayer(layerId, newId)
 }
 
+export const receiveLayerMaskFromCoworker = async (
+  layerId: string,
+  maskBelowLayerId: string | null,
+  oldMaskBelowLayerId: string | null
+) => {
+  await layersBridge.applyLayerMaskLink(layerId, maskBelowLayerId, false)
+  layersBridge.addLayerHistoryMaskStep(layerId, maskBelowLayerId, oldMaskBelowLayerId)
+}
+
 export const mergeLayersFromCoworker = (
   layerOneId: string,
   layerTwoId: string,
@@ -207,7 +219,7 @@ export const updateLayerOpacityFromCoworker = (
   layersBridge.addLayerHistoryOpacityStep(layerId, opacity, oldValue)
   opacity = round(opacity / 100, 2)
   state.layers[layerId].opacity = opacity
-  state.layers[layerId].canvas.style.opacity = String(opacity)
+  getLayerDomCanvas(state.layers[layerId]).style.opacity = String(opacity)
 }
 
 export const layerDragChangeFromCoworker = (

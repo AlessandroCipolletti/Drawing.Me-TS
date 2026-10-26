@@ -13,6 +13,7 @@ import { noop } from 'utils/jsUtils'
 import {
   saveDrawingToDB,
   saveDrawingPaletteColors,
+  saveDrawingLayersSidebarExpanded,
   setBackgroundSavingId,
 } from 'utils/localDbUtils'
 import { EditorState } from './editorTypes'
@@ -41,6 +42,7 @@ interface ExportedDrawingData {
   selectedTool?: unknown
   madeByCorowking?: boolean
   layers?: unknown[]
+  layersSidebarExpanded?: boolean
 }
 
 const getCurrentDrawingInfo = async (state: EditorState): Promise<ExportedDrawingData> => {
@@ -50,6 +52,7 @@ const getCurrentDrawingInfo = async (state: EditorState): Promise<ExportedDrawin
   currentDrawing.selectedColorId = ColorPicker.getCurrentSelectedColorId()
   currentDrawing.toolsCustomProps = Tools.getToolsCustomProps()
   currentDrawing.selectedTool = Tools.getCurrentSelectedTool()
+  currentDrawing.layersSidebarExpanded = Layers.isLayersSidebarExpanded()
   return currentDrawing
 }
 
@@ -146,6 +149,12 @@ export const saveCopy = (state: EditorState, editorConfig: { draftInfoDuration: 
 export const saveDrawingsPalette = (state: EditorState, colors: PaletteColor[] = []) => {
   if (state.localDbDrawId && colors.length) {
     saveDrawingPaletteColors(state.localDbDrawId, colors)
+  }
+}
+
+export const saveLayersSidebarExpanded = (state: EditorState, expanded: boolean) => {
+  if (state.localDbDrawId) {
+    saveDrawingLayersSidebarExpanded(state.localDbDrawId, expanded)
   }
 }
 

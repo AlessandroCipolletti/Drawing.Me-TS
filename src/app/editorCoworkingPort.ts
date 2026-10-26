@@ -20,6 +20,11 @@ export interface EditorCoworkingPort {
   renameLayerFromCoworker: (layerId: string, newName: string) => void
   duplicateLayerFromCoworker: (layerId: string, newId: string) => void
   mergeLayersFromCoworker: (layerOneId: string, layerTwoId: string, newLayerId: string) => void
+  receiveLayerMaskFromCoworker: (
+    layerId: string,
+    maskBelowLayerId: string | null,
+    oldMaskBelowLayerId: string | null
+  ) => void
   updateLayerOpacityFromCoworker: (layerId: string, opacity: number, oldValue: number) => void
   enableLayerFromCoworker: (layerId: string) => void
   disableLayerFromCoworker: (layerId: string) => void

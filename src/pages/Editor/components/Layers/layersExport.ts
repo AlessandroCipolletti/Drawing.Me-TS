@@ -30,6 +30,12 @@ import {
   LayerRecord,
 } from './layersState'
 import { layersBridge, registerLayersBridge } from './layersBridge'
+import {
+  ensureLayerDisplayCanvas,
+  getLayerDomCanvas,
+  syncLayerDisplay,
+  validateAllMaskAdjacency,
+} from './layerMask'
 
 export interface ExportableLayerCopy {
   id: string
@@ -51,6 +57,7 @@ export interface ExportableLayerCopy {
   base64?: string
   resizeMode?: unknown
   gco?: unknown
+  maskBelowLayerId?: string | null
 }
 
 const layerDeepCopy = (
@@ -76,6 +83,7 @@ const layerDeepCopy = (
     createTimestamp: layer.createTimestamp,
     updateTimestamp: layer.updateTimestamp,
     owner: layer.owner,
+    maskBelowLayerId: layer.maskBelowLayerId ?? null,
   }
   if (deepCopyCanvas) {
     copy.canvas = duplicateCanvas(layer.canvas, usingOffscreen) as unknown as LayerCanvasElement
@@ -169,8 +177,9 @@ export const exportWholeCanvasData = async (
   const layers = Object.values(state.layers).sort((l1, l2) => (l1.order > l2.order ? 1 : -1))
   for (const layer of layers) {
     if (layer.active && tempContext) {
+      syncLayerDisplay(layer.id)
       tempContext.globalAlpha = layer.opacity
-      tempContext.drawImage(layer.canvas, 0, 0)
+      tempContext.drawImage(getLayerDomCanvas(layer), 0, 0)
       data.minX = Math.min(data.minX, layer.minX)
       data.minY = Math.min(data.minY, layer.minY)
       data.maxX = Math.max(data.maxX, layer.maxX)
@@ -213,6 +222,10 @@ const prepareLayerFromDb = async (rawLayer: LayerRecord & { base64: string }) =>
     config.stepHistoryMaxLength,
     clearLayerHistoryStepBitmap
   )
+  layer.maskBelowLayerId = rawLayer.maskBelowLayerId ?? null
+  layer.displayCanvas = null
+  ensureLayerDisplayCanvas(layer)
+  syncLayerDisplay(layer.id)
   return layer
 }
 
@@ -229,8 +242,10 @@ const updateLayerPreview = (layerId: string | false = state.currentSelectedLayer
   if (!layer || !layer.previewRef || !layer.previewRef.context) return
 
   if (Number.isFinite(layer.minX)) {
+    syncLayerDisplay(layer.id)
+    const previewSource = getLayerDomCanvas(layer)
     let [preview] = cropImageWithMargin(
-      layer.canvas,
+      previewSource,
       layer.minX,
       layer.minY,
       layer.maxX,
@@ -275,14 +290,18 @@ const createNewLayerListElementDom = (layerId: string, withAnimation = true) => 
   if (withAnimation) {
     addInElement(layerListDom, { commitResult: false })
   }
+  layersBridge.updateLayerListMaskAffordances()
 }
 
 const createNewLayerDom = async (layerId: string, withAnimation = false) => {
   createNewLayerListElementDom(layerId, withAnimation)
   const layer = state.layers[layerId]
 
-  layer.canvas.style.zIndex = String(layer.order * 10)
-  layer.canvas.style.opacity = String(layer.opacity)
+  ensureLayerDisplayCanvas(layer)
+  syncLayerDisplay(layerId)
+  const domCanvas = getLayerDomCanvas(layer)
+  domCanvas.style.zIndex = String(layer.order * 10)
+  domCanvas.style.opacity = String(layer.opacity)
 
   if (state.layers[layerId].active) {
     layersBridge.enableLayer(layerId)
@@ -291,7 +310,7 @@ const createNewLayerDom = async (layerId: string, withAnimation = false) => {
   }
 
   updateLayerPreview(layerId)
-  editorFacade.appendLayer(layer.canvas)
+  editorFacade.appendLayer(domCanvas)
 
   if (layer.canvas.width > 0 && layer.canvas.height > 0) {
     layer.history.add({
@@ -309,7 +328,7 @@ const reorderLayersList = () => {
     .sort((l1, l2) => (l1.order > l2.order ? 1 : -1))
     .forEach((layer, i) => {
       layer.order = i
-      layer.canvas.style.zIndex = String(i * 10)
+      getLayerDomCanvas(layer).style.zIndex = String(i * 10)
     })
 
   const layersCount = Object.keys(state.layers).length
@@ -332,6 +351,8 @@ const reorderLayersList = () => {
       )
       .forEach((node) => refs.layersList?.appendChild(node))
   }
+  validateAllMaskAdjacency()
+  layersBridge.updateLayerListMaskAffordances()
   layersBridge.updateEditorCanvas()
 }
 
@@ -348,8 +369,11 @@ const restoreDeletedLayer = async (layerId: string, withAnimation = true) => {
 
   createNewLayerListElementDom(layerId, withAnimation)
   reorderLayersList()
-  layer.canvas.style.zIndex = String(layer.order * 10)
-  layer.canvas.style.opacity = String(layer.opacity)
+  ensureLayerDisplayCanvas(layer)
+  syncLayerDisplay(layerId)
+  const domCanvas = getLayerDomCanvas(layer)
+  domCanvas.style.zIndex = String(layer.order * 10)
+  domCanvas.style.opacity = String(layer.opacity)
 
   if (state.layers[layerId].active) {
     layersBridge.enableLayer(layerId)
@@ -357,7 +381,7 @@ const restoreDeletedLayer = async (layerId: string, withAnimation = true) => {
     layersBridge.disableLayer(layerId)
   }
 
-  editorFacade.appendLayer(layer.canvas)
+  editorFacade.appendLayer(domCanvas)
   await updateLayerPreview(layerId)
 }
 

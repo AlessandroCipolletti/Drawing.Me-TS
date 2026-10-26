@@ -330,6 +330,16 @@ export const saveDrawingPaletteColors = securizeAsyncFn(
   'saveDrawingPaletteColors'
 )
 
+export const saveDrawingLayersSidebarExpanded = securizeAsyncFn(
+  async (localDbId: number, expanded: boolean) => {
+    await updateLocalDrawing(localDbId, {
+      layersSidebarExpanded: expanded,
+    })
+  },
+  DEFAULT_LOCAL_DB_ERROR_MSG,
+  'saveDrawingLayersSidebarExpanded'
+)
+
 export const renameLocalDrawing = securizeAsyncFn(
   async (localDbId: number, title: string) => {
     await updateLocalDrawing(Number(localDbId), {

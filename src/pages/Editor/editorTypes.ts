@@ -285,6 +285,7 @@ export interface PreloadedDrawingRecord {
     finalHex: string
   }>
   selectedColorId?: number
+  layersSidebarExpanded?: boolean
 }
 
 export const createInitialEditorState = (

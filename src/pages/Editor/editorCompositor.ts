@@ -1,5 +1,6 @@
 import Params from 'main/Params'
 import * as Layers from './components/Layers'
+import { isLayerMasked } from './components/Layers/layerMask'
 import * as Toolbar from './components/Toolbar'
 import * as Tools from './components/Tools'
 import { fadeInElements, fadeOutElements } from 'utils/animationsUtils'
@@ -125,7 +126,7 @@ export const updateEditorLayer = (
   state.currentLayerGCO = globalCompositeOperation
   state.currentToolProps.globalCompositeOperation = state.currentToolGCO || globalCompositeOperation
   state.currentLayerIsActive = active
-  refs.canvasForLine.classList.toggle('displayNone', !active)
+  refs.canvasForLine.classList.toggle('displayNone', !active || isLayerMasked())
 }
 
 const cancelPendingResizeRaf = () => {

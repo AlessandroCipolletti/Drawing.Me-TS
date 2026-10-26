@@ -23,6 +23,12 @@ import {
 } from './editorUtils'
 import { TOUCH_TYPE_STYLUS, TOUCH_TYPE_FINGER } from 'main/constants'
 import { sendCoworkingStep } from './editorCoworkingBridge'
+import {
+  compositeMaskedDisplayWithLineOverlay,
+  isLayerMasked,
+  syncLayerDisplayDuringStroke,
+} from './components/Layers/layerMask'
+import { state as layersState } from './components/Layers/layersState'
 import { EditorRefs } from './EditorView'
 import { EditorState, EditorTouchState, PointerTouchEvent } from './editorTypes'
 
@@ -83,9 +89,33 @@ export interface StrokeSessionDeps {
 export const createEditorStrokeSession = (deps: StrokeSessionDeps) => {
   const { state, initialCurrentTouch, refs, coordsAreInsideLayer, setToolColor } = deps
   let nearRulerLocked = false
+  let lineCanvasHiddenForMask = false
 
   const saveStepHistory = () => {
     Layers.addLayerHistoryContentChangedStep()
+  }
+
+  const refreshStrokeLayerDisplay = (layerId: string) => {
+    if (!layersState.layers[layerId]) return
+    if (isLayerMasked(layerId) && refs.canvasForLine) {
+      compositeMaskedDisplayWithLineOverlay(refs.canvasForLine, layerId)
+    } else {
+      syncLayerDisplayDuringStroke(layerId)
+    }
+  }
+
+  const setLineCanvasHiddenForMask = (hidden: boolean) => {
+    if (!refs.canvasForLine) return
+    lineCanvasHiddenForMask = hidden
+    if (hidden) {
+      refs.canvasForLine.classList.add('displayNone')
+      return
+    }
+    const layerId = Layers.getCurrentSelectedLayerId()
+    const active = Boolean(
+      layerId && layersState.layers[layerId]?.active && !isLayerMasked(layerId)
+    )
+    refs.canvasForLine.classList.toggle('displayNone', !active)
   }
 
   const updateCursorPosition = (size: number, x: number, y: number) => {
@@ -122,6 +152,8 @@ export const createEditorStrokeSession = (deps: StrokeSessionDeps) => {
       if (Layers.isYourLayerEmpty()) {
         fillCompletely(context, color, context.canvas.width, context.canvas.height)
         hasBeenUsed = true
+        const layerId = Layers.getCurrentSelectedLayerId()
+        if (layerId) syncLayerDisplayDuringStroke(layerId)
         saveStepHistory()
       } else {
         const res = fillWithBucket(
@@ -134,7 +166,11 @@ export const createEditorStrokeSession = (deps: StrokeSessionDeps) => {
         )
         if (res) {
           hasBeenUsed = true
-          res.then(saveStepHistory)
+          res.then(() => {
+            const layerId = Layers.getCurrentSelectedLayerId()
+            if (layerId) syncLayerDisplayDuringStroke(layerId)
+            saveStepHistory()
+          })
         }
       }
       if (hasBeenUsed && Coworking.isOpen() && sendForCoworking) {
@@ -235,7 +271,12 @@ export const createEditorStrokeSession = (deps: StrokeSessionDeps) => {
     }
 
     if (state.currentTouch.drewSomething) {
+      const layerId = Layers.getCurrentSelectedLayerId()
+      if (layerId) refreshStrokeLayerDisplay(layerId)
       requestAnimationFrame(saveStepHistory)
+    }
+    if (lineCanvasHiddenForMask) {
+      setLineCanvasHiddenForMask(false)
     }
   }
 
@@ -341,10 +382,20 @@ export const createEditorStrokeSession = (deps: StrokeSessionDeps) => {
       refs.contextForLine.lastDrawCoordY = refs.layerContext.lastDrawCoordY
       refs.contextForLine.clearRect(0, 0, refs.canvasForLine.width, refs.canvasForLine.height)
     }
+
+    const layerId = Layers.getCurrentSelectedLayerId()
+    if (layerId && isLayerMasked(layerId) && state.currentTouch.isDown) {
+      setLineCanvasHiddenForMask(true)
+    }
+    if (layerId && state.currentTouch.isDown) {
+      refreshStrokeLayerDisplay(layerId)
+    }
   }
 
   const onStepTouchMove = (touchEvent: PointerTouchEvent) => {
     runCoalescedStepTouchMove(touchEvent, processSingleStepTouchMove)
+    const layerId = Layers.getCurrentSelectedLayerId()
+    if (layerId) refreshStrokeLayerDisplay(layerId)
   }
 
   const onStepTouchEnd = (e: PointerTouchEvent) => {
@@ -363,6 +414,8 @@ export const createEditorStrokeSession = (deps: StrokeSessionDeps) => {
         state.lastStep = { ...state.lastAdaptedStep }
         updateCurrentTouchData(state, e, Params.eventMove)
         handleTouchMoveStep(refs.layerContext, true)
+        const layerId = Layers.getCurrentSelectedLayerId()
+        if (layerId) refreshStrokeLayerDisplay(layerId)
         state.lastAdaptedStep = { ...state.lastStep }
       }
     }
@@ -373,6 +426,9 @@ export const createEditorStrokeSession = (deps: StrokeSessionDeps) => {
     }
     updateCurrentTouchData(state, e, Params.eventEnd)
     handleTouchEndStep(refs.layerContext)
+    if (lineCanvasHiddenForMask) {
+      setLineCanvasHiddenForMask(false)
+    }
   }
 
   const makeTouchStartNearRuler = (touchEvent: PointerTouchEvent, x: number, y: number) => {
@@ -390,6 +446,8 @@ export const createEditorStrokeSession = (deps: StrokeSessionDeps) => {
       state.currentTouch.isNearRuler = true
       updateCurrentTouchData(state, touchEvent, Params.eventStart, x, y)
       handleTouchStartStep(refs.layerContext)
+      const layerId = Layers.getCurrentSelectedLayerId()
+      if (layerId) refreshStrokeLayerDisplay(layerId)
     }
   }
 
@@ -397,6 +455,8 @@ export const createEditorStrokeSession = (deps: StrokeSessionDeps) => {
     if (state.currentTouch.isDown && refs.layerContext) {
       updateCurrentTouchData(state, touchEvent, Params.eventMove, x, y)
       handleTouchMoveStep(refs.layerContext, true)
+      const layerId = Layers.getCurrentSelectedLayerId()
+      if (layerId) refreshStrokeLayerDisplay(layerId)
     }
   }
 

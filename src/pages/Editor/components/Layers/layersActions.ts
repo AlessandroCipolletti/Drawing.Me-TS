@@ -27,6 +27,14 @@ import {
   updateMagnetismCoords,
 } from './layersState'
 import { layersBridge, registerLayersBridge } from './layersBridge'
+import {
+  breakMaskLinksInvolvingLayer,
+  canToggleMaskDown,
+  compositeSourceToDisplay,
+  getLayerDirectlyBelow,
+  getLayerDomCanvas,
+  syncLayerDisplay,
+} from './layerMask'
 
 const selectLayer = async (layerId: string) => {
   if (!state.layers[layerId]) return
@@ -91,14 +99,21 @@ const _deleteLayer = async (
   }
   layersBridge.closeParams()
   const listEl = refs.layersList?.querySelector(`div[data-id="${layerId}"]`) as HTMLElement | null
+  breakMaskLinksInvolvingLayer(layerId)
+  const domCanvas = getLayerDomCanvas(layer)
   if (withAnimation) {
-    fadeOutElements(layer.canvas)
+    fadeOutElements(domCanvas)
     if (listEl) await removeOutElement(listEl)
   } else {
-    layer.canvas.classList.add('displayNone')
+    domCanvas.classList.add('displayNone')
     listEl?.remove()
   }
   layer.previewRef = null
+  domCanvas.remove()
+  if (layer.displayCanvas && layer.displayCanvas !== layer.canvas) {
+    layer.displayCanvas.width = layer.displayCanvas.height = 0
+    layer.displayCanvas = null
+  }
   layer.canvas.remove()
   state.deletedLayers[layerId] = layer
   delete state.layers[layerId]
@@ -178,6 +193,8 @@ const duplicateLayer = async (layerId: string, newId: string) => {
     clearLayerHistoryStepBitmap
   )
   newLayer.active = true
+  newLayer.maskBelowLayerId = null
+  newLayer.displayCanvas = null
   Object.keys(state.layers).forEach((id) => {
     if (state.layers[id].order >= newLayer.order) {
       state.layers[id].order++
@@ -229,11 +246,15 @@ const mergeLayers = async (
   newLayerData.owner = ownerId
   newLayerData.order = layerTwo.order
   newLayerData.modified = true
+  syncLayerDisplay(layerTwo.id)
+  syncLayerDisplay(layerOne.id)
   newLayerData.canvas = mergeImages([
-    [layerTwo.canvas, layerTwo.opacity],
-    [layerOne.canvas, layerOne.opacity],
+    [getLayerDomCanvas(layerTwo), layerTwo.opacity],
+    [getLayerDomCanvas(layerOne), layerOne.opacity],
   ]) as LayerCanvasElement
   newLayerData.canvas.context = getNewContextForCanvas(newLayerData.canvas)
+  newLayerData.maskBelowLayerId = null
+  newLayerData.displayCanvas = null
   state.layers[newLayerData.id] = newLayerData
 
   await layersBridge.updateLayerRealCoords(newLayerData.id)
@@ -246,7 +267,10 @@ const mergeLayers = async (
     `div[data-id="${layerTwo.id}"]`
   ) as HTMLElement | null
   await Promise.all([
-    fadeOutElements([state.layers[layerOne.id].canvas, state.layers[layerTwo.id].canvas]),
+    fadeOutElements([
+      getLayerDomCanvas(state.layers[layerOne.id]),
+      getLayerDomCanvas(state.layers[layerTwo.id]),
+    ]),
     elOne ? removeOutElement(elOne) : Promise.resolve(),
     elTwo ? removeOutElement(elTwo) : Promise.resolve(),
   ])
@@ -275,6 +299,7 @@ export const mergeDownSelectedLayer = async (e?: Event) => {
   const empty = !Number.isFinite(selectedLayer.minX)
   const canMergeDown =
     !empty &&
+    !selectedLayer.maskBelowLayerId &&
     selectedLayer.order > 0 &&
     Object.values(state.layers).find((l) => l.order === selectedLayer.order - 1)?.owner ===
       Coworking.getUserId()
@@ -319,7 +344,7 @@ const enableLayer = (layerId: string | false = state.currentSelectedLayerId) => 
   layerOptionButton?.classList.add('svg-icon-visible')
   layerOptionButton?.classList.remove('svg-icon-hidden')
 
-  fadeInElements(layer.canvas, { maxFadeIn: layer.opacity })
+  fadeInElements(getLayerDomCanvas(layer), { maxFadeIn: layer.opacity })
   if (layerId === state.currentSelectedLayerId) {
     const canBeResized = layerCanBeResized(layerId)
     layersBridge.updateEditorCanvas()
@@ -345,7 +370,7 @@ const disableLayer = (layerId: string | false = state.currentSelectedLayerId) =>
   layerOptionButton?.classList.add('svg-icon-hidden')
   layerOptionButton?.classList.remove('svg-icon-visible')
 
-  fadeOutElements(layer.canvas, { maxFadeIn: layer.opacity })
+  fadeOutElements(getLayerDomCanvas(layer), { maxFadeIn: layer.opacity })
   if (layerId === state.currentSelectedLayerId) {
     layersBridge.updateEditorCanvas()
     layersBridge.updateResizeMode(false, false)
@@ -393,10 +418,80 @@ const clearLayer = (layerId: string) => {
   const layer = state.layers[layerId]
   if (!layer) return
   layer.canvas.context.clearRect(0, 0, state.canvases.width, state.canvases.height)
+  syncLayerDisplay(layerId)
   layer.minX = Infinity
   layer.minY = Infinity
   layer.maxY = -Infinity
   layer.maxX = -Infinity
+}
+
+const applyLayerMaskLink = async (
+  layerId: string,
+  maskBelowLayerId: string | null,
+  recordHistory = true
+) => {
+  const layer = state.layers[layerId]
+  if (!layer) return
+  const oldMaskBelowLayerId = layer.maskBelowLayerId
+  if (oldMaskBelowLayerId === maskBelowLayerId) return
+
+  layer.maskBelowLayerId = maskBelowLayerId
+  if (maskBelowLayerId) {
+    compositeSourceToDisplay(layerId)
+  } else {
+    syncLayerDisplay(layerId)
+  }
+  layersBridge.updateLayerPreview(layerId)
+  layersBridge.updateLayerListMaskAffordances()
+  layersBridge.updateParamsByLayer(layerId)
+  layersBridge.updateEditorCanvas()
+
+  if (recordHistory) {
+    await layersBridge.addLayerHistoryMaskStep(layerId, maskBelowLayerId, oldMaskBelowLayerId)
+    if (Coworking.isOpen()) {
+      Coworking.sendLayerMask(layerId, maskBelowLayerId, oldMaskBelowLayerId)
+    }
+    layersBridge.updateUndoRedoButtons()
+  }
+}
+
+const setLayerMaskDown = async (enabled: boolean) => {
+  if (!state.currentSelectedLayerId) return
+  const layerId = state.currentSelectedLayerId
+  const layer = state.layers[layerId]
+  if (!layer) return
+
+  if (enabled) {
+    const lower = getLayerDirectlyBelow(layerId)
+    if (!lower || !canToggleMaskDown(layerId)) return
+    await applyLayerMaskLink(layerId, lower.id)
+  } else {
+    await applyLayerMaskLink(layerId, null)
+  }
+}
+
+export const toggleMaskDownSelectedLayer = async (e?: Event) => {
+  if (e) preventDefault(e)
+  if (layersBridge.paramsAreClosed() || !state.currentSelectedLayerId) {
+    return
+  }
+  layersBridge.openParams()
+
+  const layer = state.layers[state.currentSelectedLayerId]
+  const isMasked = Boolean(layer.maskBelowLayerId)
+  const canEnable = canToggleMaskDown(state.currentSelectedLayerId)
+
+  if (!isMasked && !canEnable) {
+    return
+  }
+  if (state.resizeMode) {
+    return
+  }
+
+  await layersBridge.saveResizeModeIfNeeded()
+  layersBridge.closeParams()
+  await setLayerMaskDown(!isMasked)
+  layersBridge.openParams()
 }
 
 export const clearCurrentLayer = async (): Promise<boolean> => {
@@ -462,8 +557,13 @@ export const initLayers = async (
     state.layers = Object.fromEntries(prepared.map((l) => [l.id, l]))
     const layersIds = Object.keys(state.layers)
     await Promise.all(layersIds.map((id) => layersBridge.createNewLayerDom(id, false)))
-    await selectLayer(layersIds.find((layerId) => state.layers[layerId].selected) || layersIds[0])
     layersBridge.reorderLayersList()
+    layersIds.forEach((id) => {
+      syncLayerDisplay(id)
+      layersBridge.updateLayerPreview(id)
+    })
+    await selectLayer(layersIds.find((layerId) => state.layers[layerId].selected) || layersIds[0])
+    layersBridge.updateLayerListMaskAffordances()
   } else {
     await addNewLayer()
   }
@@ -479,4 +579,5 @@ registerLayersBridge({
   mergeLayers,
   saveLayerName,
   toggleEnableLayer,
+  applyLayerMaskLink,
 })

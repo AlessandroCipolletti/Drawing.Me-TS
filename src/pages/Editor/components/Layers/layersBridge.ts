@@ -24,6 +24,17 @@ export interface LayersBridge {
   addLayerHistoryRenameStep: (layerId: string, newName: string, oldName: string) => Promise<void>
   addLayerHistoryOpacityStep: (layerId: string, newValue: number, oldValue: number) => Promise<void>
   addLayerHistoryOrderStep: (layerId: string, newValue: number, oldValue: number) => Promise<void>
+  addLayerHistoryMaskStep: (
+    layerId: string,
+    maskBelowLayerId: string | null,
+    oldMaskBelowLayerId: string | null
+  ) => Promise<void>
+  applyLayerMaskLink: (
+    layerId: string,
+    maskBelowLayerId: string | null,
+    recordHistory?: boolean
+  ) => Promise<void>
+  updateLayerListMaskAffordances: () => void
   updateUndoRedoButtons: () => void
   cleanGlobalLayersHistoryForLayer: (layerId: string) => void
   closeParams: () => Promise<void>

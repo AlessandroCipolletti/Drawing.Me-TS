@@ -42,6 +42,7 @@ import {
   duplicateSelectedLayer,
   initLayers,
   mergeDownSelectedLayer,
+  toggleMaskDownSelectedLayer,
   renameLayer,
   toggleEnableLayer,
 } from './layersActions'
@@ -52,6 +53,8 @@ import {
   flipVertically,
   gcoModeTouchStart,
   layersToggleButtonTouchStart,
+  setLayersSidebarExpanded,
+  isLayersSidebarExpanded,
   onContainerTouchStart,
   onListClick,
   onListLongPress,
@@ -70,6 +73,7 @@ import {
   enableLayerFromCoworker,
   layerDragChangeFromCoworker,
   mergeLayersFromCoworker,
+  receiveLayerMaskFromCoworker,
   receiveFlipLayerFromCoworker,
   receiveLayerFromCoworker,
   receiveResizeLayerFromCoworker,
@@ -97,7 +101,7 @@ export {
   closeResizeModeIfNeeded,
 }
 
-const initDom = async (moduleContainer: HTMLElement) => {
+const initDom = async (moduleContainer: HTMLElement, sidebarExpanded = false) => {
   mount(
     moduleContainer,
     LayersView({
@@ -119,6 +123,7 @@ const initDom = async (moduleContainer: HTMLElement) => {
   )
   layersToggleBtn.addEventListener(Params.eventStart, layersToggleButtonTouchStart)
   refs.layersToggleButton = layersToggleBtn
+  setLayersSidebarExpanded(sidebarExpanded)
 
   refs.layerListElement?.remove()
   refs.paramsContainer?.addEventListener(Params.eventStart, preventDefault)
@@ -132,6 +137,7 @@ const initDom = async (moduleContainer: HTMLElement) => {
   refs.editLayerNameButton?.addEventListener(Params.eventStart, renameLayer)
   refs.duplicateLayerButton?.addEventListener(Params.eventStart, duplicateSelectedLayer)
   refs.mergeDownLayerButton?.addEventListener(Params.eventStart, mergeDownSelectedLayer)
+  refs.maskDownLayerButton?.addEventListener(Params.eventStart, toggleMaskDownSelectedLayer)
   refs.deleteLayerButton?.addEventListener(Params.eventStart, deleteLayer)
   refs.sendLayerButton?.addEventListener(Params.eventStart, sendCurrentLayerToCoworker)
   if (refs.layersList) {
@@ -157,12 +163,15 @@ const initDom = async (moduleContainer: HTMLElement) => {
   }
 }
 
+export { isLayersSidebarExpanded }
+
 export const init = async (
   moduleContainer: HTMLElement,
   initialLayers: unknown[],
   canvasWidth: number,
   canvasHeight: number,
-  coworkersId: string[] = []
+  coworkersId: string[] = [],
+  sidebarExpanded = false
 ) => {
   markLayersReady(false)
   initHistories(coworkersId)
@@ -175,7 +184,7 @@ export const init = async (
     }
   }
   resetLayersState()
-  await initDom(moduleContainer)
+  await initDom(moduleContainer, sidebarExpanded)
   if (refs.layersList) refs.layersList.scrollTop = 1
   await initLayers(initialLayers, canvasWidth, canvasHeight)
   markLayersReady(true)
@@ -220,6 +229,7 @@ registerEditorCoworkingPort({
   renameLayerFromCoworker,
   duplicateLayerFromCoworker,
   mergeLayersFromCoworker,
+  receiveLayerMaskFromCoworker,
   updateLayerOpacityFromCoworker,
   enableLayerFromCoworker,
   disableLayerFromCoworker,

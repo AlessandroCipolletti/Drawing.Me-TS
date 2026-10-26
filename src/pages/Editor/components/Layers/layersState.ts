@@ -72,6 +72,8 @@ export interface LayerRecord {
   owner: string
   base64?: string
   bitmap?: ImageBitmap
+  maskBelowLayerId: string | null
+  displayCanvas: LayerCanvasElement | null
 }
 
 export interface LayersMagnetismCoords {
@@ -165,6 +167,7 @@ export const refs: LayersRefs = {
   editLayerNameButton: null,
   duplicateLayerButton: null,
   mergeDownLayerButton: null,
+  maskDownLayerButton: null,
   deleteLayerButton: null,
   flipVerticalButton: null,
   flipHorizontalButton: null,
@@ -192,6 +195,8 @@ export interface GlobalLayerHistoryAction {
   oldValue?: number
   newName?: string
   oldName?: string
+  maskBelowLayerId?: string | null
+  oldMaskBelowLayerId?: string | null
 }
 
 export let UsersLayersHistory: Record<string, History<GlobalLayerHistoryAction>> = {}
@@ -229,6 +234,11 @@ export const hardDeleteLayer = (layerId: string, clearHistory = true) => {
     if (clearHistory && layer.history) {
       layer.history.clear()
       ;(layer as { history?: unknown }).history = undefined
+    }
+    if (layer.displayCanvas) {
+      layer.displayCanvas.remove()
+      layer.displayCanvas.width = layer.displayCanvas.height = 0
+      ;(layer as { displayCanvas?: unknown }).displayCanvas = null
     }
     if (layer.canvas) {
       layer.canvas.remove()
@@ -331,6 +341,8 @@ export const createNewLayerData = (owner: string | false = false): LayerRecord =
   createTimestamp: Date.now(),
   updateTimestamp: Date.now(),
   owner: owner || Coworking.getUserId(),
+  maskBelowLayerId: null,
+  displayCanvas: null,
 })
 
 export const setLayerCoordsAfterDragResize = (

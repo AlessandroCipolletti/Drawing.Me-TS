@@ -39,6 +39,7 @@ import {
   setDraftInterval,
   saveCopy as persistSaveCopy,
   saveDrawingsPalette as persistSaveDrawingsPalette,
+  saveLayersSidebarExpanded as persistSaveLayersSidebarExpanded,
   setDrawingModified as persistSetDrawingModified,
   saveAndGoToFolder as persistSaveAndGoToFolder,
 } from './editorPersistence'
@@ -266,7 +267,8 @@ export const open = async (
     preloadedDrawing.layers || [],
     state.canvas.width,
     state.canvas.height,
-    options.coworkerId ? [options.coworkerId] : []
+    options.coworkerId ? [options.coworkerId] : [],
+    Boolean(preloadedDrawing.layersSidebarExpanded)
   )
   await Promise.all([
     Tools.init(
@@ -333,6 +335,8 @@ registerEditorFacade({
     applyToolSelection(state, initialState.canvas, refs, coordsAreInsideLayer, tool),
   setToolColor,
   saveDrawingsPalette: (colors: PaletteColor[] = []) => persistSaveDrawingsPalette(state, colors),
+  saveLayersSidebarExpanded: (expanded: boolean) =>
+    persistSaveLayersSidebarExpanded(state, expanded),
   hidePipetteCursor: () => lifecycleHidePipetteCursor(state, refs),
   setDrawingModified: () => persistSetDrawingModified(state, config, setLastActiveDrawingId),
   setDesktopCanvasPanMode: (active: boolean) => {

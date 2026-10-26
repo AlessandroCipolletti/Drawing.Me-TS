@@ -1,5 +1,6 @@
 import * as Coworking from 'modules/Coworking'
 import * as Layers from './components/Layers'
+import { syncLayerDisplayDuringStroke } from './components/Layers/layerMask'
 import * as Tools from './components/Tools'
 import { round } from 'utils/mathUtils'
 import {
@@ -129,6 +130,7 @@ export const drawCoworkingStepsPayload = (
       bucket: receiveBucketFromCoworker,
     }
   )
+  syncLayerDisplayDuringStroke(data.layerId)
   if (data.steps.find((step) => step[0] === 'end')) {
     requestAnimationFrame(() => Layers.addLayerHistoryContentChangedStep(data.layerId))
   }

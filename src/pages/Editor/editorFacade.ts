@@ -11,6 +11,7 @@ export interface EditorFacade {
   setTool: (toolProps: Partial<CurrentToolProps>) => void
   setToolColor: (color: string | false, randomColor: boolean) => void
   saveDrawingsPalette: (colors: PaletteColor[]) => Promise<void> | void
+  saveLayersSidebarExpanded: (expanded: boolean) => void
   hidePipetteCursor: () => Promise<void> | void
   setDrawingModified: () => void
   setDesktopCanvasPanMode: (active: boolean) => void
@@ -42,6 +43,7 @@ export const editorFacade: EditorFacade = {
   setTool: (toolProps) => currentFacade?.setTool(toolProps),
   setToolColor: (color, randomColor) => currentFacade?.setToolColor(color, randomColor),
   saveDrawingsPalette: (colors) => currentFacade?.saveDrawingsPalette(colors),
+  saveLayersSidebarExpanded: (expanded) => currentFacade?.saveLayersSidebarExpanded(expanded),
   hidePipetteCursor: () => currentFacade?.hidePipetteCursor(),
   setDrawingModified: () => currentFacade?.setDrawingModified(),
   setDesktopCanvasPanMode: (active) => currentFacade?.setDesktopCanvasPanMode(active),

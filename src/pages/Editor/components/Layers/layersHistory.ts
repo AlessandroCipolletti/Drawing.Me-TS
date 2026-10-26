@@ -14,6 +14,7 @@ import {
   HISTORY_STEP_LAYER_DELETE,
   HISTORY_STEP_LAYERS_MERGE,
   HISTORY_STEP_LAYER_RENAME,
+  HISTORY_STEP_LAYER_MASK,
 } from './constants'
 import {
   UsersLayersHistory,
@@ -29,6 +30,7 @@ import {
 } from './layersState'
 import { layersBridge, registerLayersBridge } from './layersBridge'
 import { editorCalls } from 'pages/Editor/editorCalls'
+import { compositeSourceToDisplay, refreshMaskDependents, syncLayerDisplay } from './layerMask'
 
 const updateUndoRedoButtons = () => {
   if (state.resizeMode) {
@@ -112,6 +114,12 @@ const restoreLayerContentStep = async (layerId: string, step?: LayerHistoryStep)
   } else {
     layer.canvas.context.clearRect(0, 0, layer.canvas.width, layer.canvas.height)
   }
+  if (layer.maskBelowLayerId) {
+    compositeSourceToDisplay(layerId)
+  } else {
+    syncLayerDisplay(layerId)
+  }
+  refreshMaskDependents(layerId)
   if (layerId === state.currentSelectedLayerId) {
     const canBeResized = layerCanBeResized(layerId)
     const wasInResizeMode = state.resizeMode
@@ -166,6 +174,12 @@ export const addLayerHistoryContentChangedStep = async (
       layer.owner
     )
     layer.history.add(step)
+    if (layer.maskBelowLayerId) {
+      compositeSourceToDisplay(layerId)
+    } else {
+      syncLayerDisplay(layerId)
+    }
+    refreshMaskDependents(layerId)
     layersBridge.updateLayerPreview(layerId)
     if (isYourLayerYours(layerId)) {
       const wasInResizeMode = state.resizeMode
@@ -283,6 +297,23 @@ const addLayerHistoryDeleteStep = async (layerId: string, nextSelectedId: string
   )
 }
 
+const addLayerHistoryMaskStep = async (
+  layerId: string,
+  maskBelowLayerId: string | null,
+  oldMaskBelowLayerId: string | null
+) => {
+  const layer = state.layers[layerId] || state.deletedLayers[layerId]
+  addGlobalLayersHistoryAction(
+    {
+      type: HISTORY_STEP_LAYER_MASK,
+      layerId,
+      maskBelowLayerId,
+      oldMaskBelowLayerId,
+    },
+    layer.owner
+  )
+}
+
 const addLayerHistoryMergeStep = async (
   layerOneId: string,
   layerTwoId: string,
@@ -352,6 +383,13 @@ export const doUndoForUser = async (userId: string) => {
           selectedLayerId = action.layerOneId
         } else if (action.type === HISTORY_STEP_LAYER_RENAME && action.layerId) {
           layersBridge.saveLayerName(action.layerId, action.oldName || '')
+        } else if (action.type === HISTORY_STEP_LAYER_MASK && action.layerId) {
+          await layersBridge.applyLayerMaskLink(
+            action.layerId,
+            action.oldMaskBelowLayerId ?? null,
+            false
+          )
+          layersBridge.updateLayerListMaskAffordances()
         }
 
         if (!isYourLayerYours(selectedLayerId)) {
@@ -418,6 +456,13 @@ export const doRedoForUser = async (userId: string) => {
         selectedLayerId = action.newLayerId
       } else if (action.type === HISTORY_STEP_LAYER_RENAME && action.layerId) {
         layersBridge.saveLayerName(action.layerId, action.newName || '')
+      } else if (action.type === HISTORY_STEP_LAYER_MASK && action.layerId) {
+        await layersBridge.applyLayerMaskLink(
+          action.layerId,
+          action.maskBelowLayerId ?? null,
+          false
+        )
+        layersBridge.updateLayerListMaskAffordances()
       }
 
       if (!isYourLayerYours(selectedLayerId)) {
@@ -451,6 +496,7 @@ registerLayersBridge({
   addLayerHistoryRenameStep,
   addLayerHistoryOpacityStep,
   addLayerHistoryOrderStep,
+  addLayerHistoryMaskStep,
   updateUndoRedoButtons,
   cleanGlobalLayersHistoryForLayer,
 })

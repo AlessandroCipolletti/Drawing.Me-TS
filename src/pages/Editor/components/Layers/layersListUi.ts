@@ -17,6 +17,12 @@ import {
 } from './layersState'
 import { layersBridge, registerLayersBridge } from './layersBridge'
 import { editorCalls } from 'pages/Editor/editorCalls'
+import {
+  canToggleMaskDown,
+  getLayerDomCanvas,
+  refreshMaskDependents,
+  syncLayerDisplay,
+} from './layerMask'
 
 const paramsAreClosed = () => state.paramsTimeout === false
 
@@ -45,10 +51,40 @@ export const closeParams = async () => {
   }
 }
 
+const updateLayerListMaskAffordances = () => {
+  if (!refs.layersList) return
+  refs.layersList.querySelectorAll('.editor-layers__layer').forEach((row) => {
+    row.classList.remove('editor-layers__layer--mask-upper', 'editor-layers__layer--mask-lower')
+    const label = row.querySelector('.editor-layers__layer-mask-label')
+    if (label) {
+      label.classList.add('displayNone')
+      label.textContent = 'Mask'
+    }
+  })
+  Object.values(state.layers).forEach((layer) => {
+    if (!layer.maskBelowLayerId) return
+    const upperRow = refs.layersList?.querySelector(`div[data-id="${layer.id}"]`)
+    const lowerRow = refs.layersList?.querySelector(`div[data-id="${layer.maskBelowLayerId}"]`)
+    upperRow?.classList.add('editor-layers__layer--mask-upper')
+    lowerRow?.classList.add('editor-layers__layer--mask-lower')
+    const upperLabel = upperRow?.querySelector('.editor-layers__layer-mask-label')
+    if (upperLabel) {
+      upperLabel.textContent = 'Clip'
+      upperLabel.classList.remove('displayNone')
+    }
+    const lowerLabel = lowerRow?.querySelector('.editor-layers__layer-mask-label')
+    if (lowerLabel) {
+      lowerLabel.textContent = 'Mask'
+      lowerLabel.classList.remove('displayNone')
+    }
+  })
+}
+
 const updateEditorCanvas = () => {
   if (state.currentSelectedLayerId && state.layers[state.currentSelectedLayerId]) {
+    const domCanvas = getLayerDomCanvas(state.layers[state.currentSelectedLayerId])
     editorFacade.updateEditorLayer(
-      parseInt(state.layers[state.currentSelectedLayerId].canvas.style.zIndex, 10),
+      parseInt(domCanvas.style.zIndex, 10),
       state.layers[state.currentSelectedLayerId].opacity,
       state.gcoMode ? 'source-atop' : 'source-over',
       state.layers[state.currentSelectedLayerId].active
@@ -104,10 +140,13 @@ const updateParamsByLayer = (layerId: string | false = state.currentSelectedLaye
     const opacity = round(layer.opacity * 100, 0)
     const canMergeDown =
       !empty &&
+      !layer.maskBelowLayerId &&
       yourLayers.length > 1 &&
       layer.order > 0 &&
       Object.values(state.layers).find((l) => l.order === layer.order - 1)?.owner ===
         Coworking.getUserId()
+    const canMaskDown = canToggleMaskDown(layerId)
+    const maskActive = Boolean(layer.maskBelowLayerId)
     const canDuplicate = !empty && Object.values(state.layers).length < config.maxLayersNumber
     const canTransferLayer = Coworking.isOpen() && yourLayers.length > 1 && layer.active
 
@@ -119,6 +158,11 @@ const updateParamsByLayer = (layerId: string | false = state.currentSelectedLaye
     refs.duplicateLayerButton?.classList.toggle('disabled', !canDuplicate)
     refs.deleteLayerButton?.classList.toggle('disabled', !canBeDeleted)
     refs.mergeDownLayerButton?.classList.toggle('disabled', !canMergeDown)
+    refs.maskDownLayerButton?.classList.toggle(
+      'disabled',
+      state.resizeMode || (!canMaskDown && !maskActive)
+    )
+    refs.maskDownLayerButton?.classList.toggle('selected', maskActive)
     refs.flipVerticalButton?.classList.toggle('disabled', empty)
     refs.flipHorizontalButton?.classList.toggle('disabled', empty)
     refs.sendLayerButton?.classList.toggle('disabled', !canTransferLayer)
@@ -156,6 +200,8 @@ export const updateCanvasContent = (
       h,
       rotation
     )
+    syncLayerDisplay(state.currentSelectedLayerId)
+    refreshMaskDependents(state.currentSelectedLayerId)
   }
   if (madeChanges) {
     editorCalls.toggleButton('undo', true)
@@ -180,6 +226,7 @@ const startResizeMode = () => {
   editorCalls.toggleButton('clear', false)
   refs.resizeButton?.classList.toggle('selected', state.resizeMode)
   refs.visibilityLayerButton?.classList.add('disabled')
+  refs.maskDownLayerButton?.classList.add('disabled')
   editorCalls.deselectPipette(true, false, true)
   const layer = state.layers[state.currentSelectedLayerId]
   const [image, minX, minY, width, height] = cropImageWithMargin(
@@ -233,6 +280,7 @@ const endResizeMode = async () => {
   editorCalls.toggleButton('clear', true)
   await saveResizeModeIfNeeded()
   refs.visibilityLayerButton?.classList.remove('disabled')
+  updateParamsByLayer(state.currentSelectedLayerId)
   refs.resizeButton?.classList.toggle('selected', state.resizeMode)
   state.lastResizeCoords = {
     x: 0,
@@ -347,7 +395,7 @@ const _updateLayerOpacity = (layerId: string, opacity: number, inProgress = fals
   }
   const normalizedOpacity = round(opacity / 100, 2)
   state.layers[layerId].opacity = normalizedOpacity
-  state.layers[layerId].canvas.style.opacity = String(normalizedOpacity)
+  getLayerDomCanvas(state.layers[layerId]).style.opacity = String(normalizedOpacity)
 
   if (!inProgress) {
     const canBeResized = layerCanBeResized(layerId)
@@ -470,15 +518,21 @@ export const onListClick = (e: Event) => {
   }
 }
 
+export const isLayersSidebarExpanded = () =>
+  Boolean(refs.layersContainer?.classList.contains('editor-layers__container--expanded'))
+
+export const setLayersSidebarExpanded = (expanded: boolean) => {
+  refs.layersContainer?.classList.toggle('editor-layers__container--expanded', expanded)
+  refs.layersContainer?.parentElement?.classList.toggle('editor__layers-expanded', expanded)
+  refs.layersToggleButton?.classList.toggle('selected', expanded)
+}
+
 export const layersToggleButtonTouchStart = (e: Event) => {
   preventDefault(e)
   closeParams()
-  const expanded = refs.layersContainer?.classList.toggle('editor-layers__container--expanded')
-  refs.layersContainer?.parentElement?.classList.toggle(
-    'editor__layers-expanded',
-    Boolean(expanded)
-  )
-  refs.layersToggleButton?.classList.toggle('selected', Boolean(expanded))
+  const expanded = !isLayersSidebarExpanded()
+  setLayersSidebarExpanded(expanded)
+  editorFacade.saveLayersSidebarExpanded(expanded)
 }
 
 export const onListLongPress = async (e: Event) => {
@@ -514,4 +568,5 @@ registerLayersBridge({
   updateResizeMode,
   updateLayerOrger,
   _updateLayerOpacity,
+  updateLayerListMaskAffordances,
 })
