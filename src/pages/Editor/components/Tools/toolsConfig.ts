@@ -479,6 +479,14 @@ const toolsConfigInit = (): Record<string, ToolConfigProps> => ({
     },
     []
   ),
+  magicWand: getCustomTool(
+    {
+      name: 'magicWand',
+      hasSizeAndAlpha: false,
+      maxSizeThatNeedsToAdaptLine: 0,
+    },
+    []
+  ),
   pipette: getCustomTool(
     {
       name: 'pipette',

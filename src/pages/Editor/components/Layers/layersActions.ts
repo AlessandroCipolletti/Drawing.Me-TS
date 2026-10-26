@@ -649,14 +649,16 @@ export const clearLassoSelection = async () => {
   const layerId = state.currentSelectedLayerId
   const layer = state.layers[layerId]
   if (!layer) return
-  const { outsideCanvas, points, inverted } = state.lassoSelection
+  const { outsideCanvas, points, rings, inverted } = state.lassoSelection
+  const basePoints = state.lassoFloatBasePoints || points
+  const baseRings = state.lassoFloatBaseRings || rings
   state.lassoFloatDirty = false
   fillCanvasWithImage(layer.canvas.context, outsideCanvas, 0, 0)
   layersBridge.endLassoMode(false)
   await layersBridge.addLayerHistoryContentChangedStep(layerId)
   layersBridge.updateUndoRedoButtons()
   if (Coworking.isOpen()) {
-    Coworking.sendLassoClearLayer(layerId, state.lassoFloatBasePoints || points, inverted)
+    Coworking.sendLassoClearLayer(layerId, basePoints, inverted, baseRings)
   }
 }
 
@@ -670,7 +672,7 @@ export const copyLassoSelectionToNewLayer = async () => {
     return
   }
   const sourceLayerId = state.currentSelectedLayerId
-  const { selectedCanvas, minX, minY, maxX, maxY, points, inverted } = state.lassoSelection
+  const { selectedCanvas, minX, minY, maxX, maxY, points, rings, inverted } = state.lassoSelection
   const insertOrder = getInsertOrderAboveLayer(sourceLayerId)
   const newLayerId = uuidv4()
 
@@ -694,7 +696,8 @@ export const copyLassoSelectionToNewLayer = async () => {
       insertOrder,
       newLayer.name,
       points,
-      inverted
+      inverted,
+      rings
     )
   }
   layersBridge.startResizeMode()
@@ -713,8 +716,10 @@ export const cutLassoSelectionToNewLayer = async () => {
   const sourceLayer = state.layers[sourceLayerId]
   if (!sourceLayer) return
 
-  const { selectedCanvas, outsideCanvas, minX, minY, maxX, maxY, points, inverted } =
+  const { selectedCanvas, outsideCanvas, minX, minY, maxX, maxY, points, rings, inverted } =
     state.lassoSelection
+  const basePoints = state.lassoFloatBasePoints || points
+  const baseRings = state.lassoFloatBaseRings || rings
   const insertOrder = getInsertOrderAboveLayer(sourceLayerId)
   const newLayerId = uuidv4()
 
@@ -741,8 +746,9 @@ export const cutLassoSelectionToNewLayer = async () => {
       newLayerId,
       insertOrder,
       newLayer.name,
-      state.lassoFloatBasePoints || points,
-      inverted
+      basePoints,
+      inverted,
+      baseRings
     )
   }
   layersBridge.startResizeMode()

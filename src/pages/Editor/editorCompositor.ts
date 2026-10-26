@@ -92,6 +92,11 @@ export const applyToolSelection = (
   if (tool.name === 'pipette') {
     initPipetteCursor(state, initialCanvas, refs, coordsAreInsideLayer)
   }
+  if (tool.name === 'magicWand') {
+    Layers.syncMagicWandTool(true)
+  } else if (tool.name) {
+    Layers.syncMagicWandTool(false)
+  }
   state.currentToolGCO = tool.globalCompositeOperation
   state.currentToolProps = {
     ...state.currentToolProps,
@@ -170,6 +175,7 @@ const startLassoMarchingAnts = (state: EditorState, refs: EditorRefs) => {
       lassoDashOffset,
       {
         inverted: state.lassoMode.inverted,
+        rings: state.lassoMode.rings,
       }
     )
     lassoAntsRafId = requestAnimationFrame(step)
@@ -261,6 +267,7 @@ export const clearLassoSelectionOverlay = (state: EditorState, refs: EditorRefs)
     state.lassoMode.isDraggingMove = false
     state.lassoMode.inverted = false
     state.lassoMode.points = []
+    state.lassoMode.rings = []
     state.lassoMode.minX = -1
     state.lassoMode.minY = -1
     state.lassoMode.maxX = -1
@@ -275,10 +282,22 @@ export const clearLassoSelectionOverlay = (state: EditorState, refs: EditorRefs)
   refs.lassoBar?.classList.add('displayNone')
 }
 
-export const setLassoModeActive = (state: EditorState, refs: EditorRefs, active: boolean) => {
+export const setLassoModeIsWand = (state: EditorState, isWand: boolean) => {
+  if (state.lassoMode) {
+    state.lassoMode.isWand = isWand
+  }
+}
+
+export const setLassoModeActive = (
+  state: EditorState,
+  refs: EditorRefs,
+  active: boolean,
+  isWand = false
+) => {
   clearLassoSelectionOverlay(state, refs)
   if (state.lassoMode) {
     state.lassoMode.active = active
+    state.lassoMode.isWand = active ? isWand : false
   }
   refs.lassoCanvas?.classList.toggle('displayNone', !active)
 }
@@ -293,6 +312,8 @@ export const showLassoSelectionOverlay = (
     maxY: number
     hasPixels?: boolean
     inverted?: boolean
+    points?: Array<[number, number]>
+    rings?: Array<Array<[number, number]>>
   }
 ) => {
   state.lassoMode.isDrawing = false
@@ -304,6 +325,12 @@ export const showLassoSelectionOverlay = (
   }
   if (typeof bounds.inverted === 'boolean') {
     state.lassoMode.inverted = bounds.inverted
+  }
+  if (bounds.points) {
+    state.lassoMode.points = bounds.points
+  }
+  if (bounds.rings) {
+    state.lassoMode.rings = bounds.rings
   }
   state.lassoMode.minX = bounds.minX
   state.lassoMode.minY = bounds.minY

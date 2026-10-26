@@ -52,12 +52,17 @@ import {
   toggleEnableLayer,
 } from './layersActions'
 import {
+  beginMagicWandSelection,
   canCreateLayerFromLasso,
   cancelLassoSelection,
+  cancelMagicWandSelection,
+  prepareMagicWandStroke,
+  syncMagicWandTool,
   closeParams,
   closeResizeModeIfNeeded,
   commitLassoMoveSelectionInPlace,
   completeLassoSelection,
+  completeMagicWandSelection,
   discardPendingLassoSelection,
   flipHorizontally,
   flipVertically,
@@ -82,6 +87,7 @@ import {
   updateCurrentTool,
   updateLassoSelectionOptions,
   updateLayerOpacity,
+  updateMagicWandSelectionTolerance,
 } from './layersListUi'
 import {
   addNewLayerFromCoworker,
@@ -128,6 +134,12 @@ export {
   hasActiveLassoSelection,
   getActiveLassoSelection,
   discardPendingLassoSelection,
+  beginMagicWandSelection,
+  updateMagicWandSelectionTolerance,
+  completeMagicWandSelection,
+  cancelMagicWandSelection,
+  prepareMagicWandStroke,
+  syncMagicWandTool,
   completeLassoSelection,
   refreshActiveLassoSelection,
   updateLassoSelectionOptions,
@@ -152,7 +164,7 @@ const initDom = async (moduleContainer: HTMLElement, sidebarExpanded = false) =>
   )
   refs.gcoButton = createDom('svg-icon-source-over')
   refs.resizeButton?.classList.toggle('selected', state.resizeMode)
-  refs.lassoButton?.classList.toggle('selected', state.lassoMode)
+  refs.lassoButton?.classList.toggle('selected', state.lassoMode && !state.wandMode)
   if (Params.isDesktop) {
     const panBtn = createDom()
     panBtn.appendChild(createDom('editor-layers__pan-button', 'svg-icon-hand', 'svg-icon-dark'))

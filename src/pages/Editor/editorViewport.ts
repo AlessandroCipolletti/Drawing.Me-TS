@@ -122,6 +122,8 @@ export const handleGestureStart = (state: EditorState, refs: EditorRefs, x: numb
   if (state.lassoMode?.isDrawing) {
     state.lassoMode.isDrawing = false
     state.lassoMode.points = []
+    state.lassoMode.rings = []
+    Layers.cancelMagicWandSelection()
     refs.lassoCanvas
       ?.getContext('2d')
       ?.clearRect(0, 0, refs.lassoCanvas.width, refs.lassoCanvas.height)

@@ -23,7 +23,8 @@ export interface EditorCoworkingPort {
   receiveLassoClearFromCoworker: (
     layerId: string,
     points: Array<[number, number]>,
-    inverted?: boolean
+    inverted?: boolean,
+    rings?: Array<Array<[number, number]>>
   ) => Promise<void>
   receiveLassoTransformFromCoworker: (
     layerId: string,
@@ -33,7 +34,8 @@ export interface EditorCoworkingPort {
     w: number,
     h: number,
     r: number,
-    inverted?: boolean
+    inverted?: boolean,
+    rings?: Array<Array<[number, number]>>
   ) => Promise<void>
   receiveLassoCopyToLayerFromCoworker: (
     sourceLayerId: string,
@@ -41,7 +43,8 @@ export interface EditorCoworkingPort {
     insertOrder: number,
     layerName: string,
     points: Array<[number, number]>,
-    inverted?: boolean
+    inverted?: boolean,
+    rings?: Array<Array<[number, number]>>
   ) => Promise<void>
   receiveLassoCutToLayerFromCoworker: (
     sourceLayerId: string,
@@ -49,7 +52,8 @@ export interface EditorCoworkingPort {
     insertOrder: number,
     layerName: string,
     points: Array<[number, number]>,
-    inverted?: boolean
+    inverted?: boolean,
+    rings?: Array<Array<[number, number]>>
   ) => Promise<void>
   receiveLayerMaskFromCoworker: (
     layerId: string,

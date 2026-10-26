@@ -26,7 +26,16 @@ import {
   refreshMaskDependents,
   syncLayerDisplay,
 } from './layerMask'
-import { extractLassoSelection, LassoPoint } from './layerLasso'
+import {
+  cancelMagicWandSession,
+  completeMagicWandSession,
+  createMagicWandSession,
+  extractLassoSelection,
+  LassoPoint,
+  MagicWandSession,
+  MagicWandUpdatePayload,
+  requestMagicWandSessionTolerance,
+} from './layerLasso'
 
 const paramsAreClosed = () => state.paramsTimeout === false
 
@@ -112,7 +121,22 @@ const updateResizeMode = (selected: boolean, active: boolean) => {
   }
 }
 
+let activeMagicWandSession: MagicWandSession | null = null
+let wandStrokeEpoch = 0
+
+export const cancelMagicWandSelection = () => {
+  if (activeMagicWandSession) {
+    cancelMagicWandSession(activeMagicWandSession)
+    activeMagicWandSession = null
+  }
+  wandStrokeEpoch += 1
+}
+
 export const discardPendingLassoSelection = () => {
+  if (activeMagicWandSession) {
+    cancelMagicWandSession(activeMagicWandSession)
+    activeMagicWandSession = null
+  }
   if (state.lassoSelection) {
     state.lassoSelection.selectedCanvas.width = state.lassoSelection.selectedCanvas.height = 0
     state.lassoSelection.outsideCanvas.width = state.lassoSelection.outsideCanvas.height = 0
@@ -134,13 +158,17 @@ export const canCreateLayerFromLasso = (): boolean =>
 
 const updateLassoMode = (selected: boolean, active: boolean) => {
   refs.lassoButton?.classList.toggle('disabled', !active)
-  if (selected !== state.lassoMode) {
-    state.lassoMode = selected
-    refs.lassoButton?.classList.toggle('selected', selected)
-    editorFacade.setLassoModeActive(selected)
-    if (!selected) {
-      discardPendingLassoSelection()
-    }
+  const modeChanged = selected !== state.lassoMode
+  state.lassoMode = selected
+  if (!selected) {
+    state.wandMode = false
+  }
+  refs.lassoButton?.classList.toggle('selected', selected && !state.wandMode)
+  if (modeChanged || selected) {
+    editorFacade.setLassoModeActive(selected, state.wandMode)
+  }
+  if (!selected && modeChanged) {
+    discardPendingLassoSelection()
   }
 }
 
@@ -255,8 +283,9 @@ export const updateCanvasContent = (
   }
 }
 
-const rememberLassoFloatBase = (points: LassoPoint[]) => {
+const rememberLassoFloatBase = (points: LassoPoint[], rings?: LassoPoint[][]) => {
   state.lassoFloatBasePoints = points.map(([x, y]) => [x, y])
+  state.lassoFloatBaseRings = rings ? rings.map((r) => r.map(([x, y]) => [x, y])) : null
   state.lassoFloatDirty = false
 }
 
@@ -308,6 +337,7 @@ export const commitPendingLassoFloat = (recordHistory = true) => {
     void layersBridge.addLayerHistoryContentChangedStep(layerId)
   }
   if (Coworking.isOpen()) {
+    const baseRings = state.lassoFloatBaseRings || selection.rings
     Coworking.sendLassoTransformLayer(
       layerId,
       basePoints,
@@ -316,7 +346,8 @@ export const commitPendingLassoFloat = (recordHistory = true) => {
       selection.width,
       selection.height,
       0,
-      selection.inverted
+      selection.inverted,
+      baseRings
     )
   }
 }
@@ -353,7 +384,7 @@ const endLassoMode = (applyPending = true) => {
   layersBridge.updateUndoRedoButtons()
 }
 
-const startLassoMode = async () => {
+const startLassoMode = async (isWand = false) => {
   if (!state.currentSelectedLayerId) return
   if (state.canvasPanMode) {
     updateCanvasPanMode(false)
@@ -361,6 +392,7 @@ const startLassoMode = async () => {
   if (state.resizeMode) {
     await endResizeMode()
   }
+  state.wandMode = isWand
   const layerOptionButton = refs.layersList?.querySelector(
     `div[data-id="${state.currentSelectedLayerId}"] .editor-layers__layer-options-button`
   )
@@ -373,8 +405,76 @@ const startLassoMode = async () => {
   updateGcoMode(state.gcoMode, false)
 }
 
+export const syncMagicWandTool = (active: boolean) => {
+  if (active) {
+    if (state.wandMode && state.lassoMode) return
+    if (state.lassoMode) {
+      state.wandMode = true
+      refs.lassoButton?.classList.remove('selected')
+      editorFacade.setLassoModeIsWand(true)
+      return
+    }
+    void startLassoMode(true)
+    return
+  }
+  if (state.wandMode) {
+    endLassoMode()
+  }
+}
+
+export const prepareMagicWandStroke = async () => {
+  const epoch = wandStrokeEpoch
+  if (state.resizeMode) {
+    await endResizeMode()
+  }
+  if (epoch !== wandStrokeEpoch) return false
+  if (hasPendingLassoFloat()) {
+    commitPendingLassoFloat(true)
+  }
+  discardPendingLassoSelection()
+  if (epoch !== wandStrokeEpoch) return false
+  if (!state.lassoMode || !state.wandMode) {
+    await startLassoMode(true)
+  }
+  return epoch === wandStrokeEpoch
+}
+
+export const beginMagicWandSelection = (
+  x: number,
+  y: number,
+  onUpdate?: (payload: MagicWandUpdatePayload) => void
+): { points: LassoPoint[]; rings: LassoPoint[][] } | null => {
+  if (!state.currentSelectedLayerId || !state.lassoMode) return null
+  const layer = state.layers[state.currentSelectedLayerId]
+  if (!layer || !layerCanUseLasso(layer.id)) return null
+  if (activeMagicWandSession) {
+    cancelMagicWandSession(activeMagicWandSession)
+    activeMagicWandSession = null
+  }
+  syncLayerDisplay(layer.id)
+  const session = createMagicWandSession(getLayerDomCanvas(layer), x, y, onUpdate)
+  if (!session) return null
+  activeMagicWandSession = session
+  return { points: session.points, rings: session.rings }
+}
+
+export const updateMagicWandSelectionTolerance = (tolerance: number) => {
+  if (!activeMagicWandSession) return
+  requestMagicWandSessionTolerance(activeMagicWandSession, tolerance)
+}
+
+export const completeMagicWandSelection = async (tolerance: number) => {
+  const session = activeMagicWandSession
+  if (!session) return null
+  activeMagicWandSession = null
+  const { points, rings } = await completeMagicWandSession(session, tolerance)
+  if (points.length < 3) return null
+  return completeLassoSelection(points, rings)
+}
+
 export const completeLassoSelection = async (
-  points: LassoPoint[]
+  points: LassoPoint[],
+  rings?: LassoPoint[][]
 ): Promise<{
   minX: number
   minY: number
@@ -382,6 +482,8 @@ export const completeLassoSelection = async (
   maxY: number
   hasPixels: boolean
   inverted: boolean
+  points: LassoPoint[]
+  rings?: LassoPoint[][]
 } | null> => {
   if (!state.currentSelectedLayerId || !state.lassoMode) return null
   const layer = state.layers[state.currentSelectedLayerId]
@@ -389,6 +491,7 @@ export const completeLassoSelection = async (
   syncLayerDisplay(layer.id)
   const result = await extractLassoSelection(layer.canvas, points, getLayerDomCanvas(layer), {
     inverted: false,
+    rings,
   })
   if (!result || !state.lassoMode) {
     if (result) {
@@ -400,7 +503,7 @@ export const completeLassoSelection = async (
   }
   discardPendingLassoSelection()
   state.lassoSelection = result
-  rememberLassoFloatBase(result.points)
+  rememberLassoFloatBase(result.points, result.rings)
   state.lassoHistoryDepth = 0
   layersBridge.updateUndoRedoButtons()
   return {
@@ -410,6 +513,8 @@ export const completeLassoSelection = async (
     maxY: result.maxY,
     hasPixels: result.hasPixels,
     inverted: result.inverted,
+    points: result.points,
+    rings: result.rings,
   }
 }
 
@@ -420,10 +525,11 @@ export const refreshActiveLassoSelection = async () => {
   }
   const layer = state.layers[state.currentSelectedLayerId]
   if (!layer) return null
-  const { points, inverted } = state.lassoSelection
+  const { points, rings, inverted } = state.lassoSelection
   syncLayerDisplay(layer.id)
   const result = await extractLassoSelection(layer.canvas, points, getLayerDomCanvas(layer), {
     inverted,
+    rings,
   })
   if (!result || !state.lassoMode) {
     if (result) {
@@ -436,7 +542,7 @@ export const refreshActiveLassoSelection = async () => {
   const prevDepth = state.lassoHistoryDepth
   discardPendingLassoSelection()
   state.lassoSelection = result
-  rememberLassoFloatBase(result.points)
+  rememberLassoFloatBase(result.points, result.rings)
   state.lassoHistoryDepth = prevDepth
   const bounds = {
     minX: result.minX,
@@ -445,6 +551,8 @@ export const refreshActiveLassoSelection = async () => {
     maxY: result.maxY,
     hasPixels: result.hasPixels,
     inverted: result.inverted,
+    points: result.points,
+    rings: result.rings,
   }
   editorFacade.updateLassoSelectionUi(bounds)
   layersBridge.updateUndoRedoButtons()
@@ -470,6 +578,11 @@ export const commitLassoMoveSelectionInPlace = async (dx: number, dy: number) =>
   }
   const selection = state.lassoSelection
   selection.points = selection.points.map(([px, py]) => [round(px + dx, 1), round(py + dy, 1)])
+  if (selection.rings) {
+    selection.rings = selection.rings.map((ring) =>
+      ring.map(([px, py]) => [round(px + dx, 1), round(py + dy, 1)] as LassoPoint)
+    )
+  }
   selection.minX = round(selection.minX + dx, 1)
   selection.minY = round(selection.minY + dy, 1)
   selection.maxX = round(selection.maxX + dx, 1)
@@ -527,8 +640,10 @@ export const startTransformLassoSelectionInPlace = () => {
     x,
     y,
   ])
+  const baseRings = state.lassoFloatBaseRings || selection.rings
   state.lassoTransformOptions = {
     inverted: selection.inverted,
+    rings: baseRings ? baseRings.map((ring) => ring.map(([x, y]) => [x, y])) : undefined,
   }
   updateMagnetismCoords(state.currentSelectedLayerId)
   editorFacade.showDragBox(
@@ -614,7 +729,8 @@ const saveResizeModeIfNeeded = async () => {
           state.lastResizeCoords.w,
           state.lastResizeCoords.h,
           state.lastResizeCoords.r,
-          transformOptions?.inverted
+          transformOptions?.inverted,
+          transformOptions?.rings
         )
       } else {
         Coworking.sendResizeLayer(
@@ -760,10 +876,16 @@ export const lassoButtonTouchStart = (e: Event) => {
   preventDefault(e)
   closeParams()
   if (!refs.lassoButton?.classList.contains('disabled')) {
-    if (state.lassoMode) {
+    if (state.wandMode) {
+      editorCalls.selectLastUsedTool(false)
+    }
+    if (state.lassoMode && !state.wandMode) {
       endLassoMode()
     } else {
-      void startLassoMode()
+      if (state.lassoMode) {
+        endLassoMode()
+      }
+      void startLassoMode(false)
     }
   }
 }
@@ -774,6 +896,7 @@ export const gcoModeTouchStart = (e: Event) => {
   if (
     state.currentSelectedLayerId &&
     layerCanBeResized(state.currentSelectedLayerId) &&
+    !state.editorIsUsingEraser &&
     !state.resizeMode &&
     !state.lassoMode
   ) {

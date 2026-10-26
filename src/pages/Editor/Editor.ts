@@ -65,6 +65,7 @@ import {
   updateQuickShapeBarPosition,
   hideQuickShapeBar,
   setLassoModeActive as compositorSetLassoModeActive,
+  setLassoModeIsWand as compositorSetLassoModeIsWand,
   clearLassoSelectionOverlay as compositorClearLassoSelectionOverlay,
   showLassoSelectionOverlay,
   stopLassoMarchingAnts,
@@ -436,10 +437,11 @@ registerEditorFacade({
     compositorShowDragBox(state, refs, x, y, w, h, useMagnetism)
   },
   flushPendingResizeFrame: () => compositorFlushPendingResizeFrame(state, refs),
-  setLassoModeActive: (active) => {
+  setLassoModeActive: (active, isWand) => {
     if (active) activeStrokeSession?.dismissQuickShape()
-    compositorSetLassoModeActive(state, refs, active)
+    compositorSetLassoModeActive(state, refs, active, isWand)
   },
+  setLassoModeIsWand: (isWand) => compositorSetLassoModeIsWand(state, isWand),
   clearLassoSelectionOverlay: () => compositorClearLassoSelectionOverlay(state, refs),
   updateLassoSelectionUi: (bounds) => showLassoSelectionOverlay(state, refs, bounds),
   dismissQuickShape: () => {

@@ -8,11 +8,15 @@ import {
   getQuadraticBezierCurvePointAtTime,
   round,
 } from 'utils/mathUtils'
+import { floodFillMagicWandMask, traceMaskBoundaryRings } from 'utils/workers/magicWand'
+
+export { floodFillMagicWandMask, traceMaskBoundaryRings }
 
 export type LassoPoint = [number, number]
 
 export interface LassoSelectionOptions {
   inverted?: boolean
+  rings?: LassoPoint[][]
 }
 
 export interface LassoExtractionResult {
@@ -26,6 +30,7 @@ export interface LassoExtractionResult {
   width: number
   height: number
   points: LassoPoint[]
+  rings?: LassoPoint[][]
   hasPixels: boolean
   inverted: boolean
 }
@@ -153,29 +158,69 @@ const appendLassoSubpath = (
   }
 }
 
-const traceLassoPolygon = (
+const appendLassoLinearSubpath = (
   ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
   points: LassoPoint[],
   closePath = true
 ) => {
   if (!points.length) return
-  ctx.beginPath()
-  appendLassoSubpath(ctx, points, closePath)
+  ctx.moveTo(points[0][0], points[0][1])
+  for (let i = 1; i < points.length; i++) {
+    ctx.lineTo(points[i][0], points[i][1])
+  }
+  if (closePath && points.length > 2) {
+    ctx.closePath()
+  }
 }
+
+const appendLassoRingSubpath = (
+  ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+  points: LassoPoint[],
+  closePath: boolean,
+  linear: boolean
+) => {
+  if (linear) {
+    appendLassoLinearSubpath(ctx, points, closePath)
+  } else {
+    appendLassoSubpath(ctx, points, closePath)
+  }
+}
+
+const traceLassoPolygon = (
+  ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+  points: LassoPoint[],
+  closePath = true,
+  linear = false
+) => {
+  if (!points.length) return
+  ctx.beginPath()
+  appendLassoRingSubpath(ctx, points, closePath, linear)
+}
+
+const getEffectiveRings = (points: LassoPoint[], rings?: LassoPoint[][]): LassoPoint[][] =>
+  rings && rings.length > 0 ? rings : [points]
 
 export const applyLassoClipPath = (
   ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
   points: LassoPoint[],
-  inverted = false
+  inverted = false,
+  rings?: LassoPoint[][]
 ) => {
   if (points.length < MIN_POLYGON_POINTS) return
+  const hasRings = Boolean(rings && rings.length > 0)
+  const effectiveRings = getEffectiveRings(points, rings)
   ctx.beginPath()
   if (inverted && typeof ctx.rect === 'function' && ctx.canvas) {
     ctx.rect(0, 0, ctx.canvas.width, ctx.canvas.height)
-    appendLassoSubpath(ctx, points, true)
+  }
+  for (const ring of effectiveRings) {
+    if (ring.length >= MIN_POLYGON_POINTS) {
+      appendLassoRingSubpath(ctx, ring, true, hasRings)
+    }
+  }
+  if ((inverted && typeof ctx.rect === 'function' && ctx.canvas) || hasRings) {
     ctx.clip('evenodd')
   } else {
-    appendLassoSubpath(ctx, points, true)
     ctx.clip('nonzero')
   }
 }
@@ -183,7 +228,9 @@ export const applyLassoClipPath = (
 const getPolygonClampedBounds = (
   points: LassoPoint[],
   canvasWidth: number,
-  canvasHeight: number
+  canvasHeight: number,
+  minSpanPx = MIN_POLYGON_SPAN_PX,
+  rings?: LassoPoint[][]
 ): {
   minX: number
   minY: number
@@ -193,18 +240,31 @@ const getPolygonClampedBounds = (
   height: number
 } | null => {
   if (points.length < MIN_POLYGON_POINTS) return null
-  const curvePoints = getLassoBezierCurvePoints(points, true)
+  const hasRings = Boolean(rings && rings.length > 0)
   let minX = Infinity
   let minY = Infinity
   let maxX = -Infinity
   let maxY = -Infinity
 
-  for (let i = 0; i < curvePoints.length; i++) {
-    const [x, y] = curvePoints[i]
-    if (x < minX) minX = x
-    if (y < minY) minY = y
-    if (x > maxX) maxX = x
-    if (y > maxY) maxY = y
+  if (hasRings && rings) {
+    for (const ring of rings) {
+      for (let i = 0; i < ring.length; i++) {
+        const [x, y] = ring[i]
+        if (x < minX) minX = x
+        if (y < minY) minY = y
+        if (x > maxX) maxX = x
+        if (y > maxY) maxY = y
+      }
+    }
+  } else {
+    const curvePoints = getLassoBezierCurvePoints(points, true)
+    for (let i = 0; i < curvePoints.length; i++) {
+      const [x, y] = curvePoints[i]
+      if (x < minX) minX = x
+      if (y < minY) minY = y
+      if (x > maxX) maxX = x
+      if (y > maxY) maxY = y
+    }
   }
 
   const clampedMinX = Math.max(0, Math.floor(minX))
@@ -214,7 +274,7 @@ const getPolygonClampedBounds = (
   const width = clampedMaxX - clampedMinX
   const height = clampedMaxY - clampedMinY
 
-  if (width < MIN_POLYGON_SPAN_PX || height < MIN_POLYGON_SPAN_PX) {
+  if (width < minSpanPx || height < minSpanPx) {
     return null
   }
 
@@ -235,6 +295,11 @@ const buildLassoMaskCanvas = (
   options?: LassoSelectionOptions
 ): HTMLCanvasElement => {
   const points: LassoPoint[] = rawPoints.map(([x, y]) => [round(x, 1), round(y, 1)])
+  const hasRings = Boolean(options?.rings && options.rings.length > 0)
+  const effectiveRings = getEffectiveRings(
+    points,
+    options?.rings?.map((ring) => ring.map(([x, y]) => [round(x, 1), round(y, 1)] as LassoPoint))
+  )
   const inverted = Boolean(options?.inverted)
 
   const maskCanvas = document.createElement('canvas')
@@ -250,14 +315,25 @@ const buildLassoMaskCanvas = (
   maskCtx.globalCompositeOperation = 'source-over'
   maskCtx.fillStyle = '#000000'
 
-  if (inverted) {
+  if (hasRings && typeof maskCtx.rect === 'function') {
+    maskCtx.beginPath()
+    if (inverted) {
+      maskCtx.rect(0, 0, width, height)
+    }
+    for (const ring of effectiveRings) {
+      if (ring.length >= MIN_POLYGON_POINTS) {
+        appendLassoLinearSubpath(maskCtx, ring, true)
+      }
+    }
+    maskCtx.fill('evenodd')
+  } else if (inverted) {
     maskCtx.fillRect(0, 0, width, height)
     maskCtx.globalCompositeOperation = 'destination-out'
-    traceLassoPolygon(maskCtx, points, true)
+    traceLassoPolygon(maskCtx, effectiveRings[0], true, hasRings)
     maskCtx.fill()
     maskCtx.globalCompositeOperation = 'source-over'
   } else {
-    traceLassoPolygon(maskCtx, points, true)
+    traceLassoPolygon(maskCtx, effectiveRings[0], true, hasRings)
     maskCtx.fill()
   }
   maskCtx.restore()
@@ -290,18 +366,26 @@ export const clearPolygonFromCanvas = (
 ) => {
   if (points.length < MIN_POLYGON_POINTS) return
   const inverted = Boolean(options?.inverted)
+  const hasRings = Boolean(options?.rings && options.rings.length > 0)
+  const effectiveRings = getEffectiveRings(points, options?.rings)
 
   ctx.save()
   ctx.globalAlpha = 1
   ctx.globalCompositeOperation = 'destination-out'
   ctx.fillStyle = '#000000'
-  if (inverted && typeof ctx.rect === 'function' && ctx.canvas) {
+  if ((inverted && typeof ctx.rect === 'function' && ctx.canvas) || hasRings) {
     ctx.beginPath()
-    ctx.rect(0, 0, ctx.canvas.width, ctx.canvas.height)
-    appendLassoSubpath(ctx, points, true)
+    if (inverted && typeof ctx.rect === 'function' && ctx.canvas) {
+      ctx.rect(0, 0, ctx.canvas.width, ctx.canvas.height)
+    }
+    for (const ring of effectiveRings) {
+      if (ring.length >= MIN_POLYGON_POINTS) {
+        appendLassoRingSubpath(ctx, ring, true, hasRings)
+      }
+    }
     ctx.fill('evenodd')
   } else {
-    traceLassoPolygon(ctx, points, true)
+    traceLassoPolygon(ctx, points, true, false)
     ctx.fill()
   }
   ctx.restore()
@@ -316,18 +400,26 @@ export const fillPolygonOnCanvas = (
 ) => {
   if (points.length < MIN_POLYGON_POINTS || !color) return
   const inverted = Boolean(options?.inverted)
+  const hasRings = Boolean(options?.rings && options.rings.length > 0)
+  const effectiveRings = getEffectiveRings(points, options?.rings)
 
   ctx.save()
   ctx.globalAlpha = 1
   ctx.globalCompositeOperation = compositeOperation
   ctx.fillStyle = color
-  if (inverted && typeof ctx.rect === 'function' && ctx.canvas) {
+  if ((inverted && typeof ctx.rect === 'function' && ctx.canvas) || hasRings) {
     ctx.beginPath()
-    ctx.rect(0, 0, ctx.canvas.width, ctx.canvas.height)
-    appendLassoSubpath(ctx, points, true)
+    if (inverted && typeof ctx.rect === 'function' && ctx.canvas) {
+      ctx.rect(0, 0, ctx.canvas.width, ctx.canvas.height)
+    }
+    for (const ring of effectiveRings) {
+      if (ring.length >= MIN_POLYGON_POINTS) {
+        appendLassoRingSubpath(ctx, ring, true, hasRings)
+      }
+    }
     ctx.fill('evenodd')
   } else {
-    traceLassoPolygon(ctx, points, true)
+    traceLassoPolygon(ctx, points, true, false)
     ctx.fill()
   }
   ctx.restore()
@@ -340,7 +432,16 @@ export const extractLassoSelection = async (
   options?: LassoSelectionOptions
 ): Promise<LassoExtractionResult | null> => {
   const points: LassoPoint[] = rawPoints.map(([x, y]) => [round(x, 1), round(y, 1)])
-  const polyBounds = getPolygonClampedBounds(points, sourceCanvas.width, sourceCanvas.height)
+  const rings: LassoPoint[][] | undefined = options?.rings?.map((ring) =>
+    ring.map(([x, y]) => [round(x, 1), round(y, 1)] as LassoPoint)
+  )
+  const polyBounds = getPolygonClampedBounds(
+    points,
+    sourceCanvas.width,
+    sourceCanvas.height,
+    rings ? 1 : MIN_POLYGON_SPAN_PX,
+    rings
+  )
   if (!polyBounds) return null
 
   const inverted = Boolean(options?.inverted)
@@ -354,6 +455,7 @@ export const extractLassoSelection = async (
 
   const maskCanvas = buildLassoMaskCanvas(sourceCanvas.width, sourceCanvas.height, points, {
     inverted,
+    rings,
   })
 
   const maskedSubCanvas = document.createElement('canvas')
@@ -425,6 +527,7 @@ export const extractLassoSelection = async (
       width: polyBounds.width,
       height: polyBounds.height,
       points,
+      rings,
       hasPixels: false,
       inverted,
     }
@@ -467,6 +570,7 @@ export const extractLassoSelection = async (
     width: tightW,
     height: tightH,
     points,
+    rings,
     hasPixels: true,
     inverted,
   }
@@ -487,6 +591,8 @@ export const renderLassoOverlayFrame = (
   if (points.length < 2) return
 
   const inverted = Boolean(closed && options?.inverted)
+  const hasRings = Boolean(closed && options?.rings && options.rings.length > 0)
+  const effectiveRings = closed ? getEffectiveRings(points, options?.rings) : [points]
   const unit = Math.max(0.5, Params.pxScale / Math.max(0.25, canvasScale || 1))
   const lineWidth = 1.8 * unit
   const dashLen = 6 * unit
@@ -496,19 +602,30 @@ export const renderLassoOverlayFrame = (
   ctx.lineCap = 'round'
   ctx.lineJoin = 'round'
 
-  if (inverted && typeof ctx.rect === 'function') {
+  if ((inverted && typeof ctx.rect === 'function') || hasRings) {
     ctx.beginPath()
-    ctx.rect(0, 0, canvas.width, canvas.height)
-    appendLassoSubpath(ctx, points, true)
-    ctx.fillStyle = 'rgba(2, 132, 199, 0.09)'
+    if (inverted && typeof ctx.rect === 'function') {
+      ctx.rect(0, 0, canvas.width, canvas.height)
+    }
+    for (const ring of effectiveRings) {
+      if (ring.length >= 2) {
+        appendLassoRingSubpath(ctx, ring, closed, hasRings)
+      }
+    }
+    ctx.fillStyle = closed ? 'rgba(2, 132, 199, 0.09)' : 'rgba(2, 132, 199, 0.05)'
     ctx.fill('evenodd')
   } else {
-    traceLassoPolygon(ctx, points, closed)
+    traceLassoPolygon(ctx, points, closed, false)
     ctx.fillStyle = closed ? 'rgba(2, 132, 199, 0.09)' : 'rgba(2, 132, 199, 0.05)'
     ctx.fill()
   }
 
-  traceLassoPolygon(ctx, points, closed)
+  ctx.beginPath()
+  for (const ring of effectiveRings) {
+    if (ring.length >= 2) {
+      appendLassoRingSubpath(ctx, ring, closed, hasRings)
+    }
+  }
 
   ctx.lineWidth = lineWidth + 1.4 * unit
   ctx.strokeStyle = 'rgba(255, 255, 255, 0.92)'
@@ -549,4 +666,360 @@ export const renderLassoOverlayFrame = (
   }
 
   ctx.restore()
+}
+
+export const drawMagicWandToleranceCircle = (
+  canvas: HTMLCanvasElement | null,
+  x: number,
+  y: number,
+  radius: number,
+  canvasScale: number
+) => {
+  if (!canvas || radius <= 0) return
+  const ctx = canvas.getContext('2d')
+  if (!ctx || typeof ctx.arc !== 'function') return
+  const unit = Math.max(0.5, Params.pxScale / Math.max(0.25, canvasScale || 1))
+  ctx.save()
+  ctx.beginPath()
+  ctx.arc(x, y, radius, 0, Math.PI * 2)
+  ctx.fillStyle = 'rgba(2, 132, 199, 0.14)'
+  ctx.fill()
+  ctx.lineWidth = unit
+  ctx.strokeStyle = '#0f172a'
+  ctx.setLineDash([])
+  ctx.stroke()
+  ctx.restore()
+}
+
+const MAX_WAND_WORK_DIMENSION = 1400
+const BUCKET_TOLERANCE_WITH_TRANSPARENCY = 24
+const BUCKET_TOLERANCE_WITHOUT_TRANSPARENCY = 4
+
+export interface MagicWandUpdatePayload {
+  points: LassoPoint[]
+  rings: LassoPoint[][]
+  tolerance: number
+}
+
+export interface MagicWandSession {
+  sessionId: number
+  workW: number
+  workH: number
+  scaleX: number
+  scaleY: number
+  seedGx: number
+  seedGy: number
+  baseTolerance: number
+  useWorker: boolean
+  rgba: Uint8ClampedArray | null
+  mask: Uint8Array | null
+  queue: Int32Array | null
+  visitedEdges: Uint8Array | null
+  lastTolerance: number
+  inFlight: boolean
+  pendingTolerance: number | null
+  cancelled: boolean
+  points: LassoPoint[]
+  rings: LassoPoint[][]
+  onUpdate?: (payload: MagicWandUpdatePayload) => void
+  idleResolvers: Array<() => void>
+}
+
+let magicWandWorker: Worker | null = null
+let activeWorkerWandSession: MagicWandSession | null = null
+let nextMagicWandSessionId = 0
+
+const startWorkerWandCompute = (session: MagicWandSession, tolerance: number) => {
+  if (!magicWandWorker || session.cancelled) return
+  session.inFlight = true
+  session.pendingTolerance = null
+  magicWandWorker.postMessage({
+    type: 'compute',
+    sessionId: session.sessionId,
+    tolerance,
+  })
+}
+
+const getMagicWandWorker = (): Worker | null => {
+  if (typeof Worker === 'undefined') return null
+  if (!magicWandWorker) {
+    magicWandWorker = new Worker(
+      new URL('../../../../utils/workers/magicWand.ts', import.meta.url),
+      {
+        type: 'module',
+      }
+    )
+    magicWandWorker.addEventListener('message', (event: MessageEvent) => {
+      const data = event.data
+      if (!data || typeof data.sessionId !== 'number') return
+      const session = activeWorkerWandSession
+      if (!session || session.cancelled || session.sessionId !== data.sessionId) return
+
+      session.lastTolerance = data.tolerance
+      session.points = data.points || []
+      session.rings = data.rings || []
+      session.inFlight = false
+
+      session.onUpdate?.({
+        points: session.points,
+        rings: session.rings,
+        tolerance: session.lastTolerance,
+      })
+
+      if (session.cancelled || activeWorkerWandSession !== session) {
+        while (session.idleResolvers.length > 0) {
+          session.idleResolvers.shift()!()
+        }
+        return
+      }
+
+      if (session.pendingTolerance !== null && session.pendingTolerance !== session.lastTolerance) {
+        const nextTol = session.pendingTolerance
+        session.pendingTolerance = null
+        startWorkerWandCompute(session, nextTol)
+      } else {
+        session.pendingTolerance = null
+        while (session.idleResolvers.length > 0) {
+          session.idleResolvers.shift()!()
+        }
+      }
+    })
+  }
+  return magicWandWorker
+}
+
+const computeSyncMagicWandSession = (
+  session: MagicWandSession,
+  tolerance: number
+): { points: LassoPoint[]; rings: LassoPoint[][] } => {
+  if (!session.rgba || !session.mask || !session.queue || !session.visitedEdges) {
+    return { points: session.points, rings: session.rings }
+  }
+  const clampedTol = Math.max(0, Math.min(255, Math.round(tolerance)))
+  if (clampedTol === session.lastTolerance && session.points.length >= 3) {
+    return { points: session.points, rings: session.rings }
+  }
+  session.lastTolerance = clampedTol
+  const effectiveTolerance = Math.min(255, session.baseTolerance + clampedTol)
+
+  const bounds = floodFillMagicWandMask(
+    session.rgba,
+    session.workW,
+    session.workH,
+    session.seedGx,
+    session.seedGy,
+    effectiveTolerance,
+    true,
+    session.mask,
+    session.queue
+  )
+
+  const rings = traceMaskBoundaryRings(
+    session.mask,
+    session.workW,
+    session.workH,
+    bounds,
+    session.scaleX,
+    session.scaleY,
+    session.visitedEdges
+  )
+
+  session.rings = rings
+  session.points = rings[0] || []
+  return { points: session.points, rings: session.rings }
+}
+
+export const createMagicWandSession = (
+  sourceCanvas: HTMLCanvasElement | OffscreenCanvas,
+  seedX: number,
+  seedY: number,
+  onUpdate?: (payload: MagicWandUpdatePayload) => void
+): MagicWandSession | null => {
+  const fullW = sourceCanvas.width
+  const fullH = sourceCanvas.height
+  if (fullW <= 0 || fullH <= 0) return null
+
+  const downscale = Math.max(1, Math.max(fullW, fullH) / MAX_WAND_WORK_DIMENSION)
+  const workW = Math.max(1, Math.round(fullW / downscale))
+  const workH = Math.max(1, Math.round(fullH / downscale))
+  const scaleX = fullW / workW
+  const scaleY = fullH / workH
+
+  const workCanvas = document.createElement('canvas')
+  workCanvas.width = workW
+  workCanvas.height = workH
+  const workCtx = workCanvas.getContext('2d', { willReadFrequently: true })
+  if (!workCtx) {
+    workCanvas.width = workCanvas.height = 0
+    return null
+  }
+  workCtx.imageSmoothingEnabled = false
+  workCtx.drawImage(sourceCanvas, 0, 0, workW, workH)
+  const imageData = workCtx.getImageData(0, 0, workW, workH)
+  workCanvas.width = workCanvas.height = 0
+
+  const seedGx = Math.max(0, Math.min(workW - 1, Math.floor(seedX / scaleX)))
+  const seedGy = Math.max(0, Math.min(workH - 1, Math.floor(seedY / scaleY)))
+  const seedOffset = (seedGy * workW + seedGx) * 4
+  const tr = imageData.data[seedOffset]
+  const tg = imageData.data[seedOffset + 1]
+  const tb = imageData.data[seedOffset + 2]
+  const ta = imageData.data[seedOffset + 3]
+  const baseTolerance =
+    ta < 255 && tr + tg + tb > 0
+      ? BUCKET_TOLERANCE_WITH_TRANSPARENCY
+      : BUCKET_TOLERANCE_WITHOUT_TRANSPARENCY
+
+  const worker = getMagicWandWorker()
+  const sessionId = ++nextMagicWandSessionId
+
+  if (worker) {
+    const session: MagicWandSession = {
+      sessionId,
+      workW,
+      workH,
+      scaleX,
+      scaleY,
+      seedGx,
+      seedGy,
+      baseTolerance,
+      useWorker: true,
+      rgba: null,
+      mask: null,
+      queue: null,
+      visitedEdges: null,
+      lastTolerance: -1,
+      inFlight: true,
+      pendingTolerance: null,
+      cancelled: false,
+      points: [],
+      rings: [],
+      onUpdate,
+      idleResolvers: [],
+    }
+    activeWorkerWandSession = session
+    worker.postMessage(
+      {
+        type: 'init',
+        sessionId,
+        workW,
+        workH,
+        scaleX,
+        scaleY,
+        seedGx,
+        seedGy,
+        baseTolerance,
+        rgba: imageData.data,
+        tolerance: 0,
+      },
+      [imageData.data.buffer]
+    )
+    return session
+  }
+
+  const pixelCount = workW * workH
+  const session: MagicWandSession = {
+    sessionId,
+    workW,
+    workH,
+    scaleX,
+    scaleY,
+    seedGx,
+    seedGy,
+    baseTolerance,
+    useWorker: false,
+    rgba: imageData.data,
+    mask: new Uint8Array(pixelCount),
+    queue: new Int32Array(pixelCount),
+    visitedEdges: new Uint8Array((workW + 1) * (workH + 1)),
+    lastTolerance: -1,
+    inFlight: false,
+    pendingTolerance: null,
+    cancelled: false,
+    points: [],
+    rings: [],
+    onUpdate,
+    idleResolvers: [],
+  }
+
+  computeSyncMagicWandSession(session, 0)
+  session.onUpdate?.({
+    points: session.points,
+    rings: session.rings,
+    tolerance: 0,
+  })
+  return session
+}
+
+export const requestMagicWandSessionTolerance = (session: MagicWandSession, tolerance: number) => {
+  if (session.cancelled) return
+  const clampedTol = Math.max(0, Math.min(255, Math.round(tolerance)))
+  if (session.useWorker) {
+    if (session.inFlight) {
+      session.pendingTolerance = clampedTol
+      return
+    }
+    if (clampedTol === session.lastTolerance && session.points.length >= 3) {
+      return
+    }
+    startWorkerWandCompute(session, clampedTol)
+    return
+  }
+
+  const prevTol = session.lastTolerance
+  const res = computeSyncMagicWandSession(session, clampedTol)
+  if (clampedTol !== prevTol) {
+    session.onUpdate?.({
+      points: res.points,
+      rings: res.rings,
+      tolerance: clampedTol,
+    })
+  }
+}
+
+export const cancelMagicWandSession = (session: MagicWandSession | null) => {
+  if (!session) return
+  session.cancelled = true
+  session.pendingTolerance = null
+  session.onUpdate = undefined
+  if (activeWorkerWandSession === session) {
+    activeWorkerWandSession = null
+  }
+  if (session.useWorker && magicWandWorker) {
+    magicWandWorker.postMessage({
+      type: 'clear',
+      sessionId: session.sessionId,
+    })
+  }
+  while (session.idleResolvers.length > 0) {
+    session.idleResolvers.shift()!()
+  }
+}
+
+export const completeMagicWandSession = async (
+  session: MagicWandSession,
+  tolerance: number
+): Promise<{ points: LassoPoint[]; rings: LassoPoint[][] }> => {
+  const clampedTol = Math.max(0, Math.min(255, Math.round(tolerance)))
+  session.onUpdate = undefined
+  if (session.useWorker) {
+    if (session.inFlight) {
+      session.pendingTolerance = clampedTol
+      await new Promise<void>((resolve) => {
+        session.idleResolvers.push(resolve)
+      })
+    } else if (clampedTol !== session.lastTolerance) {
+      startWorkerWandCompute(session, clampedTol)
+      await new Promise<void>((resolve) => {
+        session.idleResolvers.push(resolve)
+      })
+    }
+    const res = { points: session.points, rings: session.rings }
+    cancelMagicWandSession(session)
+    return res
+  }
+
+  const res = computeSyncMagicWandSession(session, clampedTol)
+  cancelMagicWandSession(session)
+  return res
 }

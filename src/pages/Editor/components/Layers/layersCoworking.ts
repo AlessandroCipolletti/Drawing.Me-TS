@@ -200,11 +200,12 @@ export const receiveResizeLayerFromCoworker = (
 export const receiveLassoClearFromCoworker = async (
   layerId: string,
   points: LassoPoint[],
-  inverted?: boolean
+  inverted?: boolean,
+  rings?: LassoPoint[][]
 ) => {
   const layer = state.layers[layerId]
   if (!layer) return
-  clearPolygonFromCanvas(layer.canvas.context, points, { inverted })
+  clearPolygonFromCanvas(layer.canvas.context, points, { inverted, rings })
   await layersBridge.addLayerHistoryContentChangedStep(layerId)
 }
 
@@ -216,13 +217,15 @@ export const receiveLassoTransformFromCoworker = async (
   w: number,
   h: number,
   r: number,
-  inverted?: boolean
+  inverted?: boolean,
+  rings?: LassoPoint[][]
 ) => {
   const layer = state.layers[layerId]
   if (!layer) return
   syncLayerDisplay(layer.id)
   const result = await extractLassoSelection(layer.canvas, points, getLayerDomCanvas(layer), {
     inverted,
+    rings,
   })
   if (!result || !result.hasPixels) return
   const minX = round(x - w / 2, 1)
@@ -251,7 +254,8 @@ export const receiveLassoCopyToLayerFromCoworker = async (
   insertOrder: number,
   layerName: string,
   points: LassoPoint[],
-  inverted?: boolean
+  inverted?: boolean,
+  rings?: LassoPoint[][]
 ) => {
   const sourceLayer = state.layers[sourceLayerId]
   if (!sourceLayer) return
@@ -260,7 +264,7 @@ export const receiveLassoCopyToLayerFromCoworker = async (
     sourceLayer.canvas,
     points,
     getLayerDomCanvas(sourceLayer),
-    { inverted }
+    { inverted, rings }
   )
   if (!result || !result.hasPixels) return
   await layersBridge.createLayerFromSelectionCanvas(
@@ -287,7 +291,8 @@ export const receiveLassoCutToLayerFromCoworker = async (
   insertOrder: number,
   layerName: string,
   points: LassoPoint[],
-  inverted?: boolean
+  inverted?: boolean,
+  rings?: LassoPoint[][]
 ) => {
   const sourceLayer = state.layers[sourceLayerId]
   if (!sourceLayer) return
@@ -296,7 +301,7 @@ export const receiveLassoCutToLayerFromCoworker = async (
     sourceLayer.canvas,
     points,
     getLayerDomCanvas(sourceLayer),
-    { inverted }
+    { inverted, rings }
   )
   if (!result || !result.hasPixels) return
   fillCanvasWithImage(sourceLayer.canvas.context, result.outsideCanvas, 0, 0)

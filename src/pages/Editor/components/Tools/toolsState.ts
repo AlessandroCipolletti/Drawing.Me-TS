@@ -39,6 +39,7 @@ export const config = {
     'spray',
     'customBrush',
     'bucket',
+    'magicWand',
     'eraser',
     'ruler',
     'undo',

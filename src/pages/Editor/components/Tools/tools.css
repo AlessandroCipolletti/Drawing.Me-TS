@@ -176,6 +176,10 @@
   mask-image: url('../../../../static/icons/svg/tool-bucket.svg');
   -webkit-mask-image: url('../../../../static/icons/svg/tool-bucket.svg');
 }
+.editor-tools__tool-magicWand::after {
+  mask-image: url('../../../../static/icons/svg/magic-wand.svg');
+  -webkit-mask-image: url('../../../../static/icons/svg/magic-wand.svg');
+}
 .editor-tools__tool-ruler::after {
   mask-image: url('../../../../static/icons/svg/tool-ruler.svg');
   -webkit-mask-image: url('../../../../static/icons/svg/tool-ruler.svg');

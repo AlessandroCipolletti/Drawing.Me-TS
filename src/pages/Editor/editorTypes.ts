@@ -171,6 +171,7 @@ export interface ResizeModeState {
 
 interface LassoModeState {
   active: boolean
+  isWand: boolean
   isDrawing: boolean
   hasSelection: boolean
   hasPixels: boolean
@@ -178,6 +179,7 @@ interface LassoModeState {
   isDraggingMove: boolean
   inverted: boolean
   points: Array<[number, number]>
+  rings: Array<Array<[number, number]>>
   minX: number
   minY: number
   maxX: number
@@ -433,6 +435,7 @@ export const createInitialEditorState = (
   },
   lassoMode: {
     active: false,
+    isWand: false,
     isDrawing: false,
     hasSelection: false,
     hasPixels: false,
@@ -440,6 +443,7 @@ export const createInitialEditorState = (
     isDraggingMove: false,
     inverted: false,
     points: [],
+    rings: [],
     minX: -1,
     minY: -1,
     maxX: -1,

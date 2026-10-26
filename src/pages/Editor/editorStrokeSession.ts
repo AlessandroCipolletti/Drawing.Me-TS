@@ -247,11 +247,11 @@ export const createEditorStrokeSession = (deps: StrokeSessionDeps) => {
     }
     if (refs.layerContext) {
       refs.layerContext.save()
-      applyLassoClipPath(refs.layerContext, lassoSel.points, lassoSel.inverted)
+      applyLassoClipPath(refs.layerContext, lassoSel.points, lassoSel.inverted, lassoSel.rings)
     }
     if (refs.contextForLine) {
       refs.contextForLine.save()
-      applyLassoClipPath(refs.contextForLine, lassoSel.points, lassoSel.inverted)
+      applyLassoClipPath(refs.contextForLine, lassoSel.points, lassoSel.inverted, lassoSel.rings)
     }
     lassoClipActive = true
   }
@@ -411,7 +411,7 @@ export const createEditorStrokeSession = (deps: StrokeSessionDeps) => {
     const needsPostClip = Boolean(lassoSel && !lassoClipActive)
     if (needsPostClip && lassoSel) {
       targetCtx.save()
-      applyLassoClipPath(targetCtx, lassoSel.points, lassoSel.inverted)
+      applyLassoClipPath(targetCtx, lassoSel.points, lassoSel.inverted, lassoSel.rings)
     }
 
     if (variant === 'freehand') {

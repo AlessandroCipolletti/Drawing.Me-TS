@@ -18,7 +18,8 @@ export interface EditorFacade {
   hideDragBox: () => void
   showDragBox: (x: number, y: number, w: number, h: number, useMagnetism: boolean) => void
   flushPendingResizeFrame: () => void
-  setLassoModeActive: (active: boolean) => void
+  setLassoModeActive: (active: boolean, isWand?: boolean) => void
+  setLassoModeIsWand: (isWand: boolean) => void
   clearLassoSelectionOverlay: () => void
   updateLassoSelectionUi: (bounds: {
     minX: number
@@ -27,6 +28,8 @@ export interface EditorFacade {
     maxY: number
     hasPixels?: boolean
     inverted?: boolean
+    points?: Array<[number, number]>
+    rings?: Array<Array<[number, number]>>
   }) => void
   dismissQuickShape: () => void
   appendLayer: (canvas: HTMLCanvasElement) => void
@@ -61,7 +64,8 @@ export const editorFacade: EditorFacade = {
   hideDragBox: () => currentFacade?.hideDragBox(),
   showDragBox: (x, y, w, h, useMagnetism) => currentFacade?.showDragBox(x, y, w, h, useMagnetism),
   flushPendingResizeFrame: () => currentFacade?.flushPendingResizeFrame(),
-  setLassoModeActive: (active) => currentFacade?.setLassoModeActive(active),
+  setLassoModeActive: (active, isWand) => currentFacade?.setLassoModeActive(active, isWand),
+  setLassoModeIsWand: (isWand) => currentFacade?.setLassoModeIsWand(isWand),
   clearLassoSelectionOverlay: () => currentFacade?.clearLassoSelectionOverlay(),
   updateLassoSelectionUi: (bounds) => currentFacade?.updateLassoSelectionUi(bounds),
   dismissQuickShape: () => currentFacade?.dismissQuickShape(),

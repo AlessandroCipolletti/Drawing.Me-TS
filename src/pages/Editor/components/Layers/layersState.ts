@@ -93,11 +93,13 @@ export interface LayersState {
   canvasPanMode: boolean
   resizeMode: boolean
   lassoMode: boolean
+  wandMode: boolean
   lassoSelection: LassoExtractionResult | null
   lassoFloatDirty: boolean
   lassoFloatBasePoints: LassoPoint[] | null
+  lassoFloatBaseRings: LassoPoint[][] | null
   lassoTransformPoints: LassoPoint[] | null
-  lassoTransformOptions: { inverted: boolean } | null
+  lassoTransformOptions: { inverted: boolean; rings?: LassoPoint[][] } | null
   lassoHistoryDepth: number
   gcoMode: boolean
   editorIsUsingEraser: boolean
@@ -125,9 +127,11 @@ const initialState: LayersState = {
   canvasPanMode: false,
   resizeMode: false,
   lassoMode: false,
+  wandMode: false,
   lassoSelection: null,
   lassoFloatDirty: false,
   lassoFloatBasePoints: null,
+  lassoFloatBaseRings: null,
   lassoTransformPoints: null,
   lassoTransformOptions: null,
   lassoHistoryDepth: 0,

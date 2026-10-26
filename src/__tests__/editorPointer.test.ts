@@ -9,7 +9,9 @@ import {
   applyLassoClipPath,
   clearPolygonFromCanvas,
   fillPolygonOnCanvas,
+  floodFillMagicWandMask,
   getLassoBezierCurvePoints,
+  traceMaskBoundaryRings,
 } from 'pages/Editor/components/Layers/layerLasso'
 import { runCoalescedStepTouchMove } from 'pages/Editor/editorStrokeSession'
 import {
@@ -372,6 +374,7 @@ describe('Editor pointer dispatch & coalesced 120Hz stroke safety net', () => {
       isQuickShapeSupportedTool({ name: 'eraser', globalCompositeOperation: 'destination-out' })
     ).toBe(false)
     expect(isQuickShapeSupportedTool({ name: 'bucket' })).toBe(false)
+    expect(isQuickShapeSupportedTool({ name: 'magicWand' })).toBe(false)
 
     // 1. Straight line with minor hand tremor: connects start to end directly, only offers line & freehand
     const linePts: Array<[number, number]> = []
@@ -574,6 +577,49 @@ describe('Editor pointer dispatch & coalesced 120Hz stroke safety net', () => {
       })
     ).toBe('step')
 
+    expect(
+      resolveTouchStartAction({
+        isResizing: false,
+        resizeModeActive: true,
+        lassoModeActive: true,
+        lassoHasSelection: true,
+        lassoMoveMode: true,
+        currentDeviceHasStylus: true,
+        touchType: TOUCH_TYPE_STYLUS,
+        hasZoom: true,
+        toolName: 'magicWand',
+        currentLayerIsActive: true,
+      })
+    ).toBe('dragLayer')
+
+    expect(
+      resolveTouchMoveAction({
+        isResizing: false,
+        resizeModeActive: false,
+        lassoModeActive: true,
+        lassoHasSelection: true,
+        lassoMoveMode: true,
+        isZooming: false,
+        currentDeviceHasStylus: true,
+        touchType: TOUCH_TYPE_STYLUS,
+        toolName: 'magicWand',
+        currentLayerIsActive: true,
+      })
+    ).toBe('lassoMove')
+
+    expect(
+      resolveTouchEndAction({
+        isResizing: false,
+        resizeModeActive: false,
+        lassoModeActive: true,
+        lassoHasSelection: true,
+        currentDeviceHasStylus: true,
+        isZooming: false,
+        toolName: 'magicWand',
+        currentLayerIsActive: true,
+      })
+    ).toBe('lasso')
+
     // When Move mode is toggled on inside an active lasso selection, drags route to 'lassoMove' while keeping the selection active
     expect(
       resolveTouchStartAction({
@@ -651,5 +697,50 @@ describe('Editor pointer dispatch & coalesced 120Hz stroke safety net', () => {
     fillPolygonOnCanvas(mockCtx, triangle, '#00ff00', { inverted: true })
     clearPolygonFromCanvas(mockCtx, triangle, { inverted: true })
     expect(fillRules).toEqual([undefined, 'evenodd', 'evenodd'])
+
+    // Magic wand bucket flood fill (tolerance 0..255, varying brush alpha, and contour + hole tracing)
+    const w = 16
+    const h = 16
+    const rgba = new Uint8ClampedArray(w * h * 4)
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const idx = (y * w + x) * 4
+        if (x >= 3 && x <= 12 && y >= 3 && y <= 12) {
+          if (x >= 6 && x <= 9 && y >= 6 && y <= 9) {
+            // Inner island of a different color (creates a hole at low tolerance)
+            rgba[idx] = 200
+            rgba[idx + 1] = 20
+            rgba[idx + 2] = 20
+            rgba[idx + 3] = 255
+          } else {
+            // Ring with slight color gradient (diff 0 at seed, 30 on outer band) and varying brush alpha
+            const band = x === 3 || x === 12 || y === 3 || y === 12 ? 30 : 0
+            rgba[idx] = 20 + band
+            rgba[idx + 1] = 100
+            rgba[idx + 2] = 200
+            rgba[idx + 3] = x % 2 === 0 ? 255 : 90
+          }
+        }
+      }
+    }
+
+    const tol0 = floodFillMagicWandMask(rgba, w, h, 4, 4, 0, false)
+    expect(tol0.minX).toBe(4)
+    expect(tol0.maxX).toBe(11)
+    expect(tol0.mask[4 * w + 5]).toBe(1)
+    expect(tol0.mask[6 * w + 6]).toBe(0)
+
+    const tol40 = floodFillMagicWandMask(rgba, w, h, 4, 4, 40, false)
+    expect(tol40.minX).toBe(3)
+    expect(tol40.maxX).toBe(12)
+    expect(tol40.mask[6 * w + 6]).toBe(0)
+
+    const rings40 = traceMaskBoundaryRings(tol40.mask, w, h, tol40, 1, 1)
+    expect(rings40.length).toBe(2)
+
+    const tol255 = floodFillMagicWandMask(rgba, w, h, 4, 4, 255, false)
+    expect(tol255.minX).toBe(0)
+    expect(tol255.maxX).toBe(15)
+    expect(tol255.mask[6 * w + 6]).toBe(1)
   })
 })

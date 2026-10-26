@@ -98,7 +98,7 @@ const selectTool = (
   showToolChange = true
 ) => {
   editorCalls.closeResizeModeIfNeeded()
-  editorCalls.updateCurrentTool(tool === 'eraser')
+  editorCalls.updateCurrentTool(tool === 'eraser' || tool === 'magicWand')
   if (
     state.lastUsedTool !== state.selectedTool &&
     config.writingTools.includes(state.selectedTool)
@@ -137,6 +137,7 @@ const toolsFunctions: Record<string, (selected?: boolean) => unknown> = {
   brush: (selected) => (selected ? toggleVersions('brush') : selectTool('brush')),
   eraser: (selected) => (selected ? toggleVersions('eraser') : selectTool('eraser')),
   bucket: () => selectTool('bucket'),
+  magicWand: () => selectTool('magicWand'),
   pipette: () => selectTool('pipette'),
   ruler: () => {
     if (toggleActiveTool('ruler')) {
