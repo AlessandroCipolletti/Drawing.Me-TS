@@ -497,7 +497,8 @@
 .drawith__PHONE .editor-layers__params-name {
   display: none;
 }
-.drawith__PHONE .editor-layers__params-visibility {
+.drawith__PHONE .editor-layers__params-visibility,
+.editor__container:not(.editor__layers-expanded) .editor-layers__params-visibility {
   display: flex;
 }
 .editor-layers__params-visibility:hover:not(.disabled),
