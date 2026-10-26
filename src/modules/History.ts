@@ -33,6 +33,23 @@ class History<T = any> {
     return this.#data[this.#pointer]
   }
 
+  getPrevious(): T | undefined {
+    return this.#pointer > 0 ? this.#data[this.#pointer - 1] : undefined
+  }
+
+  replaceCurrent(value: T) {
+    if (typeof value === 'undefined') return
+    if (this.#pointer >= 0 && this.#pointer < this.#data.length) {
+      const prev = this.#data[this.#pointer]
+      if (prev !== value) {
+        this.#onDeleteHandler(prev)
+        this.#data[this.#pointer] = value
+      }
+    } else {
+      this.add(value)
+    }
+  }
+
   back(): T | undefined {
     if (this.canGoBack) {
       this.#pointer = Math.max(0, this.#pointer - 1)

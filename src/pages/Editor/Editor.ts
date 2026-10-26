@@ -62,6 +62,8 @@ import {
   updateEditorLayer as compositorUpdateEditorLayer,
   updateDragBoxHandlersPosition,
   updateLassoBarPosition,
+  updateQuickShapeBarPosition,
+  hideQuickShapeBar,
   setLassoModeActive as compositorSetLassoModeActive,
   clearLassoSelectionOverlay as compositorClearLassoSelectionOverlay,
   stopLassoMarchingAnts,
@@ -72,6 +74,7 @@ import {
   applyToolSelection,
   applyToolColorSelection,
 } from './editorCompositor'
+import { QuickShapeVariant } from './editorQuickShape'
 import {
   toggleFullscreen as lifecycleToggleFullscreen,
   handleEditorKeyDown,
@@ -108,6 +111,7 @@ let state: EditorState = { ...initialState }
 registerCanvasZoomCheck(() => isCanvasZoomed(state, initialState.canvas))
 let lastActiveDrawingId: number | false = false
 let pointerCleanup: (() => void) | null = null
+let activeStrokeSession: ReturnType<typeof createEditorStrokeSession> | null = null
 
 const setLastActiveDrawingId = (id: number) => {
   lastActiveDrawingId = id
@@ -145,6 +149,9 @@ const updateDragBoxHandlers = () => {
   if (state.lassoMode?.active) {
     updateLassoBarPosition(state, refs)
   }
+  if (state.quickShapeMode?.active) {
+    updateQuickShapeBarPosition(state, refs)
+  }
 }
 const onGestureStart = (x: number, y: number) => handleGestureStart(state, refs, x, y)
 const onGestureChange = (x: number, y: number, scale: number, rotation: number) =>
@@ -157,9 +164,10 @@ const onGestureEnd = (_x: number, _y: number, scale: number, rotation: number) =
     config,
     updateDragBoxHandlers,
     (duration) =>
-      animateDragBoxHandlersPositionToOrigin(refs, duration, () =>
+      animateDragBoxHandlersPositionToOrigin(refs, duration, () => {
         updateLassoBarPosition(state, refs)
-      ),
+        updateQuickShapeBarPosition(state, refs)
+      }),
     scale,
     rotation
   )
@@ -169,7 +177,8 @@ export const getCanvasPxSizes = (withCoworking = false): [number, number] =>
 
 const onRotate = () =>
   handleViewportRotate(state, initialState.canvas, refs, config, updateDragBoxHandlers)
-const onKeyDown = (e: KeyboardEvent) => handleEditorKeyDown(state, e)
+const onKeyDown = (e: KeyboardEvent) =>
+  handleEditorKeyDown(state, e, () => activeStrokeSession?.dismissQuickShape())
 
 const bindEditorInput = () => {
   const strokeSession = createEditorStrokeSession({
@@ -179,6 +188,7 @@ const bindEditorInput = () => {
     coordsAreInsideLayer,
     setToolColor,
   })
+  activeStrokeSession = strokeSession
   const pointerHandlers = createEditorPointerHandlers({
     state,
     refs,
@@ -214,8 +224,14 @@ const bindEditorInput = () => {
     onGestureStart,
     onGestureChange,
     onGestureEnd,
-    onTwoFingersSingleTap: Layers.undoLayers,
-    onThreeFingersSingleTap: Layers.redoLayers,
+    onTwoFingersSingleTap: () => {
+      strokeSession.dismissQuickShape()
+      void Layers.undoLayers()
+    },
+    onThreeFingersSingleTap: () => {
+      strokeSession.dismissQuickShape()
+      void Layers.redoLayers()
+    },
     onFourFingersSingleTap: toggleFullscreen,
     isWheelBlocked: () => state.desktopPointerDown,
   })
@@ -239,6 +255,19 @@ const bindEditorInput = () => {
   refs.lassoCancelButton?.addEventListener(Params.eventStart, (e) => {
     preventDefault(e)
     Layers.cancelLassoSelection()
+  })
+  refs.quickShapeBar?.addEventListener(Params.eventStart, preventDefault)
+  if (refs.quickShapeVariantButtons) {
+    for (const [variantId, btn] of Object.entries(refs.quickShapeVariantButtons)) {
+      btn.addEventListener(Params.eventStart, (e) => {
+        preventDefault(e)
+        strokeSession.applyQuickShapeVariant(variantId as QuickShapeVariant)
+      })
+    }
+  }
+  refs.quickShapeCancelButton?.addEventListener(Params.eventStart, (e) => {
+    preventDefault(e)
+    strokeSession.dismissQuickShape()
   })
   return strokeSession
 }
@@ -331,6 +360,8 @@ export const open = async (
 }
 
 export const close = async () => {
+  activeStrokeSession?.dismissQuickShape()
+  activeStrokeSession = null
   stopLassoMarchingAnts()
   removeGlobalStatus('drawith__EDITOR-OPEN')
   removeGlobalStatus('drawith__EDITOR-COWORKING')
@@ -365,10 +396,13 @@ registerEditorFacade({
   toggleFullscreen,
   changePaper: (paper) => compositorChangePaper(refs, paper),
   clear: () => {
+    activeStrokeSession?.dismissQuickShape()
     Layers.clearCurrentLayer()
   },
-  setTool: (tool: Partial<CurrentToolProps>) =>
-    applyToolSelection(state, initialState.canvas, refs, coordsAreInsideLayer, tool),
+  setTool: (tool: Partial<CurrentToolProps>) => {
+    activeStrokeSession?.dismissQuickShape()
+    applyToolSelection(state, initialState.canvas, refs, coordsAreInsideLayer, tool)
+  },
   setToolColor,
   saveDrawingsPalette: (colors: PaletteColor[] = []) => persistSaveDrawingsPalette(state, colors),
   saveLayersSidebarExpanded: (expanded: boolean) =>
@@ -383,14 +417,27 @@ registerEditorFacade({
     }
   },
   hideDragBox: () => compositorHideDragBox(state, refs),
-  showDragBox: (x, y, w, h, useMagnetism) =>
-    compositorShowDragBox(state, refs, x, y, w, h, useMagnetism),
+  showDragBox: (x, y, w, h, useMagnetism) => {
+    activeStrokeSession?.dismissQuickShape()
+    compositorShowDragBox(state, refs, x, y, w, h, useMagnetism)
+  },
   flushPendingResizeFrame: () => compositorFlushPendingResizeFrame(state, refs),
-  setLassoModeActive: (active) => compositorSetLassoModeActive(state, refs, active),
+  setLassoModeActive: (active) => {
+    if (active) activeStrokeSession?.dismissQuickShape()
+    compositorSetLassoModeActive(state, refs, active)
+  },
   clearLassoSelectionOverlay: () => compositorClearLassoSelectionOverlay(state, refs),
+  dismissQuickShape: () => {
+    activeStrokeSession?.dismissQuickShape()
+    hideQuickShapeBar(state, refs)
+  },
   appendLayer: (layerCanvas) => compositorAppendLayer(refs, layerCanvas),
   updateEditorLayer: (z, o, gco, a) => compositorUpdateEditorLayer(state, refs, z, o, gco, a),
-  setLayerContext: (ctx) => compositorSetLayerContext(state, refs, ctx),
+  setLayerContext: (ctx) => {
+    activeStrokeSession?.dismissQuickShape()
+    hideQuickShapeBar(state, refs)
+    compositorSetLayerContext(state, refs, ctx)
+  },
 })
 
 registerEditorCoworkingPort({

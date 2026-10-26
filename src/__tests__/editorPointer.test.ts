@@ -7,6 +7,14 @@ import {
 } from 'pages/Editor/editorPointerRouter'
 import { getLassoBezierCurvePoints } from 'pages/Editor/components/Layers/layerLasso'
 import { runCoalescedStepTouchMove } from 'pages/Editor/editorStrokeSession'
+import {
+  buildQuickShapeStrokeSamples,
+  computeQuickShapeGeometry,
+  detectQuickShape,
+  isQuickShapeSupportedTool,
+  QuickShapeInputPoint,
+} from 'pages/Editor/editorQuickShape'
+import History from 'modules/History'
 import { TOUCH_TYPE_STYLUS, TOUCH_TYPE_FINGER } from 'main/constants'
 import { handlePointerEvents } from 'utils/pointerEventsUtils'
 import { getOneToolVersionCompleteProps } from 'pages/Editor/components/Tools/toolsPersistence'
@@ -339,5 +347,182 @@ describe('Editor pointer dispatch & coalesced 120Hz stroke safety net', () => {
     // Corner at (100, 0) should be smoothly rounded around (75, 25) instead of hitting (100, 0)
     const hitsSharpCorner = openCurve.some(([x, y]) => x === 100 && y === 0)
     expect(hitsSharpCorner).toBe(false)
+  })
+
+  it('detects QuickShape primitives (line, arc, polyline, circle, ellipse, triangle, rect/square) and transforms variants cleanly', () => {
+    const toInput = (pts: Array<[number, number]>): QuickShapeInputPoint[] =>
+      pts.map(([x, y]) => ({
+        x,
+        y,
+        size: 16,
+        alpha: 0.75,
+        rotation: 0,
+        aspectRatio: 1,
+      }))
+
+    expect(
+      isQuickShapeSupportedTool({ name: 'pencil', globalCompositeOperation: 'source-over' })
+    ).toBe(true)
+    expect(
+      isQuickShapeSupportedTool({ name: 'eraser', globalCompositeOperation: 'destination-out' })
+    ).toBe(false)
+    expect(isQuickShapeSupportedTool({ name: 'bucket' })).toBe(false)
+
+    // 1. Straight line with minor hand tremor: connects start to end directly, only offers line & freehand
+    const linePts: Array<[number, number]> = []
+    for (let i = 0; i <= 20; i++) {
+      linePts.push([100 + i * 10, 100 + i * 5 + (i % 2 === 0 ? 1 : -1)])
+    }
+    const lineDet = detectQuickShape(toInput(linePts), 1)
+    expect(lineDet?.defaultVariant).toBe('line')
+    expect(lineDet?.availableVariants).toEqual(['line', 'freehand'])
+    const lineGeom = computeQuickShapeGeometry(lineDet!, 'line')
+    expect(lineGeom.waypoints).toEqual([linePts[0], linePts[linePts.length - 1]])
+
+    // 2. Single-arch circular arc
+    const arcPts: Array<[number, number]> = []
+    for (let i = 0; i <= 30; i++) {
+      const t = (i / 30) * Math.PI
+      arcPts.push([200 + 120 * Math.cos(t), 200 - 90 * Math.sin(t)])
+    }
+    const arcDet = detectQuickShape(toInput(arcPts), 1)
+    expect(arcDet?.defaultVariant).toBe('arc')
+    expect(arcDet?.availableVariants).toEqual(['arc', 'freehand'])
+    const arcGeom = computeQuickShapeGeometry(arcDet!, 'arc')
+    expect(arcGeom.waypoints.length).toBeGreaterThan(10)
+
+    // 3. Closed circle & ellipse (only ellipse, circle, freehand — no rect/square)
+    const circlePts: Array<[number, number]> = []
+    for (let i = 0; i <= 48; i++) {
+      const a = (i / 48) * 2 * Math.PI
+      circlePts.push([300 + 80 * Math.cos(a), 300 + 78 * Math.sin(a)])
+    }
+    const circleDet = detectQuickShape(toInput(circlePts), 1)
+    expect(circleDet?.defaultVariant).toBe('circle')
+    expect(circleDet?.availableVariants).toEqual(['ellipse', 'circle', 'freehand'])
+
+    const ellipsePts: Array<[number, number]> = []
+    for (let i = 0; i <= 48; i++) {
+      const a = (i / 48) * 2 * Math.PI
+      ellipsePts.push([300 + 130 * Math.cos(a), 300 + 60 * Math.sin(a)])
+    }
+    const ellipseDet = detectQuickShape(toInput(ellipsePts), 1)
+    expect(ellipseDet?.defaultVariant).toBe('ellipse')
+    expect(ellipseDet?.availableVariants).toEqual(['ellipse', 'circle', 'freehand'])
+
+    // 4. Closed triangle (no circle offered)
+    const triCorners: Array<[number, number]> = [
+      [200, 100],
+      [340, 300],
+      [80, 290],
+      [200, 100],
+    ]
+    const triPts: Array<[number, number]> = []
+    for (let edge = 0; edge < 3; edge++) {
+      const a = triCorners[edge]
+      const b = triCorners[edge + 1]
+      for (let s = 0; s < 16; s++) {
+        const t = s / 16
+        triPts.push([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t])
+      }
+    }
+    triPts.push(triCorners[0])
+    const triDet = detectQuickShape(toInput(triPts), 1)
+    expect(['triangle', 'equilateral']).toContain(triDet?.defaultVariant)
+    expect(triDet?.availableVariants).toEqual(['triangle', 'equilateral', 'freehand'])
+    expect(triDet?.availableVariants).not.toContain('circle')
+
+    // 5. Closed rectangle & square conversion (no circle offered)
+    const rectCorners: Array<[number, number]> = [
+      [100, 100],
+      [320, 100],
+      [320, 220],
+      [100, 220],
+      [100, 100],
+    ]
+    const rectPts: Array<[number, number]> = []
+    for (let edge = 0; edge < 4; edge++) {
+      const a = rectCorners[edge]
+      const b = rectCorners[edge + 1]
+      for (let s = 0; s < 14; s++) {
+        const t = s / 14
+        rectPts.push([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t])
+      }
+    }
+    rectPts.push(rectCorners[0])
+    const rectDet = detectQuickShape(toInput(rectPts), 1)
+    expect(rectDet?.defaultVariant).toBe('rect')
+    expect(rectDet?.availableVariants).toEqual(['rect', 'square', 'quad', 'freehand'])
+    expect(rectDet?.availableVariants).not.toContain('circle')
+    const squareGeom = computeQuickShapeGeometry(rectDet!, 'square')
+    expect(squareGeom.closed).toBe(true)
+    expect(squareGeom.waypoints).toHaveLength(5)
+
+    // 6. Closed pentagon & regularPentagon
+    const pentCorners: Array<[number, number]> = []
+    for (let k = 0; k <= 5; k++) {
+      const a = -Math.PI / 2 + (k * 2 * Math.PI) / 5
+      pentCorners.push([250 + 100 * Math.cos(a), 250 + 100 * Math.sin(a)])
+    }
+    const pentPts: Array<[number, number]> = []
+    for (let edge = 0; edge < 5; edge++) {
+      const a = pentCorners[edge]
+      const b = pentCorners[edge + 1]
+      for (let s = 0; s < 12; s++) {
+        const t = s / 12
+        pentPts.push([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t])
+      }
+    }
+    pentPts.push(pentCorners[0])
+    const pentDet = detectQuickShape(toInput(pentPts), 1)
+    expect(pentDet?.defaultVariant).toBe('regularPentagon')
+    expect(pentDet?.availableVariants).toEqual(['pentagon', 'regularPentagon', 'freehand'])
+    const regPentGeom = computeQuickShapeGeometry(pentDet!, 'regularPentagon')
+    expect(regPentGeom.waypoints).toHaveLength(6)
+
+    // 7. Closed hexagon & regularHexagon
+    const hexCorners: Array<[number, number]> = []
+    for (let k = 0; k <= 6; k++) {
+      const a = -Math.PI / 2 + (k * 2 * Math.PI) / 6
+      hexCorners.push([250 + 110 * Math.cos(a), 250 + 110 * Math.sin(a)])
+    }
+    const hexPts: Array<[number, number]> = []
+    for (let edge = 0; edge < 6; edge++) {
+      const a = hexCorners[edge]
+      const b = hexCorners[edge + 1]
+      for (let s = 0; s < 12; s++) {
+        const t = s / 12
+        hexPts.push([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t])
+      }
+    }
+    hexPts.push(hexCorners[0])
+    const hexDet = detectQuickShape(toInput(hexPts), 1)
+    expect(hexDet?.defaultVariant).toBe('regularHexagon')
+    expect(hexDet?.availableVariants).toEqual(['hexagon', 'regularHexagon', 'freehand'])
+    const regHexGeom = computeQuickShapeGeometry(hexDet!, 'regularHexagon')
+    expect(regHexGeom.waypoints).toHaveLength(7)
+
+    const samples = buildQuickShapeStrokeSamples(
+      squareGeom.waypoints,
+      squareGeom.closed,
+      rectDet!.style,
+      toolDefaultProps
+    )
+    expect(samples.length).toBeGreaterThan(4)
+    expect(samples[0].type).toBe('start')
+    expect(samples[samples.length - 1].type).toBe('end')
+
+    // 8. History.replaceCurrent replaces top step in-place for single-undo QuickShape variant switching
+    const deleted: number[] = []
+    const hist = new History<number>(10, (item) => deleted.push(item))
+    hist.add(10)
+    hist.add(20)
+    expect(hist.getCurrent()).toBe(20)
+    expect(hist.getPrevious()).toBe(10)
+    hist.replaceCurrent(25)
+    expect(hist.getCurrent()).toBe(25)
+    expect(hist.getPrevious()).toBe(10)
+    expect(deleted).toEqual([20])
+    expect(hist.back()).toBe(10)
   })
 })

@@ -20,6 +20,7 @@ import {
   PointerTouchEvent,
   ResizeModeState,
 } from './editorTypes'
+import { QuickShapeBounds, QuickShapeVariant } from './editorQuickShape'
 import { initPipetteCursor } from './editorLifecycle'
 
 let resizeRafId: number | null = null
@@ -269,6 +270,121 @@ export const showLassoSelectionOverlay = (
   refs.lassoBar?.classList.remove('displayNone')
   updateLassoBarPosition(state, refs)
   startLassoMarchingAnts(state, refs)
+}
+
+export const updateQuickShapeBarPosition = (state: EditorState, refs: EditorRefs) => {
+  if (!refs.quickShapeBar || !state.quickShapeMode?.active) return
+
+  if (Params.isPhone) {
+    refs.quickShapeBar.style.left = '50%'
+    refs.quickShapeBar.style.top = ''
+    return
+  }
+
+  const originRect = refs.canvasOrigin?.getBoundingClientRect()
+  if (!originRect) return
+
+  const rad = ((state.canvas.rotation || 0) * Math.PI) / 180
+  const cos = Math.cos(rad)
+  const sin = Math.sin(rad)
+  const scale = state.canvas.scale || 1
+
+  const corners: Array<[number, number]> = [
+    [state.quickShapeMode.minX / Params.pxScale, state.quickShapeMode.minY / Params.pxScale],
+    [state.quickShapeMode.maxX / Params.pxScale, state.quickShapeMode.minY / Params.pxScale],
+    [state.quickShapeMode.minX / Params.pxScale, state.quickShapeMode.maxY / Params.pxScale],
+    [state.quickShapeMode.maxX / Params.pxScale, state.quickShapeMode.maxY / Params.pxScale],
+  ]
+
+  let screenMinX = Infinity
+  let screenMaxX = -Infinity
+  let screenMinY = Infinity
+  let screenMaxY = -Infinity
+
+  for (const [lx, ly] of corners) {
+    const sx = originRect.left + (lx * cos - ly * sin) * scale
+    const sy = originRect.top + (lx * sin + ly * cos) * scale
+    if (sx < screenMinX) screenMinX = sx
+    if (sx > screenMaxX) screenMaxX = sx
+    if (sy < screenMinY) screenMinY = sy
+    if (sy > screenMaxY) screenMaxY = sy
+  }
+
+  const barRect = refs.quickShapeBar.getBoundingClientRect()
+  const barW = barRect.width || 280
+  const barH = barRect.height || 46
+
+  const minLeft = state.canvas.offset.left + barW / 2 + 10
+  const maxLeft = Math.max(minLeft, Params.width - state.canvas.offset.right - barW / 2 - 10)
+  const minTop = state.canvas.offset.top + 10
+  const maxTop = Math.max(minTop, Params.height - state.canvas.offset.bottom - barH - 10)
+
+  const targetLeft = getNumberInBetween(minLeft, maxLeft, (screenMinX + screenMaxX) / 2, 0)
+  let targetTop = screenMinY - barH - 14
+  if (targetTop < minTop) {
+    targetTop = screenMaxY + 14
+  }
+  targetTop = getNumberInBetween(minTop, maxTop, targetTop, 0)
+
+  refs.quickShapeBar.style.left = `${round(targetLeft, 0)}px`
+  refs.quickShapeBar.style.top = `${round(targetTop, 0)}px`
+}
+
+export const showQuickShapeBar = (
+  state: EditorState,
+  refs: EditorRefs,
+  availableVariants: QuickShapeVariant[],
+  selectedVariant: QuickShapeVariant,
+  bounds: QuickShapeBounds,
+  pulse = false
+) => {
+  if (!state.quickShapeMode) return
+  state.quickShapeMode.active = true
+  state.quickShapeMode.variant = selectedVariant
+  state.quickShapeMode.availableVariants = availableVariants
+  state.quickShapeMode.minX = bounds.minX
+  state.quickShapeMode.minY = bounds.minY
+  state.quickShapeMode.maxX = bounds.maxX
+  state.quickShapeMode.maxY = bounds.maxY
+
+  if (refs.quickShapeVariantButtons) {
+    for (const [id, btn] of Object.entries(refs.quickShapeVariantButtons)) {
+      const visible = availableVariants.includes(id as QuickShapeVariant)
+      btn.classList.toggle('displayNone', !visible)
+      btn.classList.toggle('selected', id === selectedVariant)
+    }
+  }
+
+  if (refs.quickShapeBar) {
+    refs.quickShapeBar.classList.remove('displayNone')
+    if (pulse) {
+      refs.quickShapeBar.classList.remove('editor-quickshape__bar--pulse')
+      void refs.quickShapeBar.offsetWidth
+      refs.quickShapeBar.classList.add('editor-quickshape__bar--pulse')
+      if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
+        try {
+          navigator.vibrate(10)
+        } catch {
+          // Ignore vibration errors on unsupported browsers
+        }
+      }
+    }
+    updateQuickShapeBarPosition(state, refs)
+  }
+}
+
+export const hideQuickShapeBar = (state: EditorState, refs: EditorRefs) => {
+  if (state.quickShapeMode) {
+    state.quickShapeMode.active = false
+    state.quickShapeMode.variant = ''
+    state.quickShapeMode.availableVariants = []
+    state.quickShapeMode.minX = -1
+    state.quickShapeMode.minY = -1
+    state.quickShapeMode.maxX = -1
+    state.quickShapeMode.maxY = -1
+  }
+  refs.quickShapeBar?.classList.add('displayNone')
+  refs.quickShapeBar?.classList.remove('editor-quickshape__bar--pulse')
 }
 
 export const updateDragBoxHandlersPosition = (refs: EditorRefs) => {

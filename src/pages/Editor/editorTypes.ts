@@ -38,6 +38,9 @@ export interface EditorRefs {
   lassoTransformButton: HTMLElement | null
   lassoClearButton: HTMLElement | null
   lassoCancelButton: HTMLElement | null
+  quickShapeBar: HTMLElement | null
+  quickShapeVariantButtons: Record<string, HTMLElement>
+  quickShapeCancelButton: HTMLElement | null
 }
 
 export const createInitialEditorRefs = (): EditorRefs => ({
@@ -77,6 +80,9 @@ export const createInitialEditorRefs = (): EditorRefs => ({
   lassoTransformButton: null,
   lassoClearButton: null,
   lassoCancelButton: null,
+  quickShapeBar: null,
+  quickShapeVariantButtons: {},
+  quickShapeCancelButton: null,
 })
 
 export interface EditorTouchState {
@@ -170,6 +176,16 @@ interface LassoModeState {
   maxY: number
 }
 
+interface QuickShapeModeState {
+  active: boolean
+  variant: string
+  availableVariants: string[]
+  minX: number
+  minY: number
+  maxX: number
+  maxY: number
+}
+
 interface PipetteState {
   bg: string
   isVisible: boolean
@@ -213,6 +229,7 @@ export interface EditorState {
   canvas: EditorCanvasState
   resizeMode: ResizeModeState
   lassoMode: LassoModeState
+  quickShapeMode: QuickShapeModeState
   pipette: PipetteState
   currentLayerGCO: GlobalCompositeOperation
   currentToolGCO?: GlobalCompositeOperation
@@ -253,6 +270,7 @@ export interface PointerTouchEvent {
   type?: string
   touchType?: string
   pointerType?: string
+  shiftKey?: boolean
   pageX?: number
   pageY?: number
   clientX?: number
@@ -284,6 +302,7 @@ export interface CoworkingStepsPayload {
     string | false,
     Record<string, unknown>,
   ]
+  replaceStroke?: 'current' | 'last'
 }
 
 export interface EditorOpenOptions {
@@ -409,6 +428,15 @@ export const createInitialEditorState = (
     isDrawing: false,
     hasSelection: false,
     points: [],
+    minX: -1,
+    minY: -1,
+    maxX: -1,
+    maxY: -1,
+  },
+  quickShapeMode: {
+    active: false,
+    variant: '',
+    availableVariants: [],
     minX: -1,
     minY: -1,
     maxX: -1,

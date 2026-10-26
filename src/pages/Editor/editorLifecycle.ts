@@ -43,7 +43,11 @@ export const toggleFullscreen = (state: EditorState, e?: Event) => {
   }
 }
 
-export const handleEditorKeyDown = (state: EditorState, e: KeyboardEvent) => {
+export const handleEditorKeyDown = (
+  state: EditorState,
+  e: KeyboardEvent,
+  onDismissQuickShape?: () => void
+) => {
   const activeTag = (document.activeElement as HTMLElement | null)?.tagName?.toLowerCase()
   if (activeTag === 'input' || activeTag === 'textarea') {
     return
@@ -53,6 +57,7 @@ export const handleEditorKeyDown = (state: EditorState, e: KeyboardEvent) => {
   }
   if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') {
     preventDefault(e)
+    onDismissQuickShape?.()
     if (e.shiftKey) {
       Layers.redoLayers()
     } else {
@@ -60,10 +65,13 @@ export const handleEditorKeyDown = (state: EditorState, e: KeyboardEvent) => {
     }
   } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'y') {
     preventDefault(e)
+    onDismissQuickShape?.()
     Layers.redoLayers()
   } else if (e.key === 'Escape') {
     if (state.fullscreenActive) {
       exitFullscreen(state)
+    } else if (state.quickShapeMode?.active) {
+      onDismissQuickShape?.()
     } else if (state.resizeMode?.active || state.lassoMode?.active) {
       Layers.closeResizeModeIfNeeded()
     } else {

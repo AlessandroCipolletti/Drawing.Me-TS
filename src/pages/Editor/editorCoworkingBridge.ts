@@ -113,7 +113,7 @@ const receiveBucketFromCoworker = async (layerId: string, x: number, y: number, 
   await Layers.addLayerHistoryContentChangedStep(layerId)
 }
 
-export const drawCoworkingStepsPayload = (
+export const drawCoworkingStepsPayload = async (
   data: CoworkingStepsPayload,
   callbacks: {
     start: (ctx: ExtendedCanvasContext, step: StrokeSample, tool: StrokeToolParams) => boolean
@@ -121,7 +121,10 @@ export const drawCoworkingStepsPayload = (
     end: (ctx: ExtendedCanvasContext, step: StrokeSample, tool: StrokeToolParams) => boolean
   }
 ) => {
-  drawMultipleCoworkingSteps(
+  if (data.replaceStroke) {
+    await Layers.restoreLayerBeforeStrokeForCoworker(data.layerId, data.replaceStroke)
+  }
+  await drawMultipleCoworkingSteps(
     data.layerId,
     data.steps.map(addTouchStepDataKeys),
     addToolDataKeys(data.tool),
@@ -131,9 +134,32 @@ export const drawCoworkingStepsPayload = (
     }
   )
   syncLayerDisplayDuringStroke(data.layerId)
-  if (data.steps.find((step) => step[0] === 'end')) {
+  if (data.replaceStroke === 'last') {
+    await Layers.replaceLatestLayerHistoryContentStep(data.layerId)
+  } else if (data.steps.find((step) => step[0] === 'end')) {
     requestAnimationFrame(() => Layers.addLayerHistoryContentChangedStep(data.layerId))
   }
+}
+
+export const sendCoworkingQuickShapeSteps = (
+  state: EditorState,
+  steps: StrokeSample[],
+  replaceStroke: 'current' | 'last' = 'current'
+) => {
+  Coworking.clearSteps()
+  state.stepsSinceLastCoworkingUpdate = 0
+  for (const step of steps) {
+    Coworking.addStep(removeTouchStepDataKeys(step) as unknown as StrokeSample)
+  }
+  const toolData = removeToolDataKeys({
+    name: state.currentToolProps.name,
+    version: state.currentToolProps.version,
+    color: state.currentToolProps.color,
+    globalCompositeOperation: state.currentToolProps.globalCompositeOperation,
+    frameImageName: state.currentToolProps.frameImageName,
+    customProps: Tools.getCurrentToolCustomProps() as Record<string, unknown>,
+  })
+  Coworking.sendSteps(Layers.getCurrentSelectedLayerId(), toolData, replaceStroke)
 }
 
 export const sendCoworkingStep = (

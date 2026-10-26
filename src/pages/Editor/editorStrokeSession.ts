@@ -22,15 +22,28 @@ import {
   updateLastStepData,
 } from './editorUtils'
 import { TOUCH_TYPE_STYLUS, TOUCH_TYPE_FINGER } from 'main/constants'
-import { sendCoworkingStep } from './editorCoworkingBridge'
+import { sendCoworkingQuickShapeSteps, sendCoworkingStep } from './editorCoworkingBridge'
 import {
   compositeMaskedDisplayWithLineOverlay,
   isLayerMasked,
   syncLayerDisplayDuringStroke,
 } from './components/Layers/layerMask'
 import { state as layersState } from './components/Layers/layersState'
+import { hideQuickShapeBar, showQuickShapeBar } from './editorCompositor'
+import {
+  appendQuickShapePoint,
+  buildQuickShapeStrokeSamples,
+  computeQuickShapeGeometry,
+  detectQuickShape,
+  getQuickShapeHoldMoveTolerance,
+  isQuickShapeSupportedTool,
+  QUICK_SHAPE_HOLD_DURATION_MS,
+  QuickShapeDetection,
+  QuickShapeInputPoint,
+  QuickShapeVariant,
+} from './editorQuickShape'
 import { EditorRefs } from './EditorView'
-import { EditorState, EditorTouchState, PointerTouchEvent } from './editorTypes'
+import { CurrentToolProps, EditorState, EditorTouchState, PointerTouchEvent } from './editorTypes'
 
 let cursorRafId = 0
 let pendingCursorSize = 0
@@ -90,6 +103,79 @@ export const createEditorStrokeSession = (deps: StrokeSessionDeps) => {
   const { state, initialCurrentTouch, refs, coordsAreInsideLayer, setToolColor } = deps
   let nearRulerLocked = false
   let lineCanvasHiddenForMask = false
+
+  let preStrokeCanvas: HTMLCanvasElement | OffscreenCanvas | null = null
+  let preStrokeCtx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null = null
+  let quickShapePoints: QuickShapeInputPoint[] = []
+  let quickShapeFreehandSteps: StrokeSample[] = []
+  let quickShapeCurrentSteps: StrokeSample[] = []
+  let quickShapeHoldTimer: ReturnType<typeof setTimeout> | null = null
+  let quickShapeHoldAnchorX = 0
+  let quickShapeHoldAnchorY = 0
+  let quickShapeSnapped = false
+  let quickShapeCommitted = false
+  let quickShapeLayerId = ''
+  let quickShapeToolSnapshot: CurrentToolProps | null = null
+  let quickShapeDetection: QuickShapeDetection | null = null
+  let quickShapeActiveVariant: QuickShapeVariant = 'line'
+  let quickShapeLastDragPoint: [number, number] | undefined = undefined
+
+  const clearQuickShapeHoldTimer = () => {
+    if (quickShapeHoldTimer !== null) {
+      clearTimeout(quickShapeHoldTimer)
+      quickShapeHoldTimer = null
+    }
+  }
+
+  const dismissQuickShape = () => {
+    clearQuickShapeHoldTimer()
+    quickShapeSnapped = false
+    quickShapeCommitted = false
+    quickShapeDetection = null
+    quickShapePoints = []
+    quickShapeFreehandSteps = []
+    quickShapeCurrentSteps = []
+    quickShapeLastDragPoint = undefined
+    hideQuickShapeBar(state, refs)
+  }
+
+  const capturePreStrokeSnapshot = (sourceCanvas: HTMLCanvasElement | undefined) => {
+    if (!sourceCanvas || !sourceCanvas.width || !sourceCanvas.height) return
+    const w = sourceCanvas.width
+    const h = sourceCanvas.height
+    if (!preStrokeCanvas) {
+      if (typeof OffscreenCanvas !== 'undefined') {
+        preStrokeCanvas = new OffscreenCanvas(w, h)
+      } else if (typeof document !== 'undefined') {
+        preStrokeCanvas = document.createElement('canvas')
+      }
+      if (preStrokeCanvas) {
+        preStrokeCtx = preStrokeCanvas.getContext('2d') as
+          CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null
+      }
+    }
+    if (!preStrokeCanvas || !preStrokeCtx) return
+    if (preStrokeCanvas.width !== w || preStrokeCanvas.height !== h) {
+      preStrokeCanvas.width = w
+      preStrokeCanvas.height = h
+    }
+    preStrokeCtx.clearRect(0, 0, w, h)
+    preStrokeCtx.drawImage(sourceCanvas, 0, 0)
+  }
+
+  const restorePreStrokeToContext = (targetCtx: ExtendedCanvasContext) => {
+    if (!targetCtx?.canvas) return
+    const prevGco = targetCtx.globalCompositeOperation
+    const prevAlpha = targetCtx.globalAlpha
+    targetCtx.globalCompositeOperation = 'source-over'
+    targetCtx.globalAlpha = 1
+    targetCtx.clearRect(0, 0, targetCtx.canvas.width, targetCtx.canvas.height)
+    if (preStrokeCanvas && preStrokeCanvas.width > 0 && preStrokeCanvas.height > 0) {
+      targetCtx.drawImage(preStrokeCanvas as CanvasImageSource, 0, 0)
+    }
+    targetCtx.globalCompositeOperation = prevGco
+    targetCtx.globalAlpha = prevAlpha
+  }
 
   const saveStepHistory = () => {
     Layers.addLayerHistoryContentChangedStep()
@@ -181,6 +267,141 @@ export const createEditorStrokeSession = (deps: StrokeSessionDeps) => {
 
   const shouldUseLineAdaptation = () => shouldAdaptStrokeLine(state.currentToolProps)
 
+  const paintQuickShapeVariant = (
+    variant: QuickShapeVariant,
+    dragPoint?: [number, number],
+    pulse = false
+  ) => {
+    if (!quickShapeDetection || !quickShapeToolSnapshot || !quickShapeLayerId) return
+    const targetCtx = Layers.getLayerContext(quickShapeLayerId) || refs.layerContext
+    if (!targetCtx) return
+
+    restorePreStrokeToContext(targetCtx)
+    if (refs.contextForLine && refs.canvasForLine) {
+      refs.contextForLine.clearRect(0, 0, refs.canvasForLine.width, refs.canvasForLine.height)
+    }
+
+    if (variant === 'freehand') {
+      for (const step of quickShapeFreehandSteps) {
+        drawStrokeSample(targetCtx, step, quickShapeToolSnapshot, true)
+      }
+      targetCtx.globalAlpha = 1
+      targetCtx.globalCompositeOperation = 'source-over'
+      quickShapeCurrentSteps = quickShapeFreehandSteps
+      const geom = computeQuickShapeGeometry(
+        quickShapeDetection,
+        quickShapeDetection.defaultVariant,
+        dragPoint
+      )
+      showQuickShapeBar(
+        state,
+        refs,
+        quickShapeDetection.availableVariants,
+        'freehand',
+        geom.bounds,
+        false
+      )
+      refreshStrokeLayerDisplay(quickShapeLayerId)
+      return
+    }
+
+    const geom = computeQuickShapeGeometry(quickShapeDetection, variant, dragPoint)
+    const samples = buildQuickShapeStrokeSamples(
+      geom.waypoints,
+      geom.closed,
+      quickShapeDetection.style,
+      quickShapeToolSnapshot
+    )
+    for (const step of samples) {
+      drawStrokeSample(targetCtx, step, quickShapeToolSnapshot, true)
+    }
+    targetCtx.globalAlpha = 1
+    targetCtx.globalCompositeOperation = 'source-over'
+    quickShapeCurrentSteps = samples
+
+    showQuickShapeBar(
+      state,
+      refs,
+      quickShapeDetection.availableVariants,
+      variant,
+      geom.bounds,
+      pulse
+    )
+    refreshStrokeLayerDisplay(quickShapeLayerId)
+  }
+
+  const triggerQuickShapeOnHold = () => {
+    quickShapeHoldTimer = null
+    if (
+      !state.currentTouch.isDown ||
+      state.currentTouch.isNearRuler ||
+      !state.currentTouch.drewSomething ||
+      quickShapeSnapped ||
+      !isQuickShapeSupportedTool(state.currentToolProps) ||
+      !refs.layerContext
+    ) {
+      return
+    }
+
+    if (
+      shouldUseLineAdaptation() &&
+      typeof state.lastAdaptedStep.x === 'number' &&
+      (state.lastStep.x !== state.lastAdaptedStep.x || state.lastStep.y !== state.lastAdaptedStep.y)
+    ) {
+      const tailStep = getStepData(
+        state.currentToolProps,
+        state.currentTouch,
+        state.lastAdaptedStep
+      )
+      quickShapeFreehandSteps.push({ ...tailStep, type: 'end' })
+    }
+
+    const detection = detectQuickShape(quickShapePoints, state.canvas.scale)
+    if (!detection) return
+
+    quickShapeDetection = detection
+    quickShapeSnapped = true
+    quickShapeCommitted = false
+    quickShapeActiveVariant = detection.defaultVariant
+    quickShapeLayerId = Layers.getCurrentSelectedLayerId()
+    quickShapeToolSnapshot = { ...state.currentToolProps }
+    quickShapeLastDragPoint = [state.currentTouch.x, state.currentTouch.y]
+    state.hasPredictedOverlay = false
+
+    paintQuickShapeVariant(quickShapeActiveVariant, undefined, true)
+  }
+
+  const armQuickShapeHoldTimer = () => {
+    clearQuickShapeHoldTimer()
+    if (
+      !state.currentTouch.isDown ||
+      state.currentTouch.isNearRuler ||
+      quickShapeSnapped ||
+      !isQuickShapeSupportedTool(state.currentToolProps)
+    ) {
+      return
+    }
+    quickShapeHoldTimer = setTimeout(triggerQuickShapeOnHold, QUICK_SHAPE_HOLD_DURATION_MS)
+  }
+
+  const applyQuickShapeVariant = (variant: QuickShapeVariant) => {
+    if (
+      !quickShapeDetection ||
+      !quickShapeCommitted ||
+      !quickShapeLayerId ||
+      Layers.getCurrentSelectedLayerId() !== quickShapeLayerId
+    ) {
+      dismissQuickShape()
+      return
+    }
+    quickShapeActiveVariant = variant
+    paintQuickShapeVariant(variant, quickShapeLastDragPoint, false)
+    void Layers.replaceLatestLayerHistoryContentStep(quickShapeLayerId)
+    if (Coworking.isOpen() && quickShapeCurrentSteps.length > 0) {
+      sendCoworkingQuickShapeSteps(state, quickShapeCurrentSteps, 'last')
+    }
+  }
+
   const handleTouchStartStep = (context: ExtendedCanvasContext) => {
     state.currentTouch.drewSomething = false
     const stepData = getStepData(state.currentToolProps, state.currentTouch, state.lastStep)
@@ -210,6 +431,20 @@ export const createEditorStrokeSession = (deps: StrokeSessionDeps) => {
         sendCoworkingStep(state, stepData)
       }
       updateLastStepData(state, stepData)
+      if (!state.currentTouch.isNearRuler && isQuickShapeSupportedTool(state.currentToolProps)) {
+        quickShapeFreehandSteps = [{ ...stepData, type: 'start' }]
+        quickShapePoints = []
+        appendQuickShapePoint(quickShapePoints, {
+          x: stepData.x,
+          y: stepData.y,
+          size: stepData.size,
+          alpha: stepData.alpha,
+          rotation: stepData.rotation,
+          aspectRatio: stepData.aspectRatio ?? 1,
+        })
+        quickShapeHoldAnchorX = stepData.x
+        quickShapeHoldAnchorY = stepData.y
+      }
     }
   }
 
@@ -231,6 +466,23 @@ export const createEditorStrokeSession = (deps: StrokeSessionDeps) => {
         state.currentTouch.drewSomething &&
           state.stepsSinceLastCoworkingUpdate >= state.currentToolProps.stepsToUpdateCoworking - 1
       )
+    }
+    if (
+      !state.currentTouch.isNearRuler &&
+      !quickShapeSnapped &&
+      isQuickShapeSupportedTool(state.currentToolProps)
+    ) {
+      appendQuickShapePoint(quickShapePoints, {
+        x: stepData.x,
+        y: stepData.y,
+        size: stepData.size,
+        alpha: stepData.alpha,
+        rotation: stepData.rotation,
+        aspectRatio: stepData.aspectRatio ?? 1,
+      })
+      if (sendDataForCoworking && thisStepHasDoneSomething) {
+        quickShapeFreehandSteps.push({ ...stepData, type: 'move' })
+      }
     }
     updateLastStepData(state, stepData)
   }
@@ -331,6 +583,20 @@ export const createEditorStrokeSession = (deps: StrokeSessionDeps) => {
       refs.contextForLine.clearRect(0, 0, refs.canvasForLine.width, refs.canvasForLine.height)
       state.hasPredictedOverlay = false
     }
+
+    if (quickShapeSnapped && quickShapeDetection) {
+      updateCurrentTouchData(state, sampleTouchEvent, Params.eventMove, false, false, true)
+      const nextDragPoint: [number, number] = [state.currentTouch.x, state.currentTouch.y]
+      quickShapeLastDragPoint = nextDragPoint
+      updateCursorPosition(
+        quickShapeDetection.style.size,
+        state.currentTouch.x,
+        state.currentTouch.y
+      )
+      paintQuickShapeVariant(quickShapeActiveVariant, nextDragPoint, false)
+      return
+    }
+
     updateCurrentTouchData(state, sampleTouchEvent, Params.eventMove)
 
     if (shouldUseLineAdaptation()) {
@@ -355,10 +621,30 @@ export const createEditorStrokeSession = (deps: StrokeSessionDeps) => {
       handleTouchMoveStep(refs.layerContext, true)
       renderPredictedOverlayIfNeeded(sampleTouchEvent)
     }
+
+    if (
+      !state.currentTouch.isNearRuler &&
+      isQuickShapeSupportedTool(state.currentToolProps) &&
+      state.currentTouch.drewSomething
+    ) {
+      const distFromHold = Math.hypot(
+        state.currentTouch.x - quickShapeHoldAnchorX,
+        state.currentTouch.y - quickShapeHoldAnchorY
+      )
+      if (
+        distFromHold > getQuickShapeHoldMoveTolerance(state.canvas.scale) ||
+        quickShapeHoldTimer === null
+      ) {
+        quickShapeHoldAnchorX = state.currentTouch.x
+        quickShapeHoldAnchorY = state.currentTouch.y
+        armQuickShapeHoldTimer()
+      }
+    }
   }
 
   const onStepTouchStart = (touchEvent: PointerTouchEvent) => {
     if (!refs.contextForLine || !refs.canvasForLine || !refs.layerContext) return
+    dismissQuickShape()
     state.currentTouch = { ...initialCurrentTouch }
     state.lastStep = {}
     state.lastAdaptedStep = {}
@@ -372,6 +658,11 @@ export const createEditorStrokeSession = (deps: StrokeSessionDeps) => {
     if (state.currentTouch.isNearRuler && !Ruler.isHeldByFingers()) {
       Ruler.lock()
       nearRulerLocked = true
+    } else if (
+      !state.currentTouch.isNearRuler &&
+      isQuickShapeSupportedTool(state.currentToolProps)
+    ) {
+      capturePreStrokeSnapshot(refs.layerContext.canvas)
     }
     handleTouchStartStep(refs.layerContext)
 
@@ -399,11 +690,35 @@ export const createEditorStrokeSession = (deps: StrokeSessionDeps) => {
   }
 
   const onStepTouchEnd = (e: PointerTouchEvent) => {
+    clearQuickShapeHoldTimer()
     if (!refs.contextForLine || !refs.canvasForLine || !refs.layerContext) return
     if (state.hasPredictedOverlay) {
       refs.contextForLine.clearRect(0, 0, refs.canvasForLine.width, refs.canvasForLine.height)
       state.hasPredictedOverlay = false
     }
+
+    if (quickShapeSnapped && quickShapeDetection) {
+      refs.contextForLine.clearRect(0, 0, refs.canvasForLine.width, refs.canvasForLine.height)
+      if (nearRulerLocked) {
+        Ruler.unlock()
+        nearRulerLocked = false
+      }
+      state.currentTouch.isDown = state.currentTouch.isNearRuler = false
+      refs.toolCursor?.classList.add('displayNone')
+      quickShapeCommitted = true
+
+      if (Coworking.isOpen() && quickShapeCurrentSteps.length > 0) {
+        sendCoworkingQuickShapeSteps(state, quickShapeCurrentSteps, 'current')
+      }
+      const layerId = Layers.getCurrentSelectedLayerId()
+      if (layerId) refreshStrokeLayerDisplay(layerId)
+      requestAnimationFrame(saveStepHistory)
+      if (lineCanvasHiddenForMask) {
+        setLineCanvasHiddenForMask(false)
+      }
+      return
+    }
+
     if (shouldUseLineAdaptation()) {
       refs.contextForLine.clearRect(0, 0, refs.canvasForLine.width, refs.canvasForLine.height)
       if (
@@ -494,5 +809,7 @@ export const createEditorStrokeSession = (deps: StrokeSessionDeps) => {
     makeTouchStartNearRuler,
     makeTouchMoveNearRuler,
     makeTouchEndNearRuler,
+    applyQuickShapeVariant,
+    dismissQuickShape,
   }
 }

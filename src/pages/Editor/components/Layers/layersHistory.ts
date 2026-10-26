@@ -235,6 +235,83 @@ export const addLayerHistoryContentChangedStep = async (
   await next
 }
 
+export const replaceLatestLayerHistoryContentStep = async (
+  layerId: string | false = state.currentSelectedLayerId
+) => {
+  if (!layerId) return
+  const layerAtCall = state.layers[layerId]
+  if (!layerAtCall) return
+  const snapshotBitmapPromise = createImageBitmap(layerAtCall.canvas)
+  const coordsPromise = findImageContentCoords(layerAtCall.canvas, config.coordsImgScale)
+
+  const runReplace = async () => {
+    const [bitmap, coords] = await Promise.all([snapshotBitmapPromise, coordsPromise])
+    const layer = state.layers[layerId]
+    if (!layer) {
+      bitmap.close?.()
+      return
+    }
+    layer.minX = coords.minX
+    layer.minY = coords.minY
+    layer.maxX = coords.maxX
+    layer.maxY = coords.maxY
+    const canBeResized = layerCanBeResized(layerId)
+    layer.updateTimestamp = Date.now()
+    layer.modified = true
+    const step: LayerHistoryStep = {
+      bitmap,
+      minX: layer.minX,
+      minY: layer.minY,
+      maxX: layer.maxX,
+      maxY: layer.maxY,
+    }
+    layer.history.replaceCurrent(step)
+    updateUndoRedoButtons()
+    editorFacade.setDrawingModified()
+    if (layer.maskBelowLayerId) {
+      compositeSourceToDisplay(layerId)
+    } else {
+      syncLayerDisplay(layerId)
+    }
+    refreshMaskDependents(layerId)
+    layersBridge.updateLayerPreview(layerId)
+    if (isYourLayerYours(layerId)) {
+      const wasInResizeMode = state.resizeMode
+      layersBridge.updateResizeMode(state.resizeMode && canBeResized, canBeResized)
+      layersBridge.updateLassoMode(state.lassoMode && canBeResized, canBeResized)
+      layersBridge.updateGcoMode(state.gcoMode && canBeResized, !state.resizeMode && canBeResized)
+      if (wasInResizeMode && !state.resizeMode) {
+        editorFacade.hideDragBox()
+      }
+    }
+  }
+
+  const prev = layerHistoryQueues[layerId] || Promise.resolve()
+  const next = prev.then(runReplace, runReplace)
+  layerHistoryQueues[layerId] = next
+  await next
+}
+
+export const restoreLayerBeforeStrokeForCoworker = async (
+  layerId: string,
+  mode: 'current' | 'last'
+) => {
+  if (mode === 'last') {
+    await (layerHistoryQueues[layerId] || Promise.resolve())
+  }
+  const layer = state.layers[layerId]
+  if (!layer) return
+  const step =
+    mode === 'last'
+      ? (layer.history.getPrevious() ?? layer.history.getCurrent())
+      : layer.history.getCurrent()
+  if (step?.bitmap?.width) {
+    fillCanvasWithImage(layer.canvas.context, step.bitmap)
+  } else {
+    layer.canvas.context.clearRect(0, 0, layer.canvas.width, layer.canvas.height)
+  }
+}
+
 const commitLayerCanvasStepOnly = async (layerId: string) => {
   if (!layerId) return
   const layerAtCall = state.layers[layerId]
@@ -542,6 +619,7 @@ export const doUndoForUser = async (userId: string) => {
 }
 
 export const undoLayers = async () => {
+  editorFacade.dismissQuickShape()
   const hasDoneUndo = await doUndoForUser(Coworking.getUserId())
   updateUndoRedoButtons()
 
@@ -636,6 +714,7 @@ export const doRedoForUser = async (userId: string) => {
 }
 
 export const redoLayers = async () => {
+  editorFacade.dismissQuickShape()
   const hasDoneRedo = await doRedoForUser(Coworking.getUserId())
   updateUndoRedoButtons()
 

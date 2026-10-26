@@ -112,6 +112,7 @@ export interface PointerRouterDeps {
     onStepTouchStart: (touchEvent: PointerTouchEvent) => void
     onStepTouchMove: (touchEvent: PointerTouchEvent) => void
     onStepTouchEnd: (e: PointerTouchEvent) => void
+    dismissQuickShape?: () => void
   }
 }
 
@@ -244,11 +245,17 @@ export const createEditorPointerHandlers = (deps: PointerRouterDeps) => {
       currentLayerIsActive: state.currentLayerIsActive,
     })
     if (action === 'panCanvas') onPanCanvasTouchStart(touchEvent)
-    else if (action === 'dragLayer') onDragLayerContentTouchStart(touchEvent)
-    else if (action === 'dragZoom') onDragZoomTouchStart(touchEvent)
-    else if (action === 'lasso') onLassoTouchStart(touchEvent)
-    else if (action === 'pipette') onPipetteTouchStart(touchEvent)
-    else if (action === 'step') session.onStepTouchStart(touchEvent)
+    else if (action === 'dragLayer') {
+      session.dismissQuickShape?.()
+      onDragLayerContentTouchStart(touchEvent)
+    } else if (action === 'dragZoom') onDragZoomTouchStart(touchEvent)
+    else if (action === 'lasso') {
+      session.dismissQuickShape?.()
+      onLassoTouchStart(touchEvent)
+    } else if (action === 'pipette') {
+      session.dismissQuickShape?.()
+      onPipetteTouchStart(touchEvent)
+    } else if (action === 'step') session.onStepTouchStart(touchEvent)
   }
 
   const onResizeLayerContentTouchMove = (

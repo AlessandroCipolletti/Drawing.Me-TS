@@ -288,3 +288,108 @@ div.editor__magnetised-line-r {
 .drawith__PHONE .editor-lasso__action-label {
   display: none;
 }
+
+/* QUICKSHAPE FLOATING ACTION BAR */
+@keyframes quickshape-bar-pulse {
+  0% {
+    transform: translate3d(-50%, 4px, 0) scale(0.94);
+  }
+  55% {
+    transform: translate3d(-50%, 0, 0) scale(1.03);
+  }
+  100% {
+    transform: translate3d(-50%, 0, 0) scale(1);
+  }
+}
+.params-container.editor-quickshape__bar {
+  position: absolute;
+  z-index: 1001;
+  width: auto;
+  height: auto;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.36rem;
+  padding: 0.4rem 0.5rem;
+  border-radius: 1.15rem;
+  border: 0.5px solid rgba(15, 23, 42, 0.24);
+  background-color: var(--editor-capsule-bg);
+  backdrop-filter: blur(22px) saturate(190%);
+  -webkit-backdrop-filter: blur(22px) saturate(190%);
+  box-shadow:
+    0 14px 32px -6px rgba(15, 23, 42, 0.22),
+    0 4px 12px -2px rgba(15, 23, 42, 0.1);
+  transform: translate3d(-50%, 0, 0);
+  opacity: 1;
+  pointer-events: auto;
+}
+.params-container.editor-quickshape__bar.editor-quickshape__bar--pulse {
+  animation: quickshape-bar-pulse 210ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.drawith__EDITOR-FULLSCREEN .params-container.editor-quickshape__bar {
+  opacity: 0;
+  pointer-events: none;
+}
+.editor-quickshape__action {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  height: 3.4rem;
+  padding: 0 0.85rem;
+  border-radius: 0.82rem;
+  border: 0.5px solid rgba(15, 23, 42, 0.16);
+  background-color: #ffffff;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  box-sizing: border-box;
+  transition:
+    background-color 140ms ease,
+    border-color 140ms ease,
+    color 140ms ease,
+    transform 110ms ease;
+}
+.editor-quickshape__action--icon-only {
+  width: 3.4rem;
+  padding: 0;
+}
+.editor-quickshape__action:hover {
+  background-color: var(--editor-well-bg);
+  border-color: var(--accent-ink-strong);
+}
+.editor-quickshape__action:active {
+  transform: scale(0.95);
+}
+.editor-quickshape__action.selected {
+  background-color: var(--palette-gray-1);
+  border-color: var(--palette-gray-1);
+}
+.editor-quickshape__action-label {
+  font-family: 'Poppins-Medium', sans-serif;
+  font-size: 1.08rem;
+  line-height: 1;
+  color: var(--text-primary);
+  white-space: nowrap;
+  pointer-events: none;
+}
+.editor-quickshape__action.selected .editor-quickshape__action-label {
+  color: var(--palette-white);
+}
+.drawith__PHONE .params-container.editor-quickshape__bar {
+  top: calc(var(--header-height) + 0.55rem) !important;
+  left: 50% !important;
+  gap: 0.28rem;
+  padding: 0.34rem 0.42rem;
+}
+.drawith__PHONE .editor-quickshape__action {
+  height: 3.2rem;
+  padding: 0 0.65rem;
+}
+.drawith__PHONE .editor-quickshape__action--icon-only {
+  width: 3.2rem;
+  padding: 0;
+}
+.drawith__PHONE .editor-quickshape__action-label {
+  font-size: 0.98rem;
+}

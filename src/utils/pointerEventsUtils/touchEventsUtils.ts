@@ -111,6 +111,7 @@ export const normalizeTouchOrPointerEvent = (ev: any) => {
     target: ev.target,
     touchType,
     pointerType: ev.pointerType,
+    shiftKey: Boolean(ev.shiftKey),
     force,
     tangentialPressure,
     altitudeAngle,

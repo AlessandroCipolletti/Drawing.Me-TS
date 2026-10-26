@@ -402,7 +402,7 @@ export const clearSteps = () => {
   state.stepsBuffer = []
 }
 
-export const sendSteps = (layerId: string, tool: any) => {
+export const sendSteps = (layerId: string, tool: any, replaceStroke?: 'current' | 'last') => {
   const stepsToSend = state.stepsBuffer
   state.stepsBuffer = []
 
@@ -422,6 +422,7 @@ export const sendSteps = (layerId: string, tool: any) => {
       steps: stepsToSend,
       layerId,
       tool: clonedTool,
+      ...(replaceStroke ? { replaceStroke } : {}),
     },
   })
 }

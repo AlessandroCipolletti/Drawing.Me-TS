@@ -3,6 +3,24 @@ import { EditorRefs } from './editorTypes'
 
 export type { EditorRefs }
 
+const QUICK_SHAPE_VARIANT_ITEMS: ReadonlyArray<{ id: string; label: string }> = [
+  { id: 'line', label: 'Line' },
+  { id: 'arc', label: 'Arc' },
+  { id: 'polyline', label: 'Polyline' },
+  { id: 'ellipse', label: 'Ellipse' },
+  { id: 'circle', label: 'Circle' },
+  { id: 'rect', label: 'Rect' },
+  { id: 'square', label: 'Square' },
+  { id: 'triangle', label: 'Triangle' },
+  { id: 'equilateral', label: 'Regular' },
+  { id: 'quad', label: 'Quad' },
+  { id: 'pentagon', label: 'Pentagon' },
+  { id: 'regularPentagon', label: 'Regular' },
+  { id: 'hexagon', label: 'Hexagon' },
+  { id: 'regularHexagon', label: 'Regular' },
+  { id: 'freehand', label: 'Original' },
+]
+
 export const EditorView = ({ refs }: { refs: EditorRefs }) => (
   <div
     class="editor__container displayNone"
@@ -175,6 +193,37 @@ export const EditorView = ({ refs }: { refs: EditorRefs }) => (
         data-lasso-action="cancel"
         ref={(el) => {
           refs.lassoCancelButton = el
+        }}
+      >
+        <div class="editor-lasso__action-icon svg-icon-close svg-icon-dark" />
+      </div>
+    </div>
+    <div
+      class="editor-quickshape__bar params-container displayNone"
+      ref={(el) => {
+        refs.quickShapeBar = el
+      }}
+    >
+      {QUICK_SHAPE_VARIANT_ITEMS.map((item) => (
+        <div
+          class="editor-quickshape__action displayNone"
+          data-quickshape-variant={item.id}
+          ref={(el) => {
+            if (!refs.quickShapeVariantButtons) {
+              refs.quickShapeVariantButtons = {}
+            }
+            refs.quickShapeVariantButtons[item.id] = el
+          }}
+        >
+          <span class="editor-quickshape__action-label">{item.label}</span>
+        </div>
+      ))}
+      <div class="editor-lasso__divider" />
+      <div
+        class="editor-quickshape__action editor-quickshape__action--icon-only"
+        data-quickshape-action="cancel"
+        ref={(el) => {
+          refs.quickShapeCancelButton = el
         }}
       >
         <div class="editor-lasso__action-icon svg-icon-close svg-icon-dark" />

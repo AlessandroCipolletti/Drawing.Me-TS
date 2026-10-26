@@ -30,6 +30,8 @@ import {
 import { exportLayers, exportWholeCanvasData } from './layersExport'
 import {
   addLayerHistoryContentChangedStep,
+  replaceLatestLayerHistoryContentStep,
+  restoreLayerBeforeStrokeForCoworker,
   doRedoForUser,
   doUndoForUser,
   redoLayers,
@@ -100,6 +102,8 @@ export {
   getCurrentSelectedLayerId,
   getLayerContext,
   addLayerHistoryContentChangedStep,
+  replaceLatestLayerHistoryContentStep,
+  restoreLayerBeforeStrokeForCoworker,
   setLayerCoordsAfterDragResize,
   undoLayers,
   redoLayers,
