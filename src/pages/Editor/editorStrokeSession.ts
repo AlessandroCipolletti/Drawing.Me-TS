@@ -49,6 +49,7 @@ let cursorRafId = 0
 let pendingCursorSize = 0
 let pendingCursorX = 0
 let pendingCursorY = 0
+let pendingHistoryRafId: number | null = null
 
 export const runCoalescedStepTouchMove = <T>(
   touchEvent: T & { coalescedSamples?: T[] },
@@ -178,7 +179,28 @@ export const createEditorStrokeSession = (deps: StrokeSessionDeps) => {
   }
 
   const saveStepHistory = () => {
-    Layers.addLayerHistoryContentChangedStep()
+    if (pendingHistoryRafId !== null) {
+      cancelAnimationFrame(pendingHistoryRafId)
+      pendingHistoryRafId = null
+    }
+    void Layers.addLayerHistoryContentChangedStep()
+  }
+
+  const flushPendingHistorySave = () => {
+    if (pendingHistoryRafId === null) return
+    cancelAnimationFrame(pendingHistoryRafId)
+    pendingHistoryRafId = null
+    void Layers.addLayerHistoryContentChangedStep()
+  }
+
+  const scheduleSaveStepHistory = () => {
+    if (pendingHistoryRafId !== null) {
+      cancelAnimationFrame(pendingHistoryRafId)
+    }
+    pendingHistoryRafId = requestAnimationFrame(() => {
+      pendingHistoryRafId = null
+      void Layers.addLayerHistoryContentChangedStep()
+    })
   }
 
   const refreshStrokeLayerDisplay = (layerId: string) => {
@@ -234,6 +256,7 @@ export const createEditorStrokeSession = (deps: StrokeSessionDeps) => {
     sendForCoworking = true
   ) => {
     if (coordsAreInsideLayer(x, y)) {
+      flushPendingHistorySave()
       let hasBeenUsed = false
       if (Layers.isYourLayerEmpty()) {
         fillCompletely(context, color, context.canvas.width, context.canvas.height)
@@ -525,7 +548,7 @@ export const createEditorStrokeSession = (deps: StrokeSessionDeps) => {
     if (state.currentTouch.drewSomething) {
       const layerId = Layers.getCurrentSelectedLayerId()
       if (layerId) refreshStrokeLayerDisplay(layerId)
-      requestAnimationFrame(saveStepHistory)
+      scheduleSaveStepHistory()
     }
     if (lineCanvasHiddenForMask) {
       setLineCanvasHiddenForMask(false)
@@ -712,7 +735,7 @@ export const createEditorStrokeSession = (deps: StrokeSessionDeps) => {
       }
       const layerId = Layers.getCurrentSelectedLayerId()
       if (layerId) refreshStrokeLayerDisplay(layerId)
-      requestAnimationFrame(saveStepHistory)
+      scheduleSaveStepHistory()
       if (lineCanvasHiddenForMask) {
         setLineCanvasHiddenForMask(false)
       }
