@@ -64,7 +64,7 @@ export const handleEditorKeyDown = (state: EditorState, e: KeyboardEvent) => {
   } else if (e.key === 'Escape') {
     if (state.fullscreenActive) {
       exitFullscreen(state)
-    } else if (state.resizeMode?.active) {
+    } else if (state.resizeMode?.active || state.lassoMode?.active) {
       Layers.closeResizeModeIfNeeded()
     } else {
       ColorPicker.closeParams()

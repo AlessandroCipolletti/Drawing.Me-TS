@@ -1,10 +1,11 @@
 import Params from 'main/Params'
 import * as Layers from './components/Layers'
 import { isLayerMasked } from './components/Layers/layerMask'
+import { renderLassoOverlayFrame } from './components/Layers/layerLasso'
 import * as Toolbar from './components/Toolbar'
 import * as Tools from './components/Tools'
 import { fadeInElements, fadeOutElements } from 'utils/animationsUtils'
-import { round, getAverage, roundAngleForSteps } from 'utils/mathUtils'
+import { round, getAverage, roundAngleForSteps, getNumberInBetween } from 'utils/mathUtils'
 import { setImageShapeIfNeeded, ExtendedCanvasContext } from 'utils/canvasUtils'
 import {
   updateCurrentTouchData,
@@ -135,6 +136,139 @@ const cancelPendingResizeRaf = () => {
     resizeRafId = null
   }
   pendingResizeFrame = null
+}
+
+let lassoAntsRafId: number | null = null
+let lassoDashOffset = 0
+
+export const stopLassoMarchingAnts = () => {
+  if (lassoAntsRafId !== null) {
+    cancelAnimationFrame(lassoAntsRafId)
+    lassoAntsRafId = null
+  }
+}
+
+const startLassoMarchingAnts = (state: EditorState, refs: EditorRefs) => {
+  stopLassoMarchingAnts()
+  const step = () => {
+    if (!state.lassoMode?.active || !state.lassoMode.hasSelection || !refs.lassoCanvas) {
+      lassoAntsRafId = null
+      return
+    }
+    lassoDashOffset = (lassoDashOffset + 0.35) % 11
+    renderLassoOverlayFrame(
+      refs.lassoCanvas,
+      state.lassoMode.points,
+      true,
+      state.canvas.scale,
+      lassoDashOffset
+    )
+    lassoAntsRafId = requestAnimationFrame(step)
+  }
+  lassoAntsRafId = requestAnimationFrame(step)
+}
+
+export const updateLassoBarPosition = (state: EditorState, refs: EditorRefs) => {
+  if (!refs.lassoBar || !state.lassoMode?.active || !state.lassoMode.hasSelection) return
+  const canCreateNewLayer = Layers.canCreateLayerFromLasso()
+  refs.lassoCutButton?.classList.toggle('disabled', !canCreateNewLayer)
+  refs.lassoCopyButton?.classList.toggle('disabled', !canCreateNewLayer)
+
+  if (Params.isPhone) {
+    refs.lassoBar.style.left = '50%'
+    refs.lassoBar.style.top = ''
+    return
+  }
+
+  const originRect = refs.canvasOrigin?.getBoundingClientRect()
+  if (!originRect) return
+
+  const rad = ((state.canvas.rotation || 0) * Math.PI) / 180
+  const cos = Math.cos(rad)
+  const sin = Math.sin(rad)
+  const scale = state.canvas.scale || 1
+
+  const corners: Array<[number, number]> = [
+    [state.lassoMode.minX / Params.pxScale, state.lassoMode.minY / Params.pxScale],
+    [state.lassoMode.maxX / Params.pxScale, state.lassoMode.minY / Params.pxScale],
+    [state.lassoMode.minX / Params.pxScale, state.lassoMode.maxY / Params.pxScale],
+    [state.lassoMode.maxX / Params.pxScale, state.lassoMode.maxY / Params.pxScale],
+  ]
+
+  let screenMinX = Infinity
+  let screenMaxX = -Infinity
+  let screenMinY = Infinity
+  let screenMaxY = -Infinity
+
+  for (const [lx, ly] of corners) {
+    const sx = originRect.left + (lx * cos - ly * sin) * scale
+    const sy = originRect.top + (lx * sin + ly * cos) * scale
+    if (sx < screenMinX) screenMinX = sx
+    if (sx > screenMaxX) screenMaxX = sx
+    if (sy < screenMinY) screenMinY = sy
+    if (sy > screenMaxY) screenMaxY = sy
+  }
+
+  const barRect = refs.lassoBar.getBoundingClientRect()
+  const barW = barRect.width || 280
+  const barH = barRect.height || 46
+
+  const minLeft = state.canvas.offset.left + barW / 2 + 10
+  const maxLeft = Math.max(minLeft, Params.width - state.canvas.offset.right - barW / 2 - 10)
+  const minTop = state.canvas.offset.top + 10
+  const maxTop = Math.max(minTop, Params.height - state.canvas.offset.bottom - barH - 10)
+
+  const targetLeft = getNumberInBetween(minLeft, maxLeft, (screenMinX + screenMaxX) / 2, 0)
+  let targetTop = screenMaxY + 14
+  if (targetTop > maxTop) {
+    targetTop = screenMinY - barH - 14
+  }
+  targetTop = getNumberInBetween(minTop, maxTop, targetTop, 0)
+
+  refs.lassoBar.style.left = `${round(targetLeft, 0)}px`
+  refs.lassoBar.style.top = `${round(targetTop, 0)}px`
+}
+
+export const clearLassoSelectionOverlay = (state: EditorState, refs: EditorRefs) => {
+  stopLassoMarchingAnts()
+  if (state.lassoMode) {
+    state.lassoMode.isDrawing = false
+    state.lassoMode.hasSelection = false
+    state.lassoMode.points = []
+    state.lassoMode.minX = -1
+    state.lassoMode.minY = -1
+    state.lassoMode.maxX = -1
+    state.lassoMode.maxY = -1
+  }
+  if (refs.lassoCanvas) {
+    const ctx = refs.lassoCanvas.getContext('2d')
+    ctx?.clearRect(0, 0, refs.lassoCanvas.width, refs.lassoCanvas.height)
+  }
+  refs.lassoBar?.classList.add('displayNone')
+}
+
+export const setLassoModeActive = (state: EditorState, refs: EditorRefs, active: boolean) => {
+  clearLassoSelectionOverlay(state, refs)
+  if (state.lassoMode) {
+    state.lassoMode.active = active
+  }
+  refs.lassoCanvas?.classList.toggle('displayNone', !active)
+}
+
+export const showLassoSelectionOverlay = (
+  state: EditorState,
+  refs: EditorRefs,
+  bounds: { minX: number; minY: number; maxX: number; maxY: number }
+) => {
+  state.lassoMode.isDrawing = false
+  state.lassoMode.hasSelection = true
+  state.lassoMode.minX = bounds.minX
+  state.lassoMode.minY = bounds.minY
+  state.lassoMode.maxX = bounds.maxX
+  state.lassoMode.maxY = bounds.maxY
+  refs.lassoBar?.classList.remove('displayNone')
+  updateLassoBarPosition(state, refs)
+  startLassoMarchingAnts(state, refs)
 }
 
 export const updateDragBoxHandlersPosition = (refs: EditorRefs) => {
@@ -306,13 +440,16 @@ export const hideDragBox = (state: EditorState, refs: EditorRefs) => {
 
 export const animateDragBoxHandlersPositionToOrigin = (
   refs: EditorRefs,
-  duration = 250
+  duration = 250,
+  onStep?: () => void
 ): Promise<void> => {
   updateDragBoxHandlersPosition(refs)
+  onStep?.()
   return new Promise((resolve) => {
     const startTime = performance.now()
     const step = (now: number) => {
       updateDragBoxHandlersPosition(refs)
+      onStep?.()
       if (now - startTime < duration) {
         requestAnimationFrame(step)
       } else {

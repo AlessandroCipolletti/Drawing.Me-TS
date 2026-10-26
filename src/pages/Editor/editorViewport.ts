@@ -110,7 +110,7 @@ const updateZoomCss = (
   `
   document.documentElement.style.setProperty('--canvas-scale', String(scale))
   updateEditorZoomGlobalState(scale)
-  if (state.resizeMode.active) {
+  if (state.resizeMode.active || state.lassoMode?.active) {
     onUpdateDragBoxHandlers()
   }
 }
@@ -119,6 +119,13 @@ export const handleGestureStart = (state: EditorState, refs: EditorRefs, x: numb
   ColorPicker.closeParams()
   Tools.closeVersions()
   Layers.closeParams()
+  if (state.lassoMode?.isDrawing) {
+    state.lassoMode.isDrawing = false
+    state.lassoMode.points = []
+    refs.lassoCanvas
+      ?.getContext('2d')
+      ?.clearRect(0, 0, refs.lassoCanvas.width, refs.lassoCanvas.height)
+  }
   x = round(x - state.canvas.offset.left, 1)
   y = round(y - state.canvas.offset.top, 1)
   state.currentTouch.isZooming = true
@@ -221,7 +228,7 @@ export const handleGestureEnd = (
       centerCoordX: state.canvas.centerCoordX,
       centerCoordY: state.canvas.centerCoordY,
     }
-    if (state.resizeMode.active) {
+    if (state.resizeMode.active || state.lassoMode?.active) {
       animateDragBoxHandlers(250)
     }
   } else {
@@ -295,6 +302,10 @@ export const initCanvasDimension = (
   if (refs.canvasForLine) {
     refs.canvasForLine.width = state.canvas.width = canvasWidth
     refs.canvasForLine.height = state.canvas.height = canvasHeight
+  }
+  if (refs.lassoCanvas) {
+    refs.lassoCanvas.width = canvasWidth
+    refs.lassoCanvas.height = canvasHeight
   }
 
   initCanvasUtils()
@@ -378,7 +389,7 @@ export const handleViewportRotate = (
     state.canvas.originCoordX = round(originRect.left - state.canvas.offset.left, 1)
     state.canvas.originCoordY = round(originRect.top - state.canvas.offset.top, 1)
   }
-  if (state.resizeMode?.active) {
+  if (state.resizeMode?.active || state.lassoMode?.active) {
     onUpdateDragBoxHandlers()
   }
 }

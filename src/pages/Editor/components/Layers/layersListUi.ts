@@ -23,6 +23,7 @@ import {
   refreshMaskDependents,
   syncLayerDisplay,
 } from './layerMask'
+import { extractLassoSelection, LassoPoint } from './layerLasso'
 
 const paramsAreClosed = () => state.paramsTimeout === false
 
@@ -108,6 +109,29 @@ const updateResizeMode = (selected: boolean, active: boolean) => {
   }
 }
 
+export const discardPendingLassoSelection = () => {
+  if (state.lassoSelection) {
+    state.lassoSelection.selectedCanvas.width = state.lassoSelection.selectedCanvas.height = 0
+    state.lassoSelection.outsideCanvas.width = state.lassoSelection.outsideCanvas.height = 0
+    state.lassoSelection = null
+  }
+}
+
+export const canCreateLayerFromLasso = (): boolean =>
+  Object.keys(state.layers).length < config.maxLayersNumber
+
+const updateLassoMode = (selected: boolean, active: boolean) => {
+  refs.lassoButton?.classList.toggle('disabled', !active)
+  if (selected !== state.lassoMode) {
+    state.lassoMode = selected
+    refs.lassoButton?.classList.toggle('selected', selected)
+    editorFacade.setLassoModeActive(selected)
+    if (!selected) {
+      discardPendingLassoSelection()
+    }
+  }
+}
+
 const updateGcoMode = (selected: boolean, active: boolean) => {
   refs.gcoButton?.classList.toggle('disabled', !active || state.editorIsUsingEraser)
   if (selected !== state.gcoMode) {
@@ -160,17 +184,25 @@ const updateParamsByLayer = (layerId: string | false = state.currentSelectedLaye
     refs.mergeDownLayerButton?.classList.toggle('disabled', !canMergeDown)
     refs.maskDownLayerButton?.classList.toggle(
       'disabled',
-      state.resizeMode || (!canMaskDown && !maskActive)
+      state.resizeMode || state.lassoMode || (!canMaskDown && !maskActive)
     )
     refs.maskDownLayerButton?.classList.toggle('selected', maskActive)
     refs.flipVerticalButton?.classList.toggle('disabled', empty)
     refs.flipHorizontalButton?.classList.toggle('disabled', empty)
     refs.sendLayerButton?.classList.toggle('disabled', !canTransferLayer)
     const wasInResizeMode = state.resizeMode
+    const wasInLassoMode = state.lassoMode
     updateResizeMode(state.resizeMode && canBeResized, canBeResized)
-    updateGcoMode(state.gcoMode && canBeResized, !state.resizeMode && canBeResized)
+    updateLassoMode(state.lassoMode && canBeResized, canBeResized)
+    updateGcoMode(
+      state.gcoMode && canBeResized,
+      !state.resizeMode && !state.lassoMode && canBeResized
+    )
     if (wasInResizeMode && !state.resizeMode) {
       editorFacade.hideDragBox()
+    }
+    if (wasInLassoMode && !state.lassoMode) {
+      editorFacade.setLassoModeActive(false)
     }
     const visibilityIcon = refs.visibilityLayerButton?.querySelector('.editor-layers__params-icon')
     visibilityIcon?.classList.toggle('svg-icon-visible', layer.active)
@@ -191,15 +223,13 @@ export const updateCanvasContent = (
   const minY = round(y - h / 2, 1)
   const rotation = convertAngleDegToRad(r)
   if (state.currentSelectedLayerId && refs.imageForResize) {
-    fillCanvasWithImage(
-      state.layers[state.currentSelectedLayerId].canvas.context,
-      refs.imageForResize,
-      minX,
-      minY,
-      w,
-      h,
-      rotation
-    )
+    const ctx = state.layers[state.currentSelectedLayerId].canvas.context
+    if (refs.backgroundForResize) {
+      fillCanvasWithImage(ctx, refs.backgroundForResize, 0, 0)
+      fillCanvasWithImage(ctx, refs.imageForResize, minX, minY, w, h, rotation, false)
+    } else {
+      fillCanvasWithImage(ctx, refs.imageForResize, minX, minY, w, h, rotation)
+    }
     syncLayerDisplay(state.currentSelectedLayerId)
     refreshMaskDependents(state.currentSelectedLayerId)
   }
@@ -209,8 +239,121 @@ export const updateCanvasContent = (
   }
 }
 
+const endLassoMode = () => {
+  discardPendingLassoSelection()
+  editorFacade.setLassoModeActive(false)
+  if (state.currentSelectedLayerId && state.layers[state.currentSelectedLayerId]) {
+    const canBeResized = layerCanBeResized(state.currentSelectedLayerId)
+    const layerOptionButton = refs.layersList?.querySelector(
+      `div[data-id="${state.currentSelectedLayerId}"] .editor-layers__layer-options-button`
+    )
+    if (!state.resizeMode) {
+      layerOptionButton?.classList.remove('disabled')
+      refs.visibilityLayerButton?.classList.remove('disabled')
+      editorCalls.toggleButton('clear', true)
+    }
+    updateLassoMode(false, canBeResized)
+    updateGcoMode(state.gcoMode, !state.resizeMode && canBeResized)
+    updateParamsByLayer(state.currentSelectedLayerId)
+  } else {
+    updateLassoMode(false, false)
+  }
+}
+
+const startLassoMode = async () => {
+  if (!state.currentSelectedLayerId) return
+  if (state.canvasPanMode) {
+    updateCanvasPanMode(false)
+  }
+  if (state.resizeMode) {
+    await endResizeMode()
+  }
+  const layerOptionButton = refs.layersList?.querySelector(
+    `div[data-id="${state.currentSelectedLayerId}"] .editor-layers__layer-options-button`
+  )
+  layerOptionButton?.classList.add('disabled')
+  refs.visibilityLayerButton?.classList.add('disabled')
+  refs.maskDownLayerButton?.classList.add('disabled')
+  editorCalls.hideRuler()
+  editorCalls.deselectPipette(true, false, true)
+  updateLassoMode(true, true)
+  updateGcoMode(state.gcoMode, false)
+}
+
+export const completeLassoSelection = async (
+  points: LassoPoint[]
+): Promise<{ minX: number; minY: number; maxX: number; maxY: number } | null> => {
+  if (!state.currentSelectedLayerId || !state.lassoMode) return null
+  const layer = state.layers[state.currentSelectedLayerId]
+  if (!layer || !Number.isFinite(layer.minX)) return null
+  const result = await extractLassoSelection(layer.canvas, points)
+  if (!result || !state.lassoMode) {
+    if (result) {
+      result.selectedCanvas.width = result.selectedCanvas.height = 0
+      result.outsideCanvas.width = result.outsideCanvas.height = 0
+    }
+    return null
+  }
+  discardPendingLassoSelection()
+  state.lassoSelection = result
+  return {
+    minX: result.minX,
+    minY: result.minY,
+    maxX: result.maxX,
+    maxY: result.maxY,
+  }
+}
+
+export const cancelLassoSelection = () => {
+  if (state.lassoSelection) {
+    discardPendingLassoSelection()
+    editorFacade.clearLassoSelectionOverlay()
+  } else if (state.lassoMode) {
+    endLassoMode()
+  }
+}
+
+export const startTransformLassoSelectionInPlace = () => {
+  if (!state.currentSelectedLayerId || !state.lassoSelection) return
+  const selection = state.lassoSelection
+  state.lassoSelection = null
+  endLassoMode()
+  if (state.canvasPanMode) {
+    updateCanvasPanMode(false)
+  }
+  const layerOptionButton = refs.layersList?.querySelector(
+    `div[data-id="${state.currentSelectedLayerId}"] .editor-layers__layer-options-button`
+  )
+  layerOptionButton?.classList.add('disabled')
+  updateResizeMode(true, true)
+  updateLassoMode(false, true)
+  updateGcoMode(state.gcoMode, false)
+  state.resizeModeMadeChanges = false
+  editorCalls.toggleButton('undo', false)
+  editorCalls.toggleButton('redo', false)
+  editorCalls.toggleButton('clear', false)
+  refs.resizeButton?.classList.toggle('selected', state.resizeMode)
+  refs.visibilityLayerButton?.classList.add('disabled')
+  refs.maskDownLayerButton?.classList.add('disabled')
+  editorCalls.deselectPipette(true, false, true)
+  refs.imageForResize = selection.selectedCanvas
+  refs.backgroundForResize = selection.outsideCanvas
+  state.lassoTransformPoints = selection.points
+  updateMagnetismCoords(state.currentSelectedLayerId)
+  editorFacade.showDragBox(
+    round(selection.minX + selection.width / 2, 1),
+    round(selection.minY + selection.height / 2, 1),
+    selection.width,
+    selection.height,
+    true
+  )
+}
+
 const startResizeMode = () => {
   if (!state.currentSelectedLayerId) return
+  if (state.lassoMode) {
+    endLassoMode()
+  }
   if (state.canvasPanMode) {
     updateCanvasPanMode(false)
   }
@@ -228,6 +371,11 @@ const startResizeMode = () => {
   refs.visibilityLayerButton?.classList.add('disabled')
   refs.maskDownLayerButton?.classList.add('disabled')
   editorCalls.deselectPipette(true, false, true)
+  if (refs.backgroundForResize) {
+    refs.backgroundForResize.width = refs.backgroundForResize.height = 0
+    refs.backgroundForResize = null
+  }
+  state.lassoTransformPoints = null
   const layer = state.layers[state.currentSelectedLayerId]
   const [image, minX, minY, width, height] = cropImageWithMargin(
     layer.canvas,
@@ -250,22 +398,40 @@ const startResizeMode = () => {
 
 const saveResizeModeIfNeeded = async () => {
   editorFacade.flushPendingResizeFrame()
+  const transformPoints = state.lassoTransformPoints
   if (state.resizeModeMadeChanges) {
     await layersBridge.addLayerHistoryContentChangedStep()
     layersBridge.updateUndoRedoButtons()
     if (Coworking.isOpen() && state.currentSelectedLayerId) {
-      Coworking.sendResizeLayer(
-        state.currentSelectedLayerId,
-        state.lastResizeCoords.x,
-        state.lastResizeCoords.y,
-        state.lastResizeCoords.w,
-        state.lastResizeCoords.h,
-        state.lastResizeCoords.r
-      )
+      if (transformPoints) {
+        Coworking.sendLassoTransformLayer(
+          state.currentSelectedLayerId,
+          transformPoints,
+          state.lastResizeCoords.x,
+          state.lastResizeCoords.y,
+          state.lastResizeCoords.w,
+          state.lastResizeCoords.h,
+          state.lastResizeCoords.r
+        )
+      } else {
+        Coworking.sendResizeLayer(
+          state.currentSelectedLayerId,
+          state.lastResizeCoords.x,
+          state.lastResizeCoords.y,
+          state.lastResizeCoords.w,
+          state.lastResizeCoords.h,
+          state.lastResizeCoords.r
+        )
+      }
     }
   }
   state.resizeModeMadeChanges = false
   refs.imageForResize = null
+  if (refs.backgroundForResize) {
+    refs.backgroundForResize.width = refs.backgroundForResize.height = 0
+    refs.backgroundForResize = null
+  }
+  state.lassoTransformPoints = null
 }
 
 const endResizeMode = async () => {
@@ -276,6 +442,7 @@ const endResizeMode = async () => {
   )
   layerOptionButton?.classList.remove('disabled')
   updateResizeMode(false, canBeResized)
+  updateLassoMode(false, canBeResized)
   updateGcoMode(state.gcoMode, canBeResized)
   editorCalls.toggleButton('clear', true)
   await saveResizeModeIfNeeded()
@@ -296,7 +463,10 @@ const endResizeMode = async () => {
 export const closeResizeModeIfNeeded = () => {
   if (state && state.currentSelectedLayerId) {
     if (state.resizeMode) {
-      endResizeMode()
+      void endResizeMode()
+    }
+    if (state.lassoMode) {
+      endLassoMode()
     }
   }
 }
@@ -358,7 +528,10 @@ export const canvasPanButtonTouchStart = (e: Event) => {
   closeParams()
   const next = !state.canvasPanMode
   if (next && state.resizeMode) {
-    endResizeMode()
+    void endResizeMode()
+  }
+  if (next && state.lassoMode) {
+    endLassoMode()
   }
   updateCanvasPanMode(next)
 }
@@ -368,9 +541,21 @@ export const resizeButtonTouchStart = (e: Event) => {
   closeParams()
   if (!refs.resizeButton?.classList.contains('disabled')) {
     if (state.resizeMode) {
-      endResizeMode()
+      void endResizeMode()
     } else {
       startResizeMode()
+    }
+  }
+}
+
+export const lassoButtonTouchStart = (e: Event) => {
+  preventDefault(e)
+  closeParams()
+  if (!refs.lassoButton?.classList.contains('disabled')) {
+    if (state.lassoMode) {
+      endLassoMode()
+    } else {
+      void startLassoMode()
     }
   }
 }
@@ -381,7 +566,8 @@ export const gcoModeTouchStart = (e: Event) => {
   if (
     state.currentSelectedLayerId &&
     layerCanBeResized(state.currentSelectedLayerId) &&
-    !state.resizeMode
+    !state.resizeMode &&
+    !state.lassoMode
   ) {
     updateGcoMode(!state.gcoMode, true)
   }
@@ -400,10 +586,15 @@ const _updateLayerOpacity = (layerId: string, opacity: number, inProgress = fals
   if (!inProgress) {
     const canBeResized = layerCanBeResized(layerId)
     const wasInResizeMode = state.resizeMode
+    const wasInLassoMode = state.lassoMode
     updateResizeMode(state.resizeMode && canBeResized, canBeResized)
-    updateGcoMode(state.gcoMode, !state.resizeMode && canBeResized)
+    updateLassoMode(state.lassoMode && canBeResized, canBeResized)
+    updateGcoMode(state.gcoMode, !state.resizeMode && !state.lassoMode && canBeResized)
     if (wasInResizeMode && !state.resizeMode) {
-      endResizeMode()
+      void endResizeMode()
+    }
+    if (wasInLassoMode && !state.lassoMode) {
+      endLassoMode()
     }
   }
   updateEditorCanvas()
@@ -558,6 +749,7 @@ export const onContainerTouchStart = (e: Event) => {
 registerLayersBridge({
   closeParams,
   endResizeMode,
+  endLassoMode,
   openParams,
   paramsAreClosed,
   saveResizeModeIfNeeded,
@@ -566,6 +758,7 @@ registerLayersBridge({
   updateGcoMode,
   updateParamsByLayer,
   updateResizeMode,
+  updateLassoMode,
   updateLayerOrger,
   _updateLayerOpacity,
   updateLayerListMaskAffordances,

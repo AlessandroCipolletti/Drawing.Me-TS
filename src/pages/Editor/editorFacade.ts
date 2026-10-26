@@ -18,6 +18,8 @@ export interface EditorFacade {
   hideDragBox: () => void
   showDragBox: (x: number, y: number, w: number, h: number, useMagnetism: boolean) => void
   flushPendingResizeFrame: () => void
+  setLassoModeActive: (active: boolean) => void
+  clearLassoSelectionOverlay: () => void
   appendLayer: (canvas: HTMLCanvasElement) => void
   updateEditorLayer: (
     layerZIndex: number,
@@ -50,6 +52,8 @@ export const editorFacade: EditorFacade = {
   hideDragBox: () => currentFacade?.hideDragBox(),
   showDragBox: (x, y, w, h, useMagnetism) => currentFacade?.showDragBox(x, y, w, h, useMagnetism),
   flushPendingResizeFrame: () => currentFacade?.flushPendingResizeFrame(),
+  setLassoModeActive: (active) => currentFacade?.setLassoModeActive(active),
+  clearLassoSelectionOverlay: () => currentFacade?.clearLassoSelectionOverlay(),
   appendLayer: (canvas) => currentFacade?.appendLayer(canvas),
   updateEditorLayer: (layerZIndex, opacity, globalCompositeOperation, active) =>
     currentFacade?.updateEditorLayer(layerZIndex, opacity, globalCompositeOperation, active),

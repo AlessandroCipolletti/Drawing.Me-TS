@@ -15,6 +15,7 @@ import {
   HISTORY_STEP_LAYERS_MERGE,
   HISTORY_STEP_LAYER_RENAME,
   HISTORY_STEP_LAYER_MASK,
+  HISTORY_STEP_LAYER_CUT_TO_NEW,
 } from './constants'
 import {
   UsersLayersHistory,
@@ -33,12 +34,12 @@ import { editorCalls } from 'pages/Editor/editorCalls'
 import { compositeSourceToDisplay, refreshMaskDependents, syncLayerDisplay } from './layerMask'
 
 const updateUndoRedoButtons = () => {
+  const userHistory = UsersLayersHistory[Coworking.getUserId()]
   if (state.resizeMode) {
-    editorCalls.toggleButton('undo', Boolean(state.resizeModeMadeChanges))
+    editorCalls.toggleButton('undo', Boolean(state.resizeModeMadeChanges || userHistory?.canGoBack))
     editorCalls.toggleButton('redo', false)
     return
   }
-  const userHistory = UsersLayersHistory[Coworking.getUserId()]
   if (userHistory) {
     editorCalls.toggleButton('undo', userHistory.canGoBack)
     editorCalls.toggleButton('redo', userHistory.canGoForward)
@@ -47,6 +48,11 @@ const updateUndoRedoButtons = () => {
 
 const cleanGlobalLayersHistoryOldActionIfNeeded = (action: GlobalLayerHistoryAction) => {
   if (action.type === HISTORY_STEP_LAYER_CONTENT && action.layerId) {
+    const layer = state.layers[action.layerId] || state.deletedLayers[action.layerId]
+    if (layer) {
+      layer.history.deleteFarest()
+    }
+  } else if (action.type === HISTORY_STEP_LAYER_CUT_TO_NEW && action.layerId) {
     const layer = state.layers[action.layerId] || state.deletedLayers[action.layerId]
     if (layer) {
       layer.history.deleteFarest()
@@ -64,6 +70,16 @@ const cleanGlobalLayersHistoryOverwrittenActionIfNeeded = (action: GlobalLayerHi
     const layer = state.layers[action.layerId] || state.deletedLayers[action.layerId]
     if (layer) {
       layer.history.deleteNewest()
+    }
+  } else if (action.type === HISTORY_STEP_LAYER_CUT_TO_NEW) {
+    if (action.layerId) {
+      const layer = state.layers[action.layerId] || state.deletedLayers[action.layerId]
+      if (layer) {
+        layer.history.deleteNewest()
+      }
+    }
+    if (action.newLayerId) {
+      hardDeleteLayer(action.newLayerId)
     }
   } else if (action.type === HISTORY_STEP_LAYER_DUPLICATE && action.newLayerId) {
     hardDeleteLayer(action.newLayerId)
@@ -124,6 +140,7 @@ const restoreLayerContentStep = async (layerId: string, step?: LayerHistoryStep)
     const canBeResized = layerCanBeResized(layerId)
     const wasInResizeMode = state.resizeMode
     layersBridge.updateResizeMode(state.resizeMode && canBeResized, canBeResized)
+    layersBridge.updateLassoMode(state.lassoMode && canBeResized, canBeResized)
     layersBridge.updateGcoMode(state.gcoMode && canBeResized, !state.resizeMode && canBeResized)
     if (wasInResizeMode && !state.resizeMode) {
       editorFacade.hideDragBox()
@@ -184,6 +201,7 @@ export const addLayerHistoryContentChangedStep = async (
     if (isYourLayerYours(layerId)) {
       const wasInResizeMode = state.resizeMode
       layersBridge.updateResizeMode(state.resizeMode && canBeResized, canBeResized)
+      layersBridge.updateLassoMode(state.lassoMode && canBeResized, canBeResized)
       layersBridge.updateGcoMode(state.gcoMode && canBeResized, !state.resizeMode && canBeResized)
       if (wasInResizeMode && !state.resizeMode) {
         editorFacade.hideDragBox()
@@ -195,6 +213,61 @@ export const addLayerHistoryContentChangedStep = async (
   const next = prev.then(runCommit, runCommit)
   layerHistoryQueues[layerId] = next
   await next
+}
+
+const commitLayerCanvasStepOnly = async (layerId: string) => {
+  if (!layerId) return
+  const layerAtCall = state.layers[layerId]
+  if (!layerAtCall) return
+  const snapshotBitmapPromise = createImageBitmap(layerAtCall.canvas)
+  const coordsPromise = findImageContentCoords(layerAtCall.canvas, config.coordsImgScale)
+
+  const runCommit = async () => {
+    const [bitmap, coords] = await Promise.all([snapshotBitmapPromise, coordsPromise])
+    const layer = state.layers[layerId]
+    if (!layer) {
+      bitmap.close?.()
+      return
+    }
+    layer.minX = coords.minX
+    layer.minY = coords.minY
+    layer.maxX = coords.maxX
+    layer.maxY = coords.maxY
+    layer.updateTimestamp = Date.now()
+    layer.modified = true
+    layer.history.add({
+      bitmap,
+      minX: layer.minX,
+      minY: layer.minY,
+      maxX: layer.maxX,
+      maxY: layer.maxY,
+    })
+    if (layer.maskBelowLayerId) {
+      compositeSourceToDisplay(layerId)
+    } else {
+      syncLayerDisplay(layerId)
+    }
+    refreshMaskDependents(layerId)
+    layersBridge.updateLayerPreview(layerId)
+  }
+
+  const prev = layerHistoryQueues[layerId] || Promise.resolve()
+  const next = prev.then(runCommit, runCommit)
+  layerHistoryQueues[layerId] = next
+  await next
+}
+
+const addLayerHistoryCutToNewStep = async (sourceLayerId: string, newLayerId: string) => {
+  const layer = state.layers[sourceLayerId] || state.deletedLayers[sourceLayerId]
+  if (!layer) return
+  addGlobalLayersHistoryAction(
+    {
+      type: HISTORY_STEP_LAYER_CUT_TO_NEW,
+      layerId: sourceLayerId,
+      newLayerId,
+    },
+    layer.owner
+  )
 }
 
 const addLayerHistoryOpacityStep = async (layerId: string, newValue: number, oldValue: number) => {
@@ -334,15 +407,31 @@ const addLayerHistoryMergeStep = async (
 export const doUndoForUser = async (userId: string) => {
   let hasDoneUndo = false
 
-  if (userId === Coworking.getUserId() && state.resizeMode && state.currentSelectedLayerId) {
+  if (
+    userId === Coworking.getUserId() &&
+    state.resizeMode &&
+    state.resizeModeMadeChanges &&
+    state.currentSelectedLayerId
+  ) {
     const step = state.layers[state.currentSelectedLayerId]?.history.getCurrent()
     if (step) {
+      const wasLassoInPlace = Boolean(state.lassoTransformPoints)
       await restoreLayerContentStep(state.currentSelectedLayerId, step)
-      layersBridge.startResizeMode()
-      editorCalls.toggleButton('undo', false)
       state.resizeModeMadeChanges = false
+      if (wasLassoInPlace) {
+        await layersBridge.endResizeMode()
+      } else {
+        layersBridge.startResizeMode()
+      }
+      updateUndoRedoButtons()
     }
   } else {
+    if (userId === Coworking.getUserId() && state.resizeMode) {
+      await layersBridge.endResizeMode()
+    }
+    if (userId === Coworking.getUserId() && state.lassoMode) {
+      layersBridge.endLassoMode()
+    }
     const userHistory = UsersLayersHistory[userId]
     if (userHistory?.canGoBack) {
       const action = userHistory.getCurrent()
@@ -354,6 +443,15 @@ export const doUndoForUser = async (userId: string) => {
         if (action.type === HISTORY_STEP_LAYER_CONTENT && action.layerId) {
           const step = state.layers[action.layerId].history.back()
           await restoreLayerContentStep(action.layerId, step)
+        } else if (
+          action.type === HISTORY_STEP_LAYER_CUT_TO_NEW &&
+          action.layerId &&
+          action.newLayerId
+        ) {
+          await layersBridge._deleteLayer(action.newLayerId, action.layerId)
+          const step = state.layers[action.layerId]?.history.back()
+          await restoreLayerContentStep(action.layerId, step)
+          selectedLayerId = action.layerId
         } else if (action.type === HISTORY_STEP_LAYER_OPACITY && action.layerId) {
           layersBridge._updateLayerOpacity(action.layerId, action.oldValue || 0)
         } else if (action.type === HISTORY_STEP_LAYER_SHOW && action.layerId) {
@@ -426,6 +524,15 @@ export const doRedoForUser = async (userId: string) => {
       if (action.type === HISTORY_STEP_LAYER_CONTENT && action.layerId) {
         const step = state.layers[action.layerId].history.forward()
         await restoreLayerContentStep(action.layerId, step)
+      } else if (
+        action.type === HISTORY_STEP_LAYER_CUT_TO_NEW &&
+        action.layerId &&
+        action.newLayerId
+      ) {
+        const step = state.layers[action.layerId]?.history.forward()
+        await restoreLayerContentStep(action.layerId, step)
+        await layersBridge.restoreDeletedLayer(action.newLayerId)
+        selectedLayerId = action.newLayerId
       } else if (action.type === HISTORY_STEP_LAYER_OPACITY && action.layerId) {
         layersBridge._updateLayerOpacity(action.layerId, action.newValue || 0)
       } else if (action.type === HISTORY_STEP_LAYER_SHOW && action.layerId) {
@@ -497,6 +604,8 @@ registerLayersBridge({
   addLayerHistoryOpacityStep,
   addLayerHistoryOrderStep,
   addLayerHistoryMaskStep,
+  addLayerHistoryCutToNewStep,
+  commitLayerCanvasStepOnly,
   updateUndoRedoButtons,
   cleanGlobalLayersHistoryForLayer,
 })

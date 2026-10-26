@@ -38,6 +38,9 @@ import {
 import {
   addNewLayer,
   clearCurrentLayer,
+  clearLassoSelection,
+  copyLassoSelectionToNewLayer,
+  cutLassoSelectionToNewLayer,
   deleteLayer,
   duplicateSelectedLayer,
   initLayers,
@@ -47,11 +50,16 @@ import {
   toggleEnableLayer,
 } from './layersActions'
 import {
+  canCreateLayerFromLasso,
+  cancelLassoSelection,
   closeParams,
   closeResizeModeIfNeeded,
+  completeLassoSelection,
+  discardPendingLassoSelection,
   flipHorizontally,
   flipVertically,
   gcoModeTouchStart,
+  lassoButtonTouchStart,
   layersToggleButtonTouchStart,
   setLayersSidebarExpanded,
   isLayersSidebarExpanded,
@@ -59,6 +67,7 @@ import {
   onListClick,
   onListLongPress,
   resizeButtonTouchStart,
+  startTransformLassoSelectionInPlace,
   canvasPanButtonTouchStart,
   updateCanvasContent,
   updateCurrentTool,
@@ -73,6 +82,10 @@ import {
   enableLayerFromCoworker,
   layerDragChangeFromCoworker,
   mergeLayersFromCoworker,
+  receiveLassoClearFromCoworker,
+  receiveLassoCopyToLayerFromCoworker,
+  receiveLassoCutToLayerFromCoworker,
+  receiveLassoTransformFromCoworker,
   receiveLayerMaskFromCoworker,
   receiveFlipLayerFromCoworker,
   receiveLayerFromCoworker,
@@ -99,6 +112,14 @@ export {
   updateMagnetismCoords,
   getMagnetismCoords,
   closeResizeModeIfNeeded,
+  canCreateLayerFromLasso,
+  discardPendingLassoSelection,
+  completeLassoSelection,
+  cancelLassoSelection,
+  clearLassoSelection,
+  startTransformLassoSelectionInPlace,
+  copyLassoSelectionToNewLayer,
+  cutLassoSelectionToNewLayer,
 }
 
 const initDom = async (moduleContainer: HTMLElement, sidebarExpanded = false) => {
@@ -111,6 +132,7 @@ const initDom = async (moduleContainer: HTMLElement, sidebarExpanded = false) =>
   )
   refs.gcoButton = createDom('svg-icon-source-over')
   refs.resizeButton?.classList.toggle('selected', state.resizeMode)
+  refs.lassoButton?.classList.toggle('selected', state.lassoMode)
   if (Params.isDesktop) {
     const panBtn = createDom()
     panBtn.appendChild(createDom('editor-layers__pan-button', 'svg-icon-hand', 'svg-icon-dark'))
@@ -129,6 +151,7 @@ const initDom = async (moduleContainer: HTMLElement, sidebarExpanded = false) =>
   refs.paramsContainer?.addEventListener(Params.eventStart, preventDefault)
   refs.gcoButton.addEventListener(Params.eventStart, gcoModeTouchStart)
   refs.resizeButton?.addEventListener(Params.eventStart, resizeButtonTouchStart)
+  refs.lassoButton?.addEventListener(Params.eventStart, lassoButtonTouchStart)
   refs.layersContainer?.addEventListener(Params.eventStart, onContainerTouchStart)
   refs.addNewLayerButton?.addEventListener(Params.eventStart, addNewLayer)
   refs.flipVerticalButton?.addEventListener(Params.eventStart, flipVertically)
@@ -154,11 +177,17 @@ const initDom = async (moduleContainer: HTMLElement, sidebarExpanded = false) =>
       0
     )
   }
-  if (refs.resizeButton) {
+  if (refs.resizeButton && refs.lassoButton) {
     const groupButtons =
       Params.isDesktop && refs.canvasPanButton
-        ? [refs.canvasPanButton, refs.resizeButton, refs.gcoButton, refs.layersToggleButton!]
-        : [refs.resizeButton, refs.gcoButton, refs.layersToggleButton!]
+        ? [
+            refs.canvasPanButton,
+            refs.resizeButton,
+            refs.lassoButton,
+            refs.gcoButton,
+            refs.layersToggleButton!,
+          ]
+        : [refs.resizeButton, refs.lassoButton, refs.gcoButton, refs.layersToggleButton!]
     editorCalls.addOptionButtonsGroup(groupButtons)
   }
 }
@@ -229,6 +258,10 @@ registerEditorCoworkingPort({
   renameLayerFromCoworker,
   duplicateLayerFromCoworker,
   mergeLayersFromCoworker,
+  receiveLassoClearFromCoworker,
+  receiveLassoTransformFromCoworker,
+  receiveLassoCopyToLayerFromCoworker,
+  receiveLassoCutToLayerFromCoworker,
   receiveLayerMaskFromCoworker,
   updateLayerOpacityFromCoworker,
   enableLayerFromCoworker,

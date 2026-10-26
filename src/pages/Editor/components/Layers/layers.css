@@ -578,6 +578,7 @@
 
 /* TOOLBAR BUTTONS */
 .editor-layers__resize-button,
+.editor-layers__lasso-button,
 .editor-layers__pan-button,
 .editor-layers__toggle-button {
   width: 2.3rem !important;

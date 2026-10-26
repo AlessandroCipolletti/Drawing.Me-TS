@@ -5,6 +5,7 @@ import {
   resolveTouchMoveAction,
   resolveTouchEndAction,
 } from 'pages/Editor/editorPointerRouter'
+import { getLassoBezierCurvePoints } from 'pages/Editor/components/Layers/layerLasso'
 import { runCoalescedStepTouchMove } from 'pages/Editor/editorStrokeSession'
 import { TOUCH_TYPE_STYLUS, TOUCH_TYPE_FINGER } from 'main/constants'
 import { handlePointerEvents } from 'utils/pointerEventsUtils'
@@ -198,6 +199,57 @@ describe('Editor pointer dispatch & coalesced 120Hz stroke safety net', () => {
         currentLayerIsActive: true,
       })
     ).toBe('pipette')
+
+    expect(
+      resolveTouchStartAction({
+        isResizing: false,
+        resizeModeActive: false,
+        lassoModeActive: true,
+        currentDeviceHasStylus: true,
+        touchType: TOUCH_TYPE_STYLUS,
+        hasZoom: true,
+        toolName: 'pencil',
+        currentLayerIsActive: true,
+      })
+    ).toBe('lasso')
+
+    expect(
+      resolveTouchStartAction({
+        isResizing: false,
+        resizeModeActive: false,
+        lassoModeActive: true,
+        currentDeviceHasStylus: true,
+        touchType: TOUCH_TYPE_FINGER,
+        hasZoom: true,
+        toolName: 'pencil',
+        currentLayerIsActive: true,
+      })
+    ).toBe('dragZoom')
+
+    expect(
+      resolveTouchMoveAction({
+        isResizing: false,
+        resizeModeActive: false,
+        lassoModeActive: true,
+        isZooming: false,
+        currentDeviceHasStylus: false,
+        touchType: TOUCH_TYPE_FINGER,
+        toolName: 'pencil',
+        currentLayerIsActive: true,
+      })
+    ).toBe('lasso')
+
+    expect(
+      resolveTouchEndAction({
+        isResizing: false,
+        resizeModeActive: false,
+        lassoModeActive: true,
+        currentDeviceHasStylus: false,
+        isZooming: false,
+        toolName: 'pencil',
+        currentLayerIsActive: true,
+      })
+    ).toBe('lasso')
   })
 
   it('iterates all coalescedSamples in order when coalescedSamples.length > 1', () => {
@@ -271,5 +323,21 @@ describe('Editor pointer dispatch & coalesced 120Hz stroke safety net', () => {
     expect(Number.isNaN(decoded.stepLength)).toBe(true)
     expect(Number.isNaN(decoded.x)).toBe(true)
     expect(Number.isNaN(decoded.y)).toBe(true)
+  })
+
+  it('interpolates sparse fast-cursor lasso points into a smooth quadratic Bezier curve', () => {
+    const sparseAnchors: Array<[number, number]> = [
+      [0, 0],
+      [100, 0],
+      [100, 100],
+      [0, 100],
+    ]
+    const openCurve = getLassoBezierCurvePoints(sparseAnchors, false)
+    expect(openCurve.length).toBeGreaterThan(20)
+    expect(openCurve[0]).toEqual([0, 0])
+    expect(openCurve[openCurve.length - 1]).toEqual([0, 100])
+    // Corner at (100, 0) should be smoothly rounded around (75, 25) instead of hitting (100, 0)
+    const hitsSharpCorner = openCurve.some(([x, y]) => x === 100 && y === 0)
+    expect(hitsSharpCorner).toBe(false)
   })
 })

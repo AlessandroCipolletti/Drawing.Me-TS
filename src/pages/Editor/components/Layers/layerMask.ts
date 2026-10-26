@@ -17,7 +17,7 @@ export const getLayerDirectlyBelow = (layerId: string): LayerRecord | undefined 
   return Object.values(state.layers).find((l) => l.order === layer.order - 1)
 }
 
-const findUpperLayerMaskedBy = (lowerLayerId: string): LayerRecord | undefined =>
+export const findUpperLayerMaskedBy = (lowerLayerId: string): LayerRecord | undefined =>
   Object.values(state.layers).find((l) => l.maskBelowLayerId === lowerLayerId)
 
 const getLayerMaskRole = (layerId: string): LayerMaskRole => {

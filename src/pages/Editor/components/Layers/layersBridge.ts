@@ -29,6 +29,8 @@ export interface LayersBridge {
     maskBelowLayerId: string | null,
     oldMaskBelowLayerId: string | null
   ) => Promise<void>
+  addLayerHistoryCutToNewStep: (sourceLayerId: string, newLayerId: string) => Promise<void>
+  commitLayerCanvasStepOnly: (layerId: string) => Promise<void>
   applyLayerMaskLink: (
     layerId: string,
     maskBelowLayerId: string | null,
@@ -39,6 +41,7 @@ export interface LayersBridge {
   cleanGlobalLayersHistoryForLayer: (layerId: string) => void
   closeParams: () => Promise<void>
   endResizeMode: () => Promise<void>
+  endLassoMode: () => void
   openParams: () => Promise<void>
   paramsAreClosed: () => boolean
   saveResizeModeIfNeeded: () => Promise<void>
@@ -47,6 +50,7 @@ export interface LayersBridge {
   updateGcoMode: (selected: boolean, active: boolean) => void
   updateParamsByLayer: (layerId?: string | false) => void
   updateResizeMode: (selected: boolean, active: boolean) => void
+  updateLassoMode: (selected: boolean, active: boolean) => void
   selectCoworkerLayer: (layerId: string) => void
   _deleteLayer: (
     layerId: string,
@@ -67,6 +71,17 @@ export interface LayersBridge {
   selectLayer: (layerId: string) => Promise<void>
   updateLayerOrger: (layerId: string, newOrder: number) => void
   restoreDeletedLayer: (layerId: string, withAnimation?: boolean) => Promise<void>
+  createLayerFromSelectionCanvas: (
+    newLayerId: string,
+    insertOrder: number,
+    selectedCanvas: HTMLCanvasElement | OffscreenCanvas,
+    minX: number,
+    minY: number,
+    maxX: number,
+    maxY: number,
+    ownerId?: string,
+    layerName?: string
+  ) => Promise<LayerRecord>
   _updateLayerOpacity: (layerId: string, opacity: number, inProgress?: boolean) => void
   toggleEnableLayer: (e?: Event, layerId?: string | false, clickedByList?: boolean) => void
 }

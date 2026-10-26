@@ -13,7 +13,7 @@ import * as Ruler from './components/Ruler'
 import { registerEditorFacade } from './editorFacade'
 import { EditorView, EditorRefs } from './EditorView'
 import { mount } from 'ui/mount'
-import { setSpinner } from 'utils/domUtils'
+import { setSpinner, preventDefault } from 'utils/domUtils'
 import { fadeInElements, fadeOutElements } from 'utils/animationsUtils'
 import {
   addGlobalStatus,
@@ -61,6 +61,10 @@ import {
   setLayerContext as compositorSetLayerContext,
   updateEditorLayer as compositorUpdateEditorLayer,
   updateDragBoxHandlersPosition,
+  updateLassoBarPosition,
+  setLassoModeActive as compositorSetLassoModeActive,
+  clearLassoSelectionOverlay as compositorClearLassoSelectionOverlay,
+  stopLassoMarchingAnts,
   flushPendingResizeFrame as compositorFlushPendingResizeFrame,
   showDragBox as compositorShowDragBox,
   hideDragBox as compositorHideDragBox,
@@ -134,7 +138,14 @@ export const drawCoworkingMultipleStepsData = (data: CoworkingStepsPayload) => {
   }
 }
 
-const updateDragBoxHandlers = () => updateDragBoxHandlersPosition(refs)
+const updateDragBoxHandlers = () => {
+  if (state.resizeMode.active) {
+    updateDragBoxHandlersPosition(refs)
+  }
+  if (state.lassoMode?.active) {
+    updateLassoBarPosition(state, refs)
+  }
+}
 const onGestureStart = (x: number, y: number) => handleGestureStart(state, refs, x, y)
 const onGestureChange = (x: number, y: number, scale: number, rotation: number) =>
   handleGestureChange(state, refs, config, updateDragBoxHandlers, x, y, scale, rotation)
@@ -145,7 +156,10 @@ const onGestureEnd = (_x: number, _y: number, scale: number, rotation: number) =
     refs,
     config,
     updateDragBoxHandlers,
-    (duration) => animateDragBoxHandlersPositionToOrigin(refs, duration),
+    (duration) =>
+      animateDragBoxHandlersPositionToOrigin(refs, duration, () =>
+        updateLassoBarPosition(state, refs)
+      ),
     scale,
     rotation
   )
@@ -204,6 +218,27 @@ const bindEditorInput = () => {
     onThreeFingersSingleTap: Layers.redoLayers,
     onFourFingersSingleTap: toggleFullscreen,
     isWheelBlocked: () => state.desktopPointerDown,
+  })
+  refs.lassoBar?.addEventListener(Params.eventStart, preventDefault)
+  refs.lassoCutButton?.addEventListener(Params.eventStart, (e) => {
+    preventDefault(e)
+    void Layers.cutLassoSelectionToNewLayer()
+  })
+  refs.lassoCopyButton?.addEventListener(Params.eventStart, (e) => {
+    preventDefault(e)
+    void Layers.copyLassoSelectionToNewLayer()
+  })
+  refs.lassoTransformButton?.addEventListener(Params.eventStart, (e) => {
+    preventDefault(e)
+    Layers.startTransformLassoSelectionInPlace()
+  })
+  refs.lassoClearButton?.addEventListener(Params.eventStart, (e) => {
+    preventDefault(e)
+    void Layers.clearLassoSelection()
+  })
+  refs.lassoCancelButton?.addEventListener(Params.eventStart, (e) => {
+    preventDefault(e)
+    Layers.cancelLassoSelection()
   })
   return strokeSession
 }
@@ -296,6 +331,7 @@ export const open = async (
 }
 
 export const close = async () => {
+  stopLassoMarchingAnts()
   removeGlobalStatus('drawith__EDITOR-OPEN')
   removeGlobalStatus('drawith__EDITOR-COWORKING')
   setDraftInterval(state, config, false, setLastActiveDrawingId)
@@ -350,6 +386,8 @@ registerEditorFacade({
   showDragBox: (x, y, w, h, useMagnetism) =>
     compositorShowDragBox(state, refs, x, y, w, h, useMagnetism),
   flushPendingResizeFrame: () => compositorFlushPendingResizeFrame(state, refs),
+  setLassoModeActive: (active) => compositorSetLassoModeActive(state, refs, active),
+  clearLassoSelectionOverlay: () => compositorClearLassoSelectionOverlay(state, refs),
   appendLayer: (layerCanvas) => compositorAppendLayer(refs, layerCanvas),
   updateEditorLayer: (z, o, gco, a) => compositorUpdateEditorLayer(state, refs, z, o, gco, a),
   setLayerContext: (ctx) => compositorSetLayerContext(state, refs, ctx),

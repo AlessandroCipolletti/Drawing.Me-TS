@@ -6,7 +6,7 @@ import { editorFacade } from 'pages/Editor/editorFacade'
 import { preventDefault } from 'utils/domUtils'
 import { removeOutElement, fadeOutElements, fadeInElements } from 'utils/animationsUtils'
 import { mergeImages } from 'utils/imageUtils'
-import { getNewContextForCanvas } from 'utils/canvasUtils'
+import { getNewContextForCanvas, fillCanvasWithImage } from 'utils/canvasUtils'
 import { parallelize } from 'utils/jsUtils'
 import {
   MAX_LAYER_NAME_LENGTH,
@@ -31,6 +31,7 @@ import {
   breakMaskLinksInvolvingLayer,
   canToggleMaskDown,
   compositeSourceToDisplay,
+  findUpperLayerMaskedBy,
   getLayerDirectlyBelow,
   getLayerDomCanvas,
   syncLayerDisplay,
@@ -53,6 +54,9 @@ const selectLayer = async (layerId: string) => {
           `div[data-id="${state.currentSelectedLayerId}"] .editor-layers__layer-options-button`
         )
         layerOptionButton?.classList.remove('disabled')
+      }
+      if (state.lassoMode) {
+        layersBridge.endLassoMode()
       }
     }
 
@@ -91,7 +95,15 @@ const _deleteLayer = async (
     layersBridge.updateResizeMode(false, false)
     editorFacade.hideDragBox()
   }
+  if (layerId === state.currentSelectedLayerId && state.lassoMode) {
+    layersBridge.endLassoMode()
+  }
   refs.imageForResize = null
+  if (refs.backgroundForResize) {
+    refs.backgroundForResize.width = refs.backgroundForResize.height = 0
+    refs.backgroundForResize = null
+  }
+  state.lassoTransformPoints = null
   if (nextSelectedId) {
     await selectLayer(nextSelectedId)
   } else if (layerId === state.currentSelectedLayerId) {
@@ -349,6 +361,7 @@ const enableLayer = (layerId: string | false = state.currentSelectedLayerId) => 
     const canBeResized = layerCanBeResized(layerId)
     layersBridge.updateEditorCanvas()
     layersBridge.updateResizeMode(false, canBeResized)
+    layersBridge.updateLassoMode(false, canBeResized)
     layersBridge.updateGcoMode(false, canBeResized)
     const visibilityIcon = refs.visibilityLayerButton?.querySelector('.editor-layers__params-icon')
     visibilityIcon?.classList.toggle('svg-icon-visible', layer.active)
@@ -374,6 +387,7 @@ const disableLayer = (layerId: string | false = state.currentSelectedLayerId) =>
   if (layerId === state.currentSelectedLayerId) {
     layersBridge.updateEditorCanvas()
     layersBridge.updateResizeMode(false, false)
+    layersBridge.updateLassoMode(false, false)
     layersBridge.updateGcoMode(state.gcoMode, false)
     const visibilityIcon = refs.visibilityLayerButton?.querySelector('.editor-layers__params-icon')
     visibilityIcon?.classList.toggle('svg-icon-visible', layer.active)
@@ -391,7 +405,7 @@ export const toggleEnableLayer = (
     !layerId ||
     !isYourLayerYours(layerId) ||
     (!clickedByList && layersBridge.paramsAreClosed()) ||
-    (layerId === state.currentSelectedLayerId && state.resizeMode)
+    (layerId === state.currentSelectedLayerId && (state.resizeMode || state.lassoMode))
   ) {
     return
   }
@@ -484,7 +498,7 @@ export const toggleMaskDownSelectedLayer = async (e?: Event) => {
   if (!isMasked && !canEnable) {
     return
   }
-  if (state.resizeMode) {
+  if (state.resizeMode || state.lassoMode) {
     return
   }
 
@@ -520,6 +534,9 @@ export const addNewLayer = async (event?: Event) => {
 
   if (state.resizeMode) {
     await layersBridge.saveResizeModeIfNeeded()
+  }
+  if (state.lassoMode) {
+    layersBridge.endLassoMode()
   }
 
   const newLayerData = createNewLayerData()
@@ -569,6 +586,135 @@ export const initLayers = async (
   }
 }
 
+const getInsertOrderAboveLayer = (layerId: string): number => {
+  const sourceLayer = state.layers[layerId]
+  if (!sourceLayer) return 0
+  const upperMasked = findUpperLayerMaskedBy(layerId)
+  return (upperMasked ? upperMasked.order : sourceLayer.order) + 1
+}
+
+const createLayerFromSelectionCanvas = async (
+  newLayerId: string,
+  insertOrder: number,
+  selectedCanvas: HTMLCanvasElement | OffscreenCanvas,
+  minX: number,
+  minY: number,
+  maxX: number,
+  maxY: number,
+  ownerId = Coworking.getUserId(),
+  layerName?: string
+): Promise<LayerRecord> => {
+  const newLayer = createNewLayerData(ownerId)
+  newLayer.id = newLayerId
+  if (layerName) {
+    newLayer.name = layerName.slice(0, MAX_LAYER_NAME_LENGTH)
+  }
+  newLayer.order = insertOrder
+  newLayer.minX = minX
+  newLayer.minY = minY
+  newLayer.maxX = maxX
+  newLayer.maxY = maxY
+  newLayer.modified = true
+  newLayer.canvas = createNewLayerCanvas()
+  newLayer.canvas.context.drawImage(selectedCanvas, minX, minY)
+
+  Object.keys(state.layers).forEach((id) => {
+    if (state.layers[id].order >= insertOrder) {
+      state.layers[id].order++
+    }
+  })
+
+  state.layers[newLayerId] = newLayer
+  await layersBridge.createNewLayerDom(newLayerId, true)
+  layersBridge.reorderLayersList()
+  return newLayer
+}
+
+export const clearLassoSelection = async () => {
+  if (!state.currentSelectedLayerId || !state.lassoSelection) return
+  const layerId = state.currentSelectedLayerId
+  const layer = state.layers[layerId]
+  if (!layer) return
+  const { outsideCanvas, points } = state.lassoSelection
+  fillCanvasWithImage(layer.canvas.context, outsideCanvas, 0, 0)
+  layersBridge.endLassoMode()
+  await layersBridge.addLayerHistoryContentChangedStep(layerId)
+  layersBridge.updateUndoRedoButtons()
+  if (Coworking.isOpen()) {
+    Coworking.sendLassoClearLayer(layerId, points)
+  }
+}
+
+export const copyLassoSelectionToNewLayer = async () => {
+  if (
+    !state.currentSelectedLayerId ||
+    !state.lassoSelection ||
+    Object.keys(state.layers).length >= config.maxLayersNumber
+  ) {
+    return
+  }
+  const sourceLayerId = state.currentSelectedLayerId
+  const { selectedCanvas, minX, minY, maxX, maxY, points } = state.lassoSelection
+  const insertOrder = getInsertOrderAboveLayer(sourceLayerId)
+  const newLayerId = uuidv4()
+
+  const newLayer = await createLayerFromSelectionCanvas(
+    newLayerId,
+    insertOrder,
+    selectedCanvas,
+    minX,
+    minY,
+    maxX,
+    maxY
+  )
+  layersBridge.endLassoMode()
+  await layersBridge.addLayerHistoryNewStep(newLayerId)
+  await selectLayer(newLayerId)
+  layersBridge.updateUndoRedoButtons()
+  if (Coworking.isOpen()) {
+    Coworking.sendLassoCopyToLayer(sourceLayerId, newLayerId, insertOrder, newLayer.name, points)
+  }
+  layersBridge.startResizeMode()
+}
+
+export const cutLassoSelectionToNewLayer = async () => {
+  if (
+    !state.currentSelectedLayerId ||
+    !state.lassoSelection ||
+    Object.keys(state.layers).length >= config.maxLayersNumber
+  ) {
+    return
+  }
+  const sourceLayerId = state.currentSelectedLayerId
+  const sourceLayer = state.layers[sourceLayerId]
+  if (!sourceLayer) return
+
+  const { selectedCanvas, outsideCanvas, minX, minY, maxX, maxY, points } = state.lassoSelection
+  const insertOrder = getInsertOrderAboveLayer(sourceLayerId)
+  const newLayerId = uuidv4()
+
+  fillCanvasWithImage(sourceLayer.canvas.context, outsideCanvas, 0, 0)
+  await layersBridge.commitLayerCanvasStepOnly(sourceLayerId)
+
+  const newLayer = await createLayerFromSelectionCanvas(
+    newLayerId,
+    insertOrder,
+    selectedCanvas,
+    minX,
+    minY,
+    maxX,
+    maxY
+  )
+  layersBridge.endLassoMode()
+  await layersBridge.addLayerHistoryCutToNewStep(sourceLayerId, newLayerId)
+  await selectLayer(newLayerId)
+  layersBridge.updateUndoRedoButtons()
+  if (Coworking.isOpen()) {
+    Coworking.sendLassoCutToLayer(sourceLayerId, newLayerId, insertOrder, newLayer.name, points)
+  }
+  layersBridge.startResizeMode()
+}
+
 registerLayersBridge({
   selectLayer,
   _deleteLayer,
@@ -580,4 +726,5 @@ registerLayersBridge({
   saveLayerName,
   toggleEnableLayer,
   applyLayerMaskLink,
+  createLayerFromSelectionCanvas,
 })

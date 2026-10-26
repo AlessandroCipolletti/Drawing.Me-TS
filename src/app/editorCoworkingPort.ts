@@ -20,6 +20,30 @@ export interface EditorCoworkingPort {
   renameLayerFromCoworker: (layerId: string, newName: string) => void
   duplicateLayerFromCoworker: (layerId: string, newId: string) => void
   mergeLayersFromCoworker: (layerOneId: string, layerTwoId: string, newLayerId: string) => void
+  receiveLassoClearFromCoworker: (layerId: string, points: Array<[number, number]>) => Promise<void>
+  receiveLassoTransformFromCoworker: (
+    layerId: string,
+    points: Array<[number, number]>,
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    r: number
+  ) => Promise<void>
+  receiveLassoCopyToLayerFromCoworker: (
+    sourceLayerId: string,
+    newLayerId: string,
+    insertOrder: number,
+    layerName: string,
+    points: Array<[number, number]>
+  ) => Promise<void>
+  receiveLassoCutToLayerFromCoworker: (
+    sourceLayerId: string,
+    newLayerId: string,
+    insertOrder: number,
+    layerName: string,
+    points: Array<[number, number]>
+  ) => Promise<void>
   receiveLayerMaskFromCoworker: (
     layerId: string,
     maskBelowLayerId: string | null,

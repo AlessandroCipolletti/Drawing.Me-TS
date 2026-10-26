@@ -31,6 +31,13 @@ export interface EditorRefs {
   dragBulletB: HTMLElement | null
   dragBulletBR: HTMLElement | null
   dragBulletRT: HTMLElement | null
+  lassoCanvas: HTMLCanvasElement | null
+  lassoBar: HTMLElement | null
+  lassoCutButton: HTMLElement | null
+  lassoCopyButton: HTMLElement | null
+  lassoTransformButton: HTMLElement | null
+  lassoClearButton: HTMLElement | null
+  lassoCancelButton: HTMLElement | null
 }
 
 export const createInitialEditorRefs = (): EditorRefs => ({
@@ -63,6 +70,13 @@ export const createInitialEditorRefs = (): EditorRefs => ({
   dragBulletB: null,
   dragBulletBR: null,
   dragBulletRT: null,
+  lassoCanvas: null,
+  lassoBar: null,
+  lassoCutButton: null,
+  lassoCopyButton: null,
+  lassoTransformButton: null,
+  lassoClearButton: null,
+  lassoCancelButton: null,
 })
 
 export interface EditorTouchState {
@@ -145,6 +159,17 @@ export interface ResizeModeState {
   fromBottom?: boolean
 }
 
+interface LassoModeState {
+  active: boolean
+  isDrawing: boolean
+  hasSelection: boolean
+  points: Array<[number, number]>
+  minX: number
+  minY: number
+  maxX: number
+  maxY: number
+}
+
 interface PipetteState {
   bg: string
   isVisible: boolean
@@ -187,6 +212,7 @@ export interface EditorState {
   fullscreenActive: boolean
   canvas: EditorCanvasState
   resizeMode: ResizeModeState
+  lassoMode: LassoModeState
   pipette: PipetteState
   currentLayerGCO: GlobalCompositeOperation
   currentToolGCO?: GlobalCompositeOperation
@@ -377,6 +403,16 @@ export const createInitialEditorState = (
     r: 0,
     startDragX: -1,
     startDragY: -1,
+  },
+  lassoMode: {
+    active: false,
+    isDrawing: false,
+    hasSelection: false,
+    points: [],
+    minX: -1,
+    minY: -1,
+    maxX: -1,
+    maxY: -1,
   },
   pipette: {
     bg: 'none',

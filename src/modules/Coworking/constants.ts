@@ -16,6 +16,10 @@ export const editorEvents = {
   orderDragLayer: 'EDITOR_ORDER_DRAG_LAYER',
   flipLayer: 'EDITOR_FLIP_LAYER',
   resizeLayer: 'EDITOR_RESIZE_LAYER',
+  lassoClearLayer: 'EDITOR_LASSO_CLEAR_LAYER',
+  lassoTransformLayer: 'EDITOR_LASSO_TRANSFORM_LAYER',
+  lassoCopyToLayer: 'EDITOR_LASSO_COPY_TO_LAYER',
+  lassoCutToLayer: 'EDITOR_LASSO_CUT_TO_LAYER',
   clearLayer: 'EDITOR_CLEAR_LAYER',
   transferLayer: 'EDITOR_TRANSFER_LAYER',
 } as const

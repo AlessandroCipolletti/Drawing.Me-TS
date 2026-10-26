@@ -21,8 +21,10 @@ export interface LayersRefs {
   canvasPanButton?: HTMLElement | null
   layersToggleButton?: HTMLElement | null
   resizeButton: HTMLElement | null
+  lassoButton: HTMLElement | null
   gcoButton: HTMLElement | null
   imageForResize: HTMLCanvasElement | OffscreenCanvas | null
+  backgroundForResize: HTMLCanvasElement | OffscreenCanvas | null
 }
 
 export const LayersView = ({ maxLength, refs }: { maxLength: number; refs: LayersRefs }) => (
@@ -181,6 +183,13 @@ export const LayersView = ({ maxLength, refs }: { maxLength: number; refs: Layer
       }}
     >
       <div class="editor-layers__resize-button svg-icon-move svg-icon-dark" />
+    </div>
+    <div
+      ref={(el) => {
+        refs.lassoButton = el
+      }}
+    >
+      <div class="editor-layers__lasso-button svg-icon-lasso svg-icon-dark" />
     </div>
   </>
 )

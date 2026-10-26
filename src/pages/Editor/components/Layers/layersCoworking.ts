@@ -19,6 +19,7 @@ import {
 } from './layersState'
 import { layersBridge, registerLayersBridge } from './layersBridge'
 import { getLayerDomCanvas } from './layerMask'
+import { clearPolygonFromCanvas, extractLassoSelection, LassoPoint } from './layerLasso'
 
 export const selectCoworkerLayer = (layerId: string) => {
   if (state?.layers?.[layerId] && !isYourLayerYours(layerId)) {
@@ -194,6 +195,103 @@ export const receiveResizeLayerFromCoworker = (
   const rotation = convertAngleDegToRad(r)
   fillCanvasWithImage(layer.canvas.context, image, minX, minY, w, h, rotation)
   layersBridge.addLayerHistoryContentChangedStep(layerId)
+}
+
+export const receiveLassoClearFromCoworker = async (layerId: string, points: LassoPoint[]) => {
+  const layer = state.layers[layerId]
+  if (!layer) return
+  clearPolygonFromCanvas(layer.canvas.context, points)
+  await layersBridge.addLayerHistoryContentChangedStep(layerId)
+}
+
+export const receiveLassoTransformFromCoworker = async (
+  layerId: string,
+  points: LassoPoint[],
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  r: number
+) => {
+  const layer = state.layers[layerId]
+  if (!layer) return
+  const result = await extractLassoSelection(layer.canvas, points)
+  if (!result) return
+  const minX = round(x - w / 2, 1)
+  const minY = round(y - h / 2, 1)
+  const rotation = convertAngleDegToRad(r)
+  fillCanvasWithImage(layer.canvas.context, result.outsideCanvas, 0, 0)
+  fillCanvasWithImage(
+    layer.canvas.context,
+    result.selectedCanvas,
+    minX,
+    minY,
+    w,
+    h,
+    rotation,
+    false
+  )
+  result.selectedCanvas.width = result.selectedCanvas.height = 0
+  result.outsideCanvas.width = result.outsideCanvas.height = 0
+  await layersBridge.addLayerHistoryContentChangedStep(layerId)
+}
+
+export const receiveLassoCopyToLayerFromCoworker = async (
+  sourceLayerId: string,
+  newLayerId: string,
+  insertOrder: number,
+  layerName: string,
+  points: LassoPoint[]
+) => {
+  const sourceLayer = state.layers[sourceLayerId]
+  if (!sourceLayer) return
+  const result = await extractLassoSelection(sourceLayer.canvas, points)
+  if (!result) return
+  await layersBridge.createLayerFromSelectionCanvas(
+    newLayerId,
+    insertOrder,
+    result.selectedCanvas,
+    result.minX,
+    result.minY,
+    result.maxX,
+    result.maxY,
+    Coworking.getCoworkerUserId(),
+    layerName
+  )
+  result.selectedCanvas.width = result.selectedCanvas.height = 0
+  result.outsideCanvas.width = result.outsideCanvas.height = 0
+  await layersBridge.addLayerHistoryNewStep(newLayerId)
+  selectCoworkerLayer(newLayerId)
+}
+
+export const receiveLassoCutToLayerFromCoworker = async (
+  sourceLayerId: string,
+  newLayerId: string,
+  insertOrder: number,
+  layerName: string,
+  points: LassoPoint[]
+) => {
+  const sourceLayer = state.layers[sourceLayerId]
+  if (!sourceLayer) return
+  const result = await extractLassoSelection(sourceLayer.canvas, points)
+  if (!result) return
+  fillCanvasWithImage(sourceLayer.canvas.context, result.outsideCanvas, 0, 0)
+  await layersBridge.commitLayerCanvasStepOnly(sourceLayerId)
+  await layersBridge.createLayerFromSelectionCanvas(
+    newLayerId,
+    insertOrder,
+    result.selectedCanvas,
+    result.minX,
+    result.minY,
+    result.maxX,
+    result.maxY,
+    Coworking.getCoworkerUserId(),
+    layerName
+  )
+  result.selectedCanvas.width = result.selectedCanvas.height = 0
+  result.outsideCanvas.width = result.outsideCanvas.height = 0
+  await layersBridge.addLayerHistoryCutToNewStep(sourceLayerId, newLayerId)
+  selectCoworkerLayer(newLayerId)
 }
 
 export const receiveFlipLayerFromCoworker = (layerId: string, horizontally: boolean) => {

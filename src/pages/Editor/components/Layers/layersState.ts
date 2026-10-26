@@ -4,6 +4,7 @@ import * as Coworking from 'modules/Coworking'
 import { getNewContextForCanvas, ExtendedCanvasContext } from 'utils/canvasUtils'
 import { deepCopy } from 'utils/jsUtils'
 import { LayersRefs } from './LayersView'
+import type { LassoExtractionResult, LassoPoint } from './layerLasso'
 import {
   MagnetismEntry,
   getMagnetismCoordXForLayer,
@@ -91,6 +92,9 @@ export interface LayersState {
   currentSelectedLayerId: string | false
   canvasPanMode: boolean
   resizeMode: boolean
+  lassoMode: boolean
+  lassoSelection: LassoExtractionResult | null
+  lassoTransformPoints: LassoPoint[] | null
   gcoMode: boolean
   editorIsUsingEraser: boolean
   paramsTimeout: ReturnType<typeof setTimeout> | false
@@ -116,6 +120,9 @@ const initialState: LayersState = {
   currentSelectedLayerId: false,
   canvasPanMode: false,
   resizeMode: false,
+  lassoMode: false,
+  lassoSelection: null,
+  lassoTransformPoints: null,
   gcoMode: false,
   editorIsUsingEraser: false,
   paramsTimeout: false,
@@ -155,6 +162,11 @@ export const areLayersReady = () =>
 
 export const resetLayersState = () => {
   layersReady = false
+  if (state?.lassoSelection) {
+    state.lassoSelection.selectedCanvas.width = state.lassoSelection.selectedCanvas.height = 0
+    state.lassoSelection.outsideCanvas.width = state.lassoSelection.outsideCanvas.height = 0
+    state.lassoSelection = null
+  }
   state = deepCopy(initialState)
 }
 
@@ -176,8 +188,10 @@ export const refs: LayersRefs = {
   layersToggleButton: null,
   gcoButton: null,
   resizeButton: null,
+  lassoButton: null,
   visibilityLayerButton: null,
   imageForResize: null,
+  backgroundForResize: null,
   opacitySlider: null,
   opacityCursor: null,
   opacityLabel: null,
@@ -352,8 +366,19 @@ export const setLayerCoordsAfterDragResize = (
   maxY: number
 ) => {
   if (!state.currentSelectedLayerId || !state.layers[state.currentSelectedLayerId]) return
+  const current = state.layers[state.currentSelectedLayerId]
+  if (refs.backgroundForResize && Number.isFinite(current.minX)) {
+    state.layers[state.currentSelectedLayerId] = {
+      ...current,
+      minX: Math.min(current.minX, minX),
+      minY: Math.min(current.minY, minY),
+      maxX: Math.max(current.maxX, maxX),
+      maxY: Math.max(current.maxY, maxY),
+    }
+    return
+  }
   state.layers[state.currentSelectedLayerId] = {
-    ...state.layers[state.currentSelectedLayerId],
+    ...current,
     minX,
     minY,
     maxX,

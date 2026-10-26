@@ -588,6 +588,18 @@ iframe {
   mask-image: url('../static/icons/svg/move.svg');
   -webkit-mask-image: url('../static/icons/svg/move.svg');
 }
+.svg-icon-lasso {
+  mask-image: url('../static/icons/svg/lasso.svg');
+  -webkit-mask-image: url('../static/icons/svg/lasso.svg');
+}
+.svg-icon-cut-layer {
+  mask-image: url('../static/icons/svg/cut-layer.svg');
+  -webkit-mask-image: url('../static/icons/svg/cut-layer.svg');
+}
+.svg-icon-copy-layer {
+  mask-image: url('../static/icons/svg/copy-layer.svg');
+  -webkit-mask-image: url('../static/icons/svg/copy-layer.svg');
+}
 .svg-icon-hand {
   mask-image: url('../static/icons/svg/hand.svg');
   -webkit-mask-image: url('../static/icons/svg/hand.svg');

@@ -150,6 +150,40 @@ const peerMessageHandlers: Record<string, (data: any) => void> = {
         data.r
       )
     ),
+  [editorEvents.lassoClearLayer]: (data) =>
+    withEditor(() => editorCoworkingPort.receiveLassoClearFromCoworker(data.layerId, data.points)),
+  [editorEvents.lassoTransformLayer]: (data) =>
+    withEditor(() =>
+      editorCoworkingPort.receiveLassoTransformFromCoworker(
+        data.layerId,
+        data.points,
+        data.x,
+        data.y,
+        data.w,
+        data.h,
+        data.r
+      )
+    ),
+  [editorEvents.lassoCopyToLayer]: (data) =>
+    withEditor(() =>
+      editorCoworkingPort.receiveLassoCopyToLayerFromCoworker(
+        data.sourceLayerId,
+        data.newLayerId,
+        data.insertOrder,
+        data.layerName,
+        data.points
+      )
+    ),
+  [editorEvents.lassoCutToLayer]: (data) =>
+    withEditor(() =>
+      editorCoworkingPort.receiveLassoCutToLayerFromCoworker(
+        data.sourceLayerId,
+        data.newLayerId,
+        data.insertOrder,
+        data.layerName,
+        data.points
+      )
+    ),
   [editorEvents.clearLayer]: (data) =>
     withEditor(() => editorCoworkingPort.clearLayerFromCoworker(data.layerId)),
   [editorEvents.transferLayer]: (data) =>
@@ -246,6 +280,54 @@ export const sendResizeLayer = (
   peerClient?.sendMessage({
     event: editorEvents.resizeLayer,
     data: { layerId, x, y, w, h, r },
+  })
+}
+
+export const sendLassoClearLayer = (layerId: string, points: Array<[number, number]>) => {
+  peerClient?.sendMessage({
+    event: editorEvents.lassoClearLayer,
+    data: { layerId, points },
+  })
+}
+
+export const sendLassoTransformLayer = (
+  layerId: string,
+  points: Array<[number, number]>,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  r: number
+) => {
+  peerClient?.sendMessage({
+    event: editorEvents.lassoTransformLayer,
+    data: { layerId, points, x, y, w, h, r },
+  })
+}
+
+export const sendLassoCopyToLayer = (
+  sourceLayerId: string,
+  newLayerId: string,
+  insertOrder: number,
+  layerName: string,
+  points: Array<[number, number]>
+) => {
+  peerClient?.sendMessage({
+    event: editorEvents.lassoCopyToLayer,
+    data: { sourceLayerId, newLayerId, insertOrder, layerName, points },
+  })
+}
+
+export const sendLassoCutToLayer = (
+  sourceLayerId: string,
+  newLayerId: string,
+  insertOrder: number,
+  layerName: string,
+  points: Array<[number, number]>
+) => {
+  peerClient?.sendMessage({
+    event: editorEvents.lassoCutToLayer,
+    data: { sourceLayerId, newLayerId, insertOrder, layerName, points },
   })
 }
 

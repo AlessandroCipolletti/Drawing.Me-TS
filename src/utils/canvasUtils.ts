@@ -1026,14 +1026,17 @@ export const fillCanvasWithImage = (
   y = 0,
   w?: number,
   h?: number,
-  rotation?: number
+  rotation?: number,
+  clearFirst = true
 ) => {
-  destinationContext.clearRect(
-    0,
-    0,
-    destinationContext.canvas.width,
-    destinationContext.canvas.height
-  )
+  if (clearFirst) {
+    destinationContext.clearRect(
+      0,
+      0,
+      destinationContext.canvas.width,
+      destinationContext.canvas.height
+    )
+  }
   destinationContext.globalAlpha = 1
   destinationContext.globalCompositeOperation = 'source-over'
 

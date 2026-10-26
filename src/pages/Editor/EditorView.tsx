@@ -116,6 +116,69 @@ export const EditorView = ({ refs }: { refs: EditorRefs }) => (
           refs.canvasForLine = el
         }}
       />
+      <canvas
+        class="editor__lasso-canvas displayNone"
+        ref={(el) => {
+          refs.lassoCanvas = el
+        }}
+      />
+    </div>
+    <div
+      class="editor-lasso__bar params-container displayNone"
+      ref={(el) => {
+        refs.lassoBar = el
+      }}
+    >
+      <div
+        class="editor-lasso__action"
+        data-lasso-action="cut"
+        ref={(el) => {
+          refs.lassoCutButton = el
+        }}
+      >
+        <div class="editor-lasso__action-icon svg-icon-cut-layer svg-icon-dark" />
+        <span class="editor-lasso__action-label">Cut</span>
+      </div>
+      <div
+        class="editor-lasso__action"
+        data-lasso-action="copy"
+        ref={(el) => {
+          refs.lassoCopyButton = el
+        }}
+      >
+        <div class="editor-lasso__action-icon svg-icon-copy-layer svg-icon-dark" />
+        <span class="editor-lasso__action-label">Copy</span>
+      </div>
+      <div
+        class="editor-lasso__action"
+        data-lasso-action="transform"
+        ref={(el) => {
+          refs.lassoTransformButton = el
+        }}
+      >
+        <div class="editor-lasso__action-icon svg-icon-move svg-icon-dark" />
+        <span class="editor-lasso__action-label">Move</span>
+      </div>
+      <div
+        class="editor-lasso__action editor-lasso__action--danger"
+        data-lasso-action="clear"
+        ref={(el) => {
+          refs.lassoClearButton = el
+        }}
+      >
+        <div class="editor-lasso__action-icon svg-icon-delete svg-icon-dark" />
+        <span class="editor-lasso__action-label">Clear</span>
+      </div>
+      <div class="editor-lasso__divider" />
+      <div
+        class="editor-lasso__action editor-lasso__action--icon-only"
+        data-lasso-action="cancel"
+        ref={(el) => {
+          refs.lassoCancelButton = el
+        }}
+      >
+        <div class="editor-lasso__action-icon svg-icon-close svg-icon-dark" />
+      </div>
     </div>
     <div
       class="dragBullet dragBulletTL displayNone"
