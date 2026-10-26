@@ -34,7 +34,8 @@ export interface LayersBridge {
   applyLayerMaskLink: (
     layerId: string,
     maskBelowLayerId: string | null,
-    recordHistory?: boolean
+    recordHistory?: boolean,
+    bakeOnUnmask?: boolean
   ) => Promise<void>
   updateLayerListMaskAffordances: () => void
   updateUndoRedoButtons: () => void

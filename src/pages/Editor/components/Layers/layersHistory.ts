@@ -57,6 +57,16 @@ const cleanGlobalLayersHistoryOldActionIfNeeded = (action: GlobalLayerHistoryAct
     if (layer) {
       layer.history.deleteFarest()
     }
+  } else if (
+    action.type === HISTORY_STEP_LAYER_MASK &&
+    !action.maskBelowLayerId &&
+    action.oldMaskBelowLayerId &&
+    action.layerId
+  ) {
+    const layer = state.layers[action.layerId] || state.deletedLayers[action.layerId]
+    if (layer) {
+      layer.history.deleteFarest()
+    }
   } else if (action.type === HISTORY_STEP_LAYER_DELETE && action.layerId) {
     hardDeleteLayer(action.layerId)
   } else if (action.type === HISTORY_STEP_LAYERS_MERGE) {
@@ -80,6 +90,16 @@ const cleanGlobalLayersHistoryOverwrittenActionIfNeeded = (action: GlobalLayerHi
     }
     if (action.newLayerId) {
       hardDeleteLayer(action.newLayerId)
+    }
+  } else if (
+    action.type === HISTORY_STEP_LAYER_MASK &&
+    !action.maskBelowLayerId &&
+    action.oldMaskBelowLayerId &&
+    action.layerId
+  ) {
+    const layer = state.layers[action.layerId] || state.deletedLayers[action.layerId]
+    if (layer) {
+      layer.history.deleteNewest()
     }
   } else if (action.type === HISTORY_STEP_LAYER_DUPLICATE && action.newLayerId) {
     hardDeleteLayer(action.newLayerId)
@@ -482,9 +502,14 @@ export const doUndoForUser = async (userId: string) => {
         } else if (action.type === HISTORY_STEP_LAYER_RENAME && action.layerId) {
           layersBridge.saveLayerName(action.layerId, action.oldName || '')
         } else if (action.type === HISTORY_STEP_LAYER_MASK && action.layerId) {
+          if (!action.maskBelowLayerId && action.oldMaskBelowLayerId) {
+            const step = state.layers[action.layerId]?.history.back()
+            await restoreLayerContentStep(action.layerId, step)
+          }
           await layersBridge.applyLayerMaskLink(
             action.layerId,
             action.oldMaskBelowLayerId ?? null,
+            false,
             false
           )
           layersBridge.updateLayerListMaskAffordances()
@@ -564,9 +589,14 @@ export const doRedoForUser = async (userId: string) => {
       } else if (action.type === HISTORY_STEP_LAYER_RENAME && action.layerId) {
         layersBridge.saveLayerName(action.layerId, action.newName || '')
       } else if (action.type === HISTORY_STEP_LAYER_MASK && action.layerId) {
+        if (!action.maskBelowLayerId && action.oldMaskBelowLayerId) {
+          const step = state.layers[action.layerId]?.history.forward()
+          await restoreLayerContentStep(action.layerId, step)
+        }
         await layersBridge.applyLayerMaskLink(
           action.layerId,
           action.maskBelowLayerId ?? null,
+          false,
           false
         )
         layersBridge.updateLayerListMaskAffordances()

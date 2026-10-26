@@ -18,7 +18,7 @@ import {
   LayerRecord,
 } from './layersState'
 import { layersBridge, registerLayersBridge } from './layersBridge'
-import { getLayerDomCanvas } from './layerMask'
+import { getLayerDomCanvas, syncLayerDisplay } from './layerMask'
 import { clearPolygonFromCanvas, extractLassoSelection, LassoPoint } from './layerLasso'
 
 export const selectCoworkerLayer = (layerId: string) => {
@@ -215,7 +215,8 @@ export const receiveLassoTransformFromCoworker = async (
 ) => {
   const layer = state.layers[layerId]
   if (!layer) return
-  const result = await extractLassoSelection(layer.canvas, points)
+  syncLayerDisplay(layer.id)
+  const result = await extractLassoSelection(layer.canvas, points, getLayerDomCanvas(layer))
   if (!result) return
   const minX = round(x - w / 2, 1)
   const minY = round(y - h / 2, 1)
@@ -245,7 +246,12 @@ export const receiveLassoCopyToLayerFromCoworker = async (
 ) => {
   const sourceLayer = state.layers[sourceLayerId]
   if (!sourceLayer) return
-  const result = await extractLassoSelection(sourceLayer.canvas, points)
+  syncLayerDisplay(sourceLayer.id)
+  const result = await extractLassoSelection(
+    sourceLayer.canvas,
+    points,
+    getLayerDomCanvas(sourceLayer)
+  )
   if (!result) return
   await layersBridge.createLayerFromSelectionCanvas(
     newLayerId,
@@ -273,7 +279,12 @@ export const receiveLassoCutToLayerFromCoworker = async (
 ) => {
   const sourceLayer = state.layers[sourceLayerId]
   if (!sourceLayer) return
-  const result = await extractLassoSelection(sourceLayer.canvas, points)
+  syncLayerDisplay(sourceLayer.id)
+  const result = await extractLassoSelection(
+    sourceLayer.canvas,
+    points,
+    getLayerDomCanvas(sourceLayer)
+  )
   if (!result) return
   fillCanvasWithImage(sourceLayer.canvas.context, result.outsideCanvas, 0, 0)
   await layersBridge.commitLayerCanvasStepOnly(sourceLayerId)

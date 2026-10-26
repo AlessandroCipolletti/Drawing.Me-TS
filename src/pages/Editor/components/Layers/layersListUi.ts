@@ -286,7 +286,8 @@ export const completeLassoSelection = async (
   if (!state.currentSelectedLayerId || !state.lassoMode) return null
   const layer = state.layers[state.currentSelectedLayerId]
   if (!layer || !Number.isFinite(layer.minX)) return null
-  const result = await extractLassoSelection(layer.canvas, points)
+  syncLayerDisplay(layer.id)
+  const result = await extractLassoSelection(layer.canvas, points, getLayerDomCanvas(layer))
   if (!result || !state.lassoMode) {
     if (result) {
       result.selectedCanvas.width = result.selectedCanvas.height = 0

@@ -106,13 +106,31 @@ export const refreshMaskDependents = (changedLayerId: string) => {
   layersBridge.updateLayerPreview(upper.id)
 }
 
+export const bakeMaskedLayerToSource = (upperId: string) => {
+  const upper = state.layers[upperId]
+  if (!upper?.maskBelowLayerId) return
+  const maskCanvas = getMaskCanvasForUpper(upperId)
+  if (maskCanvas) {
+    applyDestinationInMask(upper.canvas.context, maskCanvas)
+  } else if (upper.displayCanvas) {
+    const ctx = upper.canvas.context
+    ctx.globalCompositeOperation = 'source-over'
+    ctx.globalAlpha = 1
+    ctx.clearRect(0, 0, upper.canvas.width, upper.canvas.height)
+    ctx.drawImage(upper.displayCanvas, 0, 0)
+  }
+}
+
 const breakMaskLinkForLayer = (upperId: string, syncDisplay = true) => {
   const layer = state.layers[upperId]
   if (!layer?.maskBelowLayerId) return
+  bakeMaskedLayerToSource(upperId)
   layer.maskBelowLayerId = null
   if (syncDisplay) {
     syncLayerDisplay(upperId)
   }
+  void layersBridge.updateLayerRealCoords(upperId)
+  layersBridge.updateLayerPreview(upperId)
   layersBridge.updateLayerListMaskAffordances()
   layersBridge.updateEditorCanvas()
 }

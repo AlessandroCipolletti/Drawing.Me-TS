@@ -229,7 +229,8 @@ export const clearPolygonFromCanvas = (
 
 export const extractLassoSelection = async (
   sourceCanvas: HTMLCanvasElement | OffscreenCanvas,
-  rawPoints: LassoPoint[]
+  rawPoints: LassoPoint[],
+  visibleSourceCanvas: HTMLCanvasElement | OffscreenCanvas = sourceCanvas
 ): Promise<LassoExtractionResult | null> => {
   const points: LassoPoint[] = rawPoints.map(([x, y]) => [round(x, 1), round(y, 1)])
   const polyBounds = getPolygonClampedBounds(points, sourceCanvas.width, sourceCanvas.height)
@@ -253,7 +254,7 @@ export const extractLassoSelection = async (
   maskedSubCtx.fill()
   maskedSubCtx.globalCompositeOperation = 'source-in'
   maskedSubCtx.drawImage(
-    sourceCanvas,
+    visibleSourceCanvas,
     polyMinX,
     polyMinY,
     polyW,

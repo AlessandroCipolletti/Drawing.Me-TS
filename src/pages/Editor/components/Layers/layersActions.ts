@@ -28,6 +28,7 @@ import {
 } from './layersState'
 import { layersBridge, registerLayersBridge } from './layersBridge'
 import {
+  bakeMaskedLayerToSource,
   breakMaskLinksInvolvingLayer,
   canToggleMaskDown,
   compositeSourceToDisplay,
@@ -442,15 +443,23 @@ const clearLayer = (layerId: string) => {
 const applyLayerMaskLink = async (
   layerId: string,
   maskBelowLayerId: string | null,
-  recordHistory = true
+  recordHistory = true,
+  bakeOnUnmask = true
 ) => {
   const layer = state.layers[layerId]
   if (!layer) return
   const oldMaskBelowLayerId = layer.maskBelowLayerId
   if (oldMaskBelowLayerId === maskBelowLayerId) return
 
+  const shouldBakeUnmask = Boolean(bakeOnUnmask && oldMaskBelowLayerId && !maskBelowLayerId)
+  if (shouldBakeUnmask) {
+    bakeMaskedLayerToSource(layerId)
+  }
+
   layer.maskBelowLayerId = maskBelowLayerId
-  if (maskBelowLayerId) {
+  if (shouldBakeUnmask) {
+    await layersBridge.commitLayerCanvasStepOnly(layerId)
+  } else if (maskBelowLayerId) {
     compositeSourceToDisplay(layerId)
   } else {
     syncLayerDisplay(layerId)
