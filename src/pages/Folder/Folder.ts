@@ -30,6 +30,7 @@ import {
   FolderRefs,
   FolderLabels,
 } from './FolderView'
+import { createFolderRangeSelection } from './folderRangeSelection'
 
 const MAX_DRAWING_TITLE_LENGTH = 36
 
@@ -180,6 +181,19 @@ const findAncestorWithSelector = (
   return null
 }
 
+const findDrawingCardFromEl = (start: HTMLElement | null): HTMLElement | null =>
+  findAncestorWithSelector(
+    start,
+    (el) => el.classList?.contains('folder__drawing') && Boolean(el.getAttribute('data-local-id'))
+  )
+
+const folderRangeSelection = createFolderRangeSelection({
+  getDrawingsContainer: () => refs.drawingsContainer,
+  isSelectionMode: () => state.selectionMode,
+  findDrawingCardFromEl,
+  onSelectionChanged: () => updateTopnavButtons(),
+})
+
 const alignCardMenu = (card: HTMLElement) => {
   const menu = card.querySelector('.folder__drawing-menu') as HTMLElement | null
   const container = refs.drawingsContainer
@@ -239,6 +253,7 @@ const deleteSingleDrawingCard = async (localDbId: number) => {
 }
 
 const onDrawingClick = (e: any) => {
+  if (folderRangeSelection.consumeSuppressClick()) return
   const target = e.target as HTMLElement | null
   if (!target) return
 
@@ -400,6 +415,7 @@ const doneButtonClick = () => {
   removeGlobalStatus('drawith__FOLDER-SELECT-MODE')
   refs.doneButton.classList.add('disabled', 'displayNone')
   refs.selectButton?.classList.remove('disabled', 'displayNone')
+  folderRangeSelection.cancelForModeExit()
   deselectAll()
 }
 
@@ -547,7 +563,14 @@ const initDom = async () => {
   refs.newContainer?.addEventListener(Params.eventStart, preventDefault)
   refs.coworkingPopup?.remove()
   if (refs.drawingsContainer) {
-    addListScrollClickAndPressHandlers(refs.drawingsContainer, onDrawingClick, onDrawingLongPress)
+    folderRangeSelection.attach(refs.drawingsContainer)
+    addListScrollClickAndPressHandlers(
+      refs.drawingsContainer,
+      onDrawingClick,
+      onDrawingLongPress,
+      20,
+      { shouldScrollOnDrag: () => folderRangeSelection.shouldScrollOnDrag() }
+    )
     refs.drawingsContainer.addEventListener('scroll', () => closeAllCardMenus(), { passive: true })
   }
   refs.container?.addEventListener(Params.eventStart, (e: Event) => {
@@ -589,6 +612,9 @@ export const close = async () => {
   unsubscribeCoworkingPopup = null
   unsubscribeDrawingsLoading?.()
   unsubscribeDrawingsLoading = null
+  if (refs.drawingsContainer) {
+    folderRangeSelection.detach(refs.drawingsContainer)
+  }
   if (refs.container) await fadeOutElements(refs.container)
   removeGlobalStatus('drawith__FOLDER-OPEN')
   closeCoworkingPopup()

@@ -190,11 +190,21 @@ export const addVerticalDragSliderHandler = (
 }
 
 const LONG_PRESS_DURATION = 300
+
+export interface ListScrollClickPressOptions {
+  shouldScrollOnDrag?: (ctx: {
+    startTarget: EventTarget | null
+    touchStartX: number
+    touchStartY: number
+  }) => boolean
+}
+
 export const addListScrollClickAndPressHandlers = (
   listElement: HTMLElement,
   onClick: (e: any) => void,
   onLongPress: (e: any) => void,
-  minPxToScrollBase = 20
+  minPxToScrollBase = 20,
+  options?: ListScrollClickPressOptions
 ) => {
   let touchStartX = -1
   let touchStartY = -1
@@ -305,11 +315,19 @@ export const addListScrollClickAndPressHandlers = (
     if (Math.abs(touchDistance) > minPxToScroll || (e.touches && e.touches.length > 1)) {
       clearTimeout(longPressTimeout)
       if (!isLongPressed && e.pointerType === 'mouse') {
-        if (contentMaxScrollY > 0) {
-          listElement.scrollTop = initialScrollTop - (touchMoveY - touchStartY)
-        }
-        if (contentMaxScrollX > 0) {
-          listElement.scrollLeft = initialScrollLeft - (touchMoveX - touchStartX)
+        const allowScroll =
+          options?.shouldScrollOnDrag?.({
+            startTarget,
+            touchStartX,
+            touchStartY,
+          }) ?? true
+        if (allowScroll) {
+          if (contentMaxScrollY > 0) {
+            listElement.scrollTop = initialScrollTop - (touchMoveY - touchStartY)
+          }
+          if (contentMaxScrollX > 0) {
+            listElement.scrollLeft = initialScrollLeft - (touchMoveX - touchStartX)
+          }
         }
       }
     }

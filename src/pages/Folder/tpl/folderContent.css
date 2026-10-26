@@ -307,10 +307,12 @@
 .drawith__FOLDER-SELECT-MODE .folder__drawing:not(.folder__drawing-selected) {
   opacity: 0.78;
 }
-.drawith__FOLDER-SELECT-MODE .folder__drawing-selected {
+.drawith__FOLDER-SELECT-MODE .folder__drawings-container .folder__drawing-selected,
+.drawith__FOLDER-SELECT-MODE .folder__drawings-container .folder__drawing-selected:hover {
   border: 1.5px solid var(--accent-ink-strong);
   background-color: #ffffff;
   box-shadow: none;
+  opacity: 1;
 }
 .drawith__FOLDER-SELECT-MODE .folder__drawing-select-icon {
   display: block;
@@ -319,4 +321,9 @@
   background-color: var(--editor-active-bg);
   border-color: var(--editor-active-bg);
   background-image: url('../../../static/icons/svg/check.svg');
+}
+
+.folder__drawings-container--range-drag {
+  user-select: none;
+  cursor: crosshair;
 }
