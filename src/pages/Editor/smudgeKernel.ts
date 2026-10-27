@@ -97,6 +97,22 @@ const createCanvas = (): HTMLCanvasElement | null => {
   return document.createElement('canvas')
 }
 
+type SmudgeScratchCtxKey = 'accum' | 'stamp' | 'work' | 'sample' | 'tiny' | 'mask'
+
+const getScratch2d = (
+  session: SmudgeStrokeSession,
+  canvas: HTMLCanvasElement,
+  key: SmudgeScratchCtxKey,
+  willReadFrequently = false
+): CanvasRenderingContext2D | null => {
+  let ctx = session.scratchCtxs[key]
+  if (!ctx) {
+    ctx = canvas.getContext('2d', willReadFrequently ? { willReadFrequently: true } : undefined)
+    session.scratchCtxs[key] = ctx
+  }
+  return ctx
+}
+
 const ensureCanvas = (
   existing: HTMLCanvasElement | null,
   width: number,
@@ -117,7 +133,7 @@ const rebuildMask = (session: SmudgeStrokeSession, width: number, height: number
   const maskCanvas = session.maskCanvas
   if (maskCanvas.width !== width) maskCanvas.width = width
   if (maskCanvas.height !== height) maskCanvas.height = height
-  const ctx = maskCanvas.getContext('2d')
+  const ctx = getScratch2d(session, maskCanvas, 'mask')
   if (!ctx) return
   ctx.clearRect(0, 0, width, height)
   ctx.save()
@@ -164,6 +180,7 @@ export interface SmudgeStrokeSession {
   tinySampleCanvas: HTMLCanvasElement | null
   maskCanvas: HTMLCanvasElement | null
   maskDiameter: { value: number }
+  scratchCtxs: Record<SmudgeScratchCtxKey, CanvasRenderingContext2D | null>
 }
 
 export const createSmudgeStrokeSession = (): SmudgeStrokeSession => ({
@@ -188,6 +205,14 @@ export const createSmudgeStrokeSession = (): SmudgeStrokeSession => ({
   tinySampleCanvas: null,
   maskCanvas: null,
   maskDiameter: { value: -1 },
+  scratchCtxs: {
+    accum: null,
+    stamp: null,
+    work: null,
+    sample: null,
+    tiny: null,
+    mask: null,
+  },
 })
 
 export const resetSmudgeStrokeSession = (session: SmudgeStrokeSession) => {
@@ -202,6 +227,14 @@ export const resetSmudgeStrokeSession = (session: SmudgeStrokeSession) => {
   session.tinySampleCanvas = null
   session.maskCanvas = null
   session.maskDiameter.value = -1
+  session.scratchCtxs = {
+    accum: null,
+    stamp: null,
+    work: null,
+    sample: null,
+    tiny: null,
+    mask: null,
+  }
   session.hasDabbed = false
   session.started = false
   session.brushDiameter = 0
@@ -273,12 +306,13 @@ const ensureScratchCanvases = (session: SmudgeStrokeSession): boolean => {
 
 /** Copy the live layer region under (cx, cy) into a brush-sized canvas. */
 const copyLivePatch = (
+  session: SmudgeStrokeSession,
   source: HTMLCanvasElement,
   target: HTMLCanvasElement,
   cx: number,
   cy: number
 ) => {
-  const targetCtx = target.getContext('2d')
+  const targetCtx = getScratch2d(session, target, 'work')
   if (!targetCtx) return
   const w = target.width
   const h = target.height
@@ -298,44 +332,27 @@ const copyLivePatch = (
   targetCtx.restore()
 }
 
-/** Centre-weighted average alpha under the brush, read from the live layer. */
-const sampleLiveAlpha = (
-  session: SmudgeStrokeSession,
-  source: HTMLCanvasElement,
-  cx: number,
-  cy: number
-): number | null => {
+/**
+ * Centre-weighted average alpha in the current work patch (call after
+ * copyLivePatch for the same dab position).
+ */
+const sampleLiveAlpha = (session: SmudgeStrokeSession): number | null => {
+  const workCanvas = session.workCanvas!
   const sampleCanvas = session.sampleCanvas!
   const tinyCanvas = session.tinySampleCanvas!
-  const sampleCtx = sampleCanvas.getContext('2d')
-  const tinyCtx = tinyCanvas.getContext('2d')
+  const sampleCtx = getScratch2d(session, sampleCanvas, 'sample', true)
+  const tinyCtx = getScratch2d(session, tinyCanvas, 'tiny', true)
   if (!sampleCtx || !tinyCtx) return null
 
-  const w = session.brushDiameter
-  const h = brushHeight(session)
-  const x0 = Math.round(cx - w / 2)
-  const y0 = Math.round(cy - h / 2)
-  const sx = clamp(x0, 0, source.width)
-  const sy = clamp(y0, 0, source.height)
-  const sx2 = clamp(x0 + w, 0, source.width)
-  const sy2 = clamp(y0 + h, 0, source.height)
+  const w = workCanvas.width
+  const h = workCanvas.height
 
   sampleCtx.save()
   sampleCtx.globalCompositeOperation = 'source-over'
   sampleCtx.globalAlpha = 1
   sampleCtx.clearRect(0, 0, SAMPLE_CANVAS_SIZE, SAMPLE_CANVAS_SIZE)
-  if (sx2 > sx && sy2 > sy) {
-    sampleCtx.drawImage(
-      source,
-      sx,
-      sy,
-      sx2 - sx,
-      sy2 - sy,
-      ((sx - x0) / w) * SAMPLE_CANVAS_SIZE,
-      ((sy - y0) / h) * SAMPLE_CANVAS_SIZE,
-      ((sx2 - sx) / w) * SAMPLE_CANVAS_SIZE,
-      ((sy2 - sy) / h) * SAMPLE_CANVAS_SIZE
-    )
+  if (w > 0 && h > 0) {
+    sampleCtx.drawImage(workCanvas, 0, 0, w, h, 0, 0, SAMPLE_CANVAS_SIZE, SAMPLE_CANVAS_SIZE)
   }
   sampleCtx.restore()
 
@@ -379,7 +396,7 @@ const exchangeAccumWithLivePatch = (
   force: boolean
 ) => {
   const accumCanvas = session.accumCanvas!
-  const accumCtx = accumCanvas.getContext('2d')
+  const accumCtx = getScratch2d(session, accumCanvas, 'accum')
   if (!accumCtx) return
   const w = accumCanvas.width
   const h = accumCanvas.height
@@ -415,7 +432,7 @@ const stampAccum = (
   deposit: number
 ) => {
   const stampCanvas = session.stampCanvas!
-  const stampCtx = stampCanvas.getContext('2d')
+  const stampCtx = getScratch2d(session, stampCanvas, 'stamp')
   if (!stampCtx) return
   const w = stampCanvas.width
   const h = stampCanvas.height
@@ -483,8 +500,8 @@ export const smudgeStrokeStep = (
 
   // Load the brush with the paint under the starting point.
   if (!session.hasAccum) {
-    copyLivePatch(sourceCanvas, session.workCanvas!, prevX, prevY)
-    liveAlpha = sampleLiveAlpha(session, sourceCanvas, prevX, prevY) ?? 0
+    copyLivePatch(session, sourceCanvas, session.workCanvas!, prevX, prevY)
+    liveAlpha = sampleLiveAlpha(session) ?? 0
     exchangeAccumWithLivePatch(session, params.pickup, liveAlpha, true)
     session.lastDabX = prevX
     session.lastDabY = prevY
@@ -513,12 +530,11 @@ export const smudgeStrokeStep = (
     const y = fromY + (curY - fromY) * t
     session.totalTravel += dabTravel
     session.distanceSinceSample += dabTravel
+    copyLivePatch(session, sourceCanvas, session.workCanvas!, x, y)
     if (session.distanceSinceSample >= params.sampleIntervalPx) {
       session.distanceSinceSample = 0
-      liveAlpha = sampleLiveAlpha(session, sourceCanvas, x, y) ?? liveAlpha
+      liveAlpha = sampleLiveAlpha(session) ?? liveAlpha
     }
-
-    copyLivePatch(sourceCanvas, session.workCanvas!, x, y)
     exchangeAccumWithLivePatch(session, params.pickup, liveAlpha, false)
 
     // Where the buffer carries transparency, thin the existing paint
