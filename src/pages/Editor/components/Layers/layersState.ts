@@ -16,6 +16,7 @@ import {
   getMagnetismCoordRightForLayer,
   getMagnetismCoordBottomForLayer,
 } from './layersUtils'
+import type { LayerBlendMode } from './layerBlendMode'
 
 export const MAX_LAYER_NAME_LENGTH = 12
 export const PREVIEW_SIZE = 300
@@ -66,6 +67,7 @@ export interface LayerRecord {
   active: boolean
   canvas: LayerCanvasElement
   opacity: number
+  blendMode: LayerBlendMode
   history: History<LayerHistoryStep>
   selected: boolean
   modified: boolean
@@ -217,6 +219,7 @@ export const refs: LayersRefs = {
   resizeBaseSnapshot: null,
   resizeWarpSourcePixels: null,
   backgroundForResize: null,
+  blendModeChip: null,
   opacitySlider: null,
   opacityCursor: null,
   opacityLabel: null,
@@ -237,6 +240,8 @@ export interface GlobalLayerHistoryAction {
   maskBelowLayerId?: string | null
   oldMaskBelowLayerId?: string | null
   partnerLayerId?: string
+  blendModeNew?: LayerBlendMode
+  blendModeOld?: LayerBlendMode
 }
 
 export let UsersLayersHistory: Record<string, History<GlobalLayerHistoryAction>> = {}
@@ -377,6 +382,7 @@ export const createNewLayerData = (owner: string | false = false): LayerRecord =
   active: true,
   canvas: null as unknown as LayerCanvasElement,
   opacity: 1,
+  blendMode: 'normal',
   history: new History<LayerHistoryStep>(config.stepHistoryMaxLength, clearLayerHistoryStepBitmap),
   selected: false,
   modified: false,

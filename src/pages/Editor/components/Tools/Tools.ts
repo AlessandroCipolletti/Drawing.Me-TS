@@ -40,6 +40,17 @@ import {
 export type { PersistedToolCustomProps, SelectedToolDescriptor }
 export { getCurrentToolCustomProps, getCurrentSelectedTool, getToolsCustomProps }
 
+export const getCurrentPaper = (): string => state.currentPaper
+
+const applySavedPaper = (paper: string | undefined) => {
+  if (!paper || !config.papers.includes(paper)) return
+  state.currentPaper = paper
+  refs.toolsButtons.paper?.classList.remove(...config.papers.map((e) => `paper-${e}`))
+  const nextPaper = config.papers[(config.papers.indexOf(paper) + 1) % config.papers.length]
+  refs.toolsButtons.paper?.classList.add(`paper-${nextPaper}`)
+  editorFacade.changePaper(paper)
+}
+
 const PushNewActionPromise = async (promise: () => Promise<unknown>) => {
   state.actionsPromises.push(promise)
   if (state.actionsPromises.length === 1) {
@@ -459,7 +470,8 @@ const initDom = async (moduleContainer: HTMLElement) => {
 export const init = async (
   moduleContainer: HTMLElement,
   toolsCustomProps?: PersistedToolCustomProps[],
-  selectedTool?: SelectedToolDescriptor | false
+  selectedTool?: SelectedToolDescriptor | false,
+  savedPaper?: string
 ) => {
   initToolsConfig()
   mergeCustomProps(toolsCustomProps)
@@ -471,6 +483,7 @@ export const init = async (
   }
   await initDom(moduleContainer)
   selectInitialTools(selectedTool)
+  applySavedPaper(savedPaper)
   addRotationHandler(onRotate)
 }
 

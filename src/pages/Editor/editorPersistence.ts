@@ -5,6 +5,7 @@ import { PaletteColor } from './components/ColorPicker/ColorPicker'
 import * as Toolbar from './components/Toolbar'
 import * as Layers from './components/Layers'
 import * as Tools from './components/Tools'
+import { getCurrentPaper } from './components/Tools/Tools'
 import { addPreventPageRefresh, removePreventPageRefresh } from 'app/shellState'
 import { emitCoworkingEvent } from 'app/coworkingBus'
 import { openPageFolder } from 'app/navigation'
@@ -56,6 +57,7 @@ const getCurrentDrawingInfo = async (state: EditorState): Promise<ExportedDrawin
   currentDrawing.selectedTool = Tools.getCurrentSelectedTool()
   currentDrawing.layersSidebarExpanded = Layers.isLayersSidebarExpanded()
   currentDrawing.sceneGuides = getGuidesSnapshot()
+  currentDrawing.paper = getCurrentPaper()
   return currentDrawing
 }
 

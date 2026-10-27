@@ -16,6 +16,7 @@ import {
 } from 'utils/domUtils'
 import { fadeInElements, fadeOutElements } from 'utils/animationsUtils'
 import { addGlobalStatus, removeGlobalStatus, cleanRefs } from 'utils/moduleUtils'
+import { getDrawingExportSource } from 'pages/Editor/components/Layers/drawingExportSource'
 import { shareImageWithBase64 } from 'utils/imageUtils'
 import { deepCopy, copyTextToClipboard } from 'utils/jsUtils'
 import { addListScrollClickAndPressHandlers } from 'utils/uiUtils'
@@ -426,11 +427,13 @@ const exportButtonClick = async () => {
   setSpinner(true)
   const selectedDrawings: any[] = await Promise.all(getSelectedIds().map(LocalDB.getOneDrawing))
 
-  const bitmaps = selectedDrawings.filter(Boolean).map((d) => d.bitmap)
+  const exportSources = (
+    await Promise.all(selectedDrawings.filter(Boolean).map(getDrawingExportSource))
+  ).filter((source): source is HTMLCanvasElement | HTMLImageElement => Boolean(source))
   const drawings = await Promise.all(
-    bitmaps.map(async (drawing) => ({
-      w: await shareImageWithBase64(drawing, true),
-      t: await shareImageWithBase64(drawing, false),
+    exportSources.map(async (source) => ({
+      w: await shareImageWithBase64(source, true),
+      t: await shareImageWithBase64(source, false),
     }))
   )
   const popupContent = FolderSharePopupView({

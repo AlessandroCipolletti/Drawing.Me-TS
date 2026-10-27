@@ -527,7 +527,8 @@ export const open = async (
     Tools.init(
       refs.container!,
       preloadedDrawing.toolsCustomProps || [],
-      preloadedDrawing.selectedTool || false
+      preloadedDrawing.selectedTool || false,
+      preloadedDrawing.paper
     ),
     ColorPicker.init(
       refs.container!,

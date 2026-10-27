@@ -1,5 +1,9 @@
 import { v4 as uuidv4 } from 'uuid'
 import logoSrc from 'static/img/logoExport.png'
+import {
+  mergeStackCompositeOperation,
+  type LayerBlendMode,
+} from 'pages/Editor/components/Layers/layerBlendMode'
 import { waitWorkerMessage, postWorkerCommand } from 'utils/jsUtils'
 import { getNumberInBetween, round } from 'utils/mathUtils'
 
@@ -186,13 +190,18 @@ export const duplicateCanvas = (
   return canvas
 }
 
-export const mergeImages = (
-  images: Array<[HTMLImageElement | HTMLCanvasElement | OffscreenCanvas, number?]>
-): HTMLCanvasElement => {
+export type MergeImageEntry = [
+  HTMLImageElement | HTMLCanvasElement | OffscreenCanvas,
+  number?,
+  LayerBlendMode?,
+]
+
+export const mergeImages = (images: Array<MergeImageEntry>): HTMLCanvasElement => {
   const canvas = document.createElement('canvas')
   const context = canvas.getContext('2d')!
   canvas.width = canvas.height = 0
-  for (const [img, opacity = 1] of images) {
+  let isFirstDraw = true
+  for (const [img, opacity = 1, blendMode = 'normal'] of images) {
     const imgW = (img as HTMLImageElement).naturalWidth || img.width
     const imgH = (img as HTMLImageElement).naturalHeight || img.height
     if (imgW > 1) {
@@ -200,11 +209,14 @@ export const mergeImages = (
         canvas.width = imgW
         canvas.height = imgH
       }
+      context.globalCompositeOperation = mergeStackCompositeOperation(isFirstDraw, blendMode)
+      isFirstDraw = false
       context.globalAlpha = opacity
       context.drawImage(img, 0, 0)
     }
   }
   context.globalAlpha = 1
+  context.globalCompositeOperation = 'source-over'
   return canvas
 }
 

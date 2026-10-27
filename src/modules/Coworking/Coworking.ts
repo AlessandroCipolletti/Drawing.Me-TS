@@ -129,6 +129,14 @@ const peerMessageHandlers: Record<string, (data: any) => void> = {
     withEditor(() =>
       editorCoworkingPort.updateLayerOpacityFromCoworker(data.layerId, data.newValue, data.oldValue)
     ),
+  [editorEvents.blendLayer]: (data) =>
+    withEditor(() =>
+      editorCoworkingPort.updateLayerBlendModeFromCoworker(
+        data.layerId,
+        data.blendModeNew,
+        data.blendModeOld
+      )
+    ),
   [editorEvents.enableLayer]: (data) =>
     withEditor(() => editorCoworkingPort.enableLayerFromCoworker(data.layerId)),
   [editorEvents.disableLayer]: (data) =>
@@ -258,6 +266,13 @@ export const sendOpacityLayer = (layerId: string, newValue: number, oldValue: nu
   peerClient?.sendMessage({
     event: editorEvents.opacityLayer,
     data: { layerId, newValue, oldValue },
+  })
+}
+
+export const sendBlendLayer = (layerId: string, blendModeNew: string, blendModeOld: string) => {
+  peerClient?.sendMessage({
+    event: editorEvents.blendLayer,
+    data: { layerId, blendModeNew, blendModeOld },
   })
 }
 

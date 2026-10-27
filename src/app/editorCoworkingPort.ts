@@ -61,6 +61,11 @@ export interface EditorCoworkingPort {
     oldMaskBelowLayerId: string | null
   ) => void
   updateLayerOpacityFromCoworker: (layerId: string, opacity: number, oldValue: number) => void
+  updateLayerBlendModeFromCoworker: (
+    layerId: string,
+    blendModeNew: string,
+    blendModeOld: string
+  ) => void
   enableLayerFromCoworker: (layerId: string) => void
   disableLayerFromCoworker: (layerId: string) => void
   layerDragChangeFromCoworker: (

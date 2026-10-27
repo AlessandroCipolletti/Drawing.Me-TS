@@ -3,9 +3,11 @@ import * as Coworking from 'modules/Coworking'
 import { editorFacade } from 'pages/Editor/editorFacade'
 import { findImageContentCoords } from 'utils/imageUtils'
 import { fillCanvasWithImage } from 'utils/canvasUtils'
+import type { LayerBlendMode } from './layerBlendMode'
 import {
   HISTORY_STEP_LAYER_CONTENT,
   HISTORY_STEP_LAYER_OPACITY,
+  HISTORY_STEP_LAYER_BLEND_MODE,
   HISTORY_STEP_LAYER_SHOW,
   HISTORY_STEP_LAYER_HIDE,
   HISTORY_STEP_LAYER_ORDER,
@@ -402,6 +404,23 @@ const addLayerHistoryOpacityStep = async (layerId: string, newValue: number, old
   )
 }
 
+const addLayerHistoryBlendModeStep = async (
+  layerId: string,
+  blendModeNew: LayerBlendMode,
+  blendModeOld: LayerBlendMode
+) => {
+  const layer = state.layers[layerId] || state.deletedLayers[layerId]
+  addGlobalLayersHistoryAction(
+    {
+      layerId,
+      type: HISTORY_STEP_LAYER_BLEND_MODE,
+      blendModeNew,
+      blendModeOld,
+    },
+    layer.owner
+  )
+}
+
 const addLayerHistoryEnableStep = async (layerId: string) => {
   const layer = state.layers[layerId] || state.deletedLayers[layerId]
   addGlobalLayersHistoryAction(
@@ -595,6 +614,11 @@ export const doUndoForUser = async (userId: string) => {
           selectedLayerId = action.layerId
         } else if (action.type === HISTORY_STEP_LAYER_OPACITY && action.layerId) {
           layersBridge._updateLayerOpacity(action.layerId, action.oldValue || 0)
+        } else if (action.type === HISTORY_STEP_LAYER_BLEND_MODE && action.layerId) {
+          if (action.blendModeOld) {
+            layersBridge._updateLayerBlendMode(action.layerId, action.blendModeOld)
+            layersBridge.updateParamsByLayer(action.layerId)
+          }
         } else if (action.type === HISTORY_STEP_LAYER_SHOW && action.layerId) {
           layersBridge.disableLayer(action.layerId)
         } else if (action.type === HISTORY_STEP_LAYER_HIDE && action.layerId) {
@@ -688,6 +712,11 @@ export const doRedoForUser = async (userId: string) => {
         selectedLayerId = action.newLayerId
       } else if (action.type === HISTORY_STEP_LAYER_OPACITY && action.layerId) {
         layersBridge._updateLayerOpacity(action.layerId, action.newValue || 0)
+      } else if (action.type === HISTORY_STEP_LAYER_BLEND_MODE && action.layerId) {
+        if (action.blendModeNew) {
+          layersBridge._updateLayerBlendMode(action.layerId, action.blendModeNew)
+          layersBridge.updateParamsByLayer(action.layerId)
+        }
       } else if (action.type === HISTORY_STEP_LAYER_SHOW && action.layerId) {
         layersBridge.enableLayer(action.layerId)
       } else if (action.type === HISTORY_STEP_LAYER_HIDE && action.layerId) {
@@ -767,6 +796,7 @@ registerLayersBridge({
   addLayerHistoryNewStep,
   addLayerHistoryRenameStep,
   addLayerHistoryOpacityStep,
+  addLayerHistoryBlendModeStep,
   addLayerHistoryOrderStep,
   addLayerHistoryMaskStep,
   addLayerHistoryCutToNewStep,

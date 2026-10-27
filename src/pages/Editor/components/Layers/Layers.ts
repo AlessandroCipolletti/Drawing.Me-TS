@@ -66,6 +66,7 @@ import {
   discardPendingLassoSelection,
   flipHorizontally,
   flipVertically,
+  blendModeChipTouchStart,
   gcoModeTouchStart,
   getActiveLassoSelection,
   hasActiveLassoSelection,
@@ -112,6 +113,7 @@ import {
   selectCoworkerLayer,
   sendCurrentLayerToCoworker,
   updateLayerOpacityFromCoworker,
+  updateLayerBlendModeFromCoworker,
 } from './layersCoworking'
 
 export {
@@ -189,6 +191,7 @@ const initDom = async (moduleContainer: HTMLElement, sidebarExpanded = false) =>
   refs.layerListElement?.remove()
   refs.paramsContainer?.addEventListener(Params.eventStart, preventDefault)
   refs.gcoButton.addEventListener(Params.eventStart, gcoModeTouchStart)
+  refs.blendModeChip?.addEventListener(Params.eventStart, blendModeChipTouchStart)
   refs.resizeButton?.addEventListener(Params.eventStart, resizeButtonTouchStart)
   refs.lassoButton?.addEventListener(Params.eventStart, lassoButtonTouchStart)
   refs.layersContainer?.addEventListener(Params.eventStart, onContainerTouchStart)
@@ -303,6 +306,7 @@ registerEditorCoworkingPort({
   receiveLassoCutToLayerFromCoworker,
   receiveLayerMaskFromCoworker,
   updateLayerOpacityFromCoworker,
+  updateLayerBlendModeFromCoworker,
   enableLayerFromCoworker,
   disableLayerFromCoworker,
   layerDragChangeFromCoworker,

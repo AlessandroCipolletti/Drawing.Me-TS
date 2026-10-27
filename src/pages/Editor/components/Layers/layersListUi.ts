@@ -41,6 +41,14 @@ import {
   syncLayerDisplay,
 } from './layerMask'
 import {
+  applyBlendModeToDomCanvas,
+  blendModeBadgeLetter,
+  LAYER_BLEND_MODE_LABELS,
+  nextBlendMode,
+  normalizeBlendMode,
+  type LayerBlendMode,
+} from './layerBlendMode'
+import {
   cancelMagicWandSession,
   completeMagicWandSession,
   createMagicWandSession,
@@ -77,6 +85,31 @@ export const closeParams = async () => {
     state.paramsTimeout = false
     await delay(parseInt(timing.OPTIONS_SHOW_TRANSITION, 10))
   }
+}
+
+const updateLayerListBlendBadges = () => {
+  if (!refs.layersList) return
+  refs.layersList.querySelectorAll('.editor-layers__layer-blend-badge').forEach((badge) => {
+    badge.classList.add('displayNone')
+    badge.textContent = ''
+    badge.removeAttribute('aria-label')
+    badge.setAttribute('aria-hidden', 'true')
+  })
+  Object.values(state.layers).forEach((layer) => {
+    const letter = blendModeBadgeLetter(layer.blendMode)
+    if (!letter) return
+    const badge = refs.layersList?.querySelector(
+      `div[data-id="${layer.id}"] .editor-layers__layer-blend-badge`
+    )
+    if (!badge) return
+    badge.textContent = letter
+    badge.setAttribute(
+      'aria-label',
+      `Blend mode ${LAYER_BLEND_MODE_LABELS[normalizeBlendMode(layer.blendMode)]}`
+    )
+    badge.classList.remove('displayNone')
+    badge.removeAttribute('aria-hidden')
+  })
 }
 
 const updateLayerListMaskAffordances = () => {
@@ -116,6 +149,7 @@ const updateLayerListMaskAffordances = () => {
       ?.querySelector(`div[data-id="${layer.id}"]`)
       ?.classList.add('editor-layers__layer-occupied')
   })
+  updateLayerListBlendBadges()
 }
 
 const updateEditorCanvas = () => {
@@ -259,6 +293,19 @@ const updateParamsByLayer = (layerId: string | false = state.currentSelectedLaye
     refs.flipVerticalButton?.classList.toggle('disabled', empty)
     refs.flipHorizontalButton?.classList.toggle('disabled', empty)
     refs.sendLayerButton?.classList.toggle('disabled', !canTransferLayer)
+    const blendMode = normalizeBlendMode(layer.blendMode)
+    if (refs.blendModeChip) {
+      refs.blendModeChip.textContent = LAYER_BLEND_MODE_LABELS[blendMode]
+      refs.blendModeChip.setAttribute(
+        'aria-label',
+        `Blend mode, ${LAYER_BLEND_MODE_LABELS[blendMode]}`
+      )
+      const blendDisabled =
+        empty || state.resizeMode || state.lassoMode || isLayerOccupiedByCoworker(layerId)
+      refs.blendModeChip.classList.toggle('disabled', blendDisabled)
+      refs.blendModeChip.toggleAttribute('disabled', blendDisabled)
+      refs.blendModeChip.classList.toggle('selected', blendMode !== 'normal')
+    }
     const wasInResizeMode = state.resizeMode
     const wasInLassoMode = state.lassoMode
     updateResizeMode(state.resizeMode && canBeResized, canBeResized)
@@ -1172,6 +1219,45 @@ const _updateLayerOpacity = (layerId: string, opacity: number, inProgress = fals
   updateEditorCanvas()
 }
 
+const _updateLayerBlendMode = (layerId: string, blendMode: LayerBlendMode) => {
+  const layer = state.layers[layerId]
+  if (!layer) return
+  layer.blendMode = blendMode
+  applyBlendModeToDomCanvas(getLayerDomCanvas(layer), blendMode)
+  if (refs.blendModeChip && layerId === state.currentSelectedLayerId) {
+    refs.blendModeChip.textContent = LAYER_BLEND_MODE_LABELS[blendMode]
+    refs.blendModeChip.setAttribute(
+      'aria-label',
+      `Blend mode, ${LAYER_BLEND_MODE_LABELS[blendMode]}`
+    )
+    refs.blendModeChip.classList.toggle('selected', blendMode !== 'normal')
+  }
+  updateLayerListBlendBadges()
+}
+
+export const blendModeChipTouchStart = (e: Event) => {
+  preventDefault(e)
+  const layerId = state.currentSelectedLayerId
+  if (
+    !layerId ||
+    !isYourLayerYours(layerId) ||
+    isLayerOccupiedByCoworker(layerId) ||
+    refs.blendModeChip?.classList.contains('disabled') ||
+    state.resizeMode ||
+    state.lassoMode
+  ) {
+    return
+  }
+  openParams()
+  const oldMode = normalizeBlendMode(state.layers[layerId].blendMode)
+  const newMode = nextBlendMode(oldMode)
+  _updateLayerBlendMode(layerId, newMode)
+  layersBridge.addLayerHistoryBlendModeStep(layerId, newMode, oldMode)
+  if (Coworking.isOpen()) {
+    Coworking.sendBlendLayer(layerId, newMode, oldMode)
+  }
+}
+
 export const updateLayerOpacity = (() => {
   let startValue = 0
   return (opacity: number, inProgress: boolean, changed: boolean) => {
@@ -1490,5 +1576,6 @@ registerLayersBridge({
   snapGroupUpperOrder,
   syncLayerOwnerRow,
   _updateLayerOpacity,
+  _updateLayerBlendMode,
   updateLayerListMaskAffordances,
 })

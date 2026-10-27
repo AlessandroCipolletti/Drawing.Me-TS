@@ -18,6 +18,7 @@ import {
   LayerHistoryStep,
   LayerRecord,
 } from './layersState'
+import { normalizeBlendMode } from './layerBlendMode'
 import { layersBridge, registerLayersBridge } from './layersBridge'
 import {
   findSelectableLayerForUser,
@@ -92,6 +93,7 @@ export const addNewLayerFromCoworker = async (layer: LayerRecord) => {
   }
 
   layer.canvas = createNewLayerCanvas()
+  layer.blendMode = normalizeBlendMode(layer.blendMode)
   layer.maskBelowLayerId = layer.maskBelowLayerId ?? null
   layer.displayCanvas = null
   layer.history = new History<LayerHistoryStep>(
@@ -388,6 +390,22 @@ export const updateLayerOpacityFromCoworker = (
   opacity = round(opacity / 100, 2)
   state.layers[layerId].opacity = opacity
   getLayerDomCanvas(state.layers[layerId]).style.opacity = String(opacity)
+}
+
+export const updateLayerBlendModeFromCoworker = (
+  layerId: string,
+  blendModeNew: string,
+  blendModeOld: string
+) => {
+  layersBridge.addLayerHistoryBlendModeStep(
+    layerId,
+    normalizeBlendMode(blendModeNew),
+    normalizeBlendMode(blendModeOld)
+  )
+  layersBridge._updateLayerBlendMode(layerId, normalizeBlendMode(blendModeNew))
+  if (state.currentSelectedLayerId === layerId) {
+    layersBridge.updateParamsByLayer(layerId)
+  }
 }
 
 export const layerDragChangeFromCoworker = (

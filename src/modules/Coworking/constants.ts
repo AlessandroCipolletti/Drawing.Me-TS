@@ -11,6 +11,7 @@ export const editorEvents = {
   mergeLayers: 'EDITOR_MERGE_LAYERS',
   layerMask: 'EDITOR_LAYER_MASK',
   opacityLayer: 'EDITOR_OPACITY_LAYER',
+  blendLayer: 'EDITOR_BLEND_LAYER',
   enableLayer: 'EDITOR_ENABLE_LAYER',
   disableLayer: 'EDITOR_DISABLE_LAYER',
   orderDragLayer: 'EDITOR_ORDER_DRAG_LAYER',

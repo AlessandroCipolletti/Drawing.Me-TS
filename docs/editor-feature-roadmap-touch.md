@@ -1,15 +1,3 @@
-# Editor — 10 feature roadmap (touch / iPad first)
-
-Proposed capabilities to complement mask layers and freehand lasso. Each item is described in ten lines.
-
----
-
-## 1. Layer blend modes (Multiply, Screen, Overlay, Add)
-
-Today layers expose opacity, alpha lock (`source-atop`), and clip masks (`destination-in` on display canvases). Blend modes would set how a layer’s pixels combine with everything below when compositing the stack. Multiply darkens and is ideal for shadows and ink; Screen lightens for glow and soft light; Overlay boosts contrast; Add (linear dodge) suits sparks and strong highlights. Implementation fits the existing layer stack: each layer stores a blend mode enum applied at composite time (DOM or offscreen), not only during stroke `globalCompositeOperation`. The Layers panel needs a compact touch control—cycle chip or short horizontal list—without opening heavy dialogs. Coworking must serialize blend mode per layer so remote sessions stay in sync. Performance on iPad stays acceptable if compositing stays batched and masked layers still use source + `destination-in` on display canvases. Undo/redo should record blend changes like opacity. Default remains Normal (`source-over`) so old drawings load unchanged.
-
----
-
 ## 5. Image import and floating reference card
 
 Import from Photos / Files places a bitmap on a new layer at sensible size (fit within canvas bounds) and opens `resizeMode` for immediate placement. Decoding uses existing image utils and workers where possible to avoid blocking the main thread on large iPad photos. A separate **Reference** overlay is non-exportable: draggable, pinch-zoomable, semi-transparent card above the canvas for side-by-side reference. Long-press on reference samples color through the existing pipette loupe without switching tools permanently. Reference does not appear in layer export or merge-down unless explicitly “merge reference to layer.” Touch handles are large; reference sits outside the 120Hz stroke path until user interacts with it. Saves with project optional (flag) to keep file size down. Coworking may omit reference in v1 or sync as optional layer type.

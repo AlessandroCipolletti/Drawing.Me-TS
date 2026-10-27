@@ -15,6 +15,7 @@ export interface LayersRefs {
   flipHorizontalButton: HTMLElement | null
   sendLayerButton: HTMLElement | null
   deleteLayerButton: HTMLElement | null
+  blendModeChip: HTMLElement | null
   opacitySlider: HTMLElement | null
   opacityCursor: HTMLElement | null
   opacityLabel: HTMLElement | null
@@ -76,6 +77,7 @@ export const LayersView = ({ maxLength, refs }: { maxLength: number; refs: Layer
           <div class="editor-layers__layer-options-name">
             <input type="text" maxlength={maxLength} />
             <span class="editor-layers__layer-mask-label displayNone">Mask</span>
+            <span class="editor-layers__layer-blend-badge displayNone" aria-hidden="true" />
           </div>
           <div class="editor-layers__layer-options-button svg-icon-gray" />
         </div>
@@ -160,6 +162,13 @@ export const LayersView = ({ maxLength, refs }: { maxLength: number; refs: Layer
       >
         <div class="editor-layers__params-icon svg-icon-delete svg-icon-dark" />
       </div>
+      <button
+        type="button"
+        class="editor-layers__params-blend-mode"
+        ref={(el) => {
+          refs.blendModeChip = el
+        }}
+      />
       <div
         class="vertical-slider editor-layers__opacity-slider"
         ref={(el) => {

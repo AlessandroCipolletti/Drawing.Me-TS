@@ -392,6 +392,7 @@ export interface PreloadedDrawingRecord {
   selectedColorId?: number
   layersSidebarExpanded?: boolean
   sceneGuides?: import('./guides/guideTypes').SceneGuidesSnapshot
+  paper?: string
 }
 
 export const createInitialEditorState = (

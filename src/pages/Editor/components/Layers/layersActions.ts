@@ -284,8 +284,9 @@ const mergeLayers = async (
   syncLayerDisplay(layerOne.id)
   newLayerData.canvas = mergeImages([
     [getLayerDomCanvas(layerTwo), layerTwo.opacity],
-    [getLayerDomCanvas(layerOne), layerOne.opacity],
+    [getLayerDomCanvas(layerOne), layerOne.opacity, layerOne.blendMode],
   ]) as LayerCanvasElement
+  newLayerData.blendMode = 'normal'
   newLayerData.canvas.context = getNewContextForCanvas(newLayerData.canvas)
   newLayerData.maskBelowLayerId = null
   newLayerData.displayCanvas = null

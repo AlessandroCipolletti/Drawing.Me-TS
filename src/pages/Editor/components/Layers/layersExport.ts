@@ -36,6 +36,11 @@ import {
   syncLayerDisplay,
   validateAllMaskAdjacency,
 } from './layerMask'
+import {
+  applyBlendModeToDomCanvas,
+  compositeLayerOntoContext,
+  normalizeBlendMode,
+} from './layerBlendMode'
 
 export interface ExportableLayerCopy {
   id: string
@@ -47,6 +52,7 @@ export interface ExportableLayerCopy {
   order: number
   active: boolean
   opacity: number
+  blendMode?: string
   modified?: boolean
   selected: boolean
   createTimestamp: number
@@ -78,6 +84,7 @@ const layerDeepCopy = (
     order: layer.order,
     active: layer.active,
     opacity: layer.opacity,
+    blendMode: layer.blendMode,
     modified: layer.modified,
     selected: layer.selected,
     createTimestamp: layer.createTimestamp,
@@ -178,8 +185,12 @@ export const exportWholeCanvasData = async (
   for (const layer of layers) {
     if (layer.active && tempContext) {
       syncLayerDisplay(layer.id)
-      tempContext.globalAlpha = layer.opacity
-      tempContext.drawImage(getLayerDomCanvas(layer), 0, 0)
+      compositeLayerOntoContext(
+        tempContext,
+        getLayerDomCanvas(layer),
+        layer.opacity,
+        layer.blendMode
+      )
       data.minX = Math.min(data.minX, layer.minX)
       data.minY = Math.min(data.minY, layer.minY)
       data.maxX = Math.max(data.maxX, layer.maxX)
@@ -223,6 +234,7 @@ const prepareLayerFromDb = async (rawLayer: LayerRecord & { base64: string }) =>
     clearLayerHistoryStepBitmap
   )
   layer.maskBelowLayerId = rawLayer.maskBelowLayerId ?? null
+  layer.blendMode = normalizeBlendMode(rawLayer.blendMode)
   layer.displayCanvas = null
   ensureLayerDisplayCanvas(layer)
   syncLayerDisplay(layer.id)
@@ -302,6 +314,7 @@ const createNewLayerDom = async (layerId: string, withAnimation = false) => {
   const domCanvas = getLayerDomCanvas(layer)
   domCanvas.style.zIndex = String(layer.order * 10)
   domCanvas.style.opacity = String(layer.opacity)
+  applyBlendModeToDomCanvas(domCanvas, layer.blendMode)
 
   if (state.layers[layerId].active) {
     layersBridge.enableLayer(layerId)
@@ -374,6 +387,7 @@ const restoreDeletedLayer = async (layerId: string, withAnimation = true) => {
   const domCanvas = getLayerDomCanvas(layer)
   domCanvas.style.zIndex = String(layer.order * 10)
   domCanvas.style.opacity = String(layer.opacity)
+  applyBlendModeToDomCanvas(domCanvas, layer.blendMode)
 
   if (state.layers[layerId].active) {
     layersBridge.enableLayer(layerId)

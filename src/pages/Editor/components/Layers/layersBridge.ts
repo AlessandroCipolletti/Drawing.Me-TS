@@ -1,3 +1,4 @@
+import type { LayerBlendMode } from './layerBlendMode'
 import type { LayerRecord } from './layersState'
 
 export interface LayersBridge {
@@ -23,6 +24,11 @@ export interface LayersBridge {
   addLayerHistoryNewStep: (layerId: string) => Promise<void>
   addLayerHistoryRenameStep: (layerId: string, newName: string, oldName: string) => Promise<void>
   addLayerHistoryOpacityStep: (layerId: string, newValue: number, oldValue: number) => Promise<void>
+  addLayerHistoryBlendModeStep: (
+    layerId: string,
+    blendModeNew: LayerBlendMode,
+    blendModeOld: LayerBlendMode
+  ) => Promise<void>
   addLayerHistoryOrderStep: (
     layerId: string,
     newValue: number,
@@ -94,6 +100,7 @@ export interface LayersBridge {
     layerName?: string
   ) => Promise<LayerRecord>
   _updateLayerOpacity: (layerId: string, opacity: number, inProgress?: boolean) => void
+  _updateLayerBlendMode: (layerId: string, blendMode: LayerBlendMode) => void
   toggleEnableLayer: (e?: Event, layerId?: string | false, clickedByList?: boolean) => void
 }
 

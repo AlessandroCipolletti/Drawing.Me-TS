@@ -146,6 +146,7 @@ export const updateEditorLayer = (
   if (!refs.canvasForLine) return
   refs.canvasForLine.style.zIndex = String(layerZIndex + 1)
   refs.canvasForLine.style.opacity = String(opacity)
+  refs.canvasForLine.style.mixBlendMode = 'normal'
   state.currentLayerGCO = globalCompositeOperation
   state.currentToolProps.globalCompositeOperation = state.currentToolGCO || globalCompositeOperation
   state.currentLayerIsActive = active
