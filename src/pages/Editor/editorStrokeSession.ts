@@ -8,7 +8,6 @@ import * as Ruler from './components/Ruler'
 import { round, getOriginalCoordsFromScaleRotation } from 'utils/mathUtils'
 import {
   fillCompletely,
-  drawStrokeSample,
   ExtendedCanvasContext,
   StrokeSample,
   StrokeToolParams,
@@ -457,7 +456,7 @@ export const createEditorStrokeSession = (deps: StrokeSessionDeps) => {
 
     if (variant === 'freehand') {
       for (const step of quickShapeFreehandSteps) {
-        drawStrokeSample(targetCtx, step, quickShapeToolSnapshot, true)
+        drawStrokeWithGuides(targetCtx, step, quickShapeToolSnapshot, true)
       }
       targetCtx.globalAlpha = 1
       targetCtx.globalCompositeOperation = 'source-over'

@@ -1,6 +1,7 @@
 import { deepCopy } from 'utils/jsUtils'
 import {
   createDefaultSceneGuides,
+  DEFAULT_SYMMETRY_SECTOR,
   normalizeSymmetryMode,
   SceneGuidesSnapshot,
   SceneGuidesState,
@@ -72,8 +73,9 @@ export const disableSymmetryGuides = () => {
 }
 
 export const restoreLastSymmetryMode = (): boolean => {
-  const mode = guidesState.lastSymmetryMode
-  if (mode === 'off') return false
+  const mode =
+    guidesState.lastSymmetryMode === 'off' ? DEFAULT_SYMMETRY_SECTOR : guidesState.lastSymmetryMode
+  guidesState.lastSymmetryMode = mode
   guidesState.symmetry = mode
   return true
 }

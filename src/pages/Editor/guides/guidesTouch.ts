@@ -151,12 +151,8 @@ export const bindGuidesRotationBullet = (
   let dragStartPointerRotation = 0
   let dragging = false
 
-  const applyRotation = (rad: number, dragPhase: 'move' | 'end') => {
-    let next = rad
-    next =
-      dragPhase === 'end'
-        ? snapGuideRotationRad(guidesState.symmetry, next)
-        : snapGuideRotationRad(guidesState.symmetry, next, GUIDE_ROTATION_SNAP_TOLERANCE_RAD)
+  const applyRotation = (rad: number) => {
+    const next = snapGuideRotationRad(guidesState.symmetry, rad, GUIDE_ROTATION_SNAP_TOLERANCE_RAD)
     setGuidesRotationRad(next)
     onRotationChanged()
   }
@@ -179,8 +175,7 @@ export const bindGuidesRotationBullet = (
       applyRotation(
         normalizeAngle(
           dragStartRotation + normalizeAngle(rotationFromEvent(e) - dragStartPointerRotation)
-        ),
-        'move'
+        )
       )
       return true
     },
@@ -188,8 +183,7 @@ export const bindGuidesRotationBullet = (
       if (!dragging) return
       const pointerRot = rotationFromEvent(moveEvent)
       applyRotation(
-        normalizeAngle(dragStartRotation + normalizeAngle(pointerRot - dragStartPointerRotation)),
-        'move'
+        normalizeAngle(dragStartRotation + normalizeAngle(pointerRot - dragStartPointerRotation))
       )
     },
     (endEvent) => {
@@ -197,8 +191,7 @@ export const bindGuidesRotationBullet = (
       dragging = false
       const pointerRot = rotationFromEvent(endEvent)
       applyRotation(
-        normalizeAngle(dragStartRotation + normalizeAngle(pointerRot - dragStartPointerRotation)),
-        'end'
+        normalizeAngle(dragStartRotation + normalizeAngle(pointerRot - dragStartPointerRotation))
       )
       bulletEl.classList.remove('editor-guides__rotation-bullet--dragging')
       onRotationDragEnd?.()

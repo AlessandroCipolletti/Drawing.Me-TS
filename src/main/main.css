@@ -640,6 +640,10 @@ iframe {
   mask-image: url('../static/icons/svg/specular.svg');
   -webkit-mask-image: url('../static/icons/svg/specular.svg');
 }
+.svg-icon-mirror-guides {
+  mask-image: url('../static/icons/svg/mirror-guides.svg');
+  -webkit-mask-image: url('../static/icons/svg/mirror-guides.svg');
+}
 .svg-icon-user {
   mask-image: url('../static/icons/svg/user.svg');
   -webkit-mask-image: url('../static/icons/svg/user.svg');

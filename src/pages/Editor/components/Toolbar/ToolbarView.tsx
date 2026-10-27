@@ -113,7 +113,7 @@ export const ToolbarView = ({ refs }: { refs: ToolbarRefs }) => (
             refs.guidesButton = el
           }}
         >
-          <div class="editor-toolbar__guides-icon svg-icon-specular svg-icon-dark" />
+          <div class="editor-toolbar__guides-icon svg-icon-mirror-guides svg-icon-dark" />
         </div>
       </div>
 

@@ -61,12 +61,13 @@ describe('symmetryMath', () => {
     }
   })
 
-  it('snaps rotation for modes 2–4 only', () => {
+  it('snaps rotation for modes 2–4 only when within tolerance', () => {
     const pi4 = Math.PI / 4
-    expect(snapGuideRotationRad('2', 0.5)).toBeCloseTo(pi4, 3)
-    expect(snapGuideRotationRad('3', 0.45)).toBeCloseTo(Math.PI / 6, 3)
-    expect(snapGuideRotationRad('4', 0.6)).toBeCloseTo(pi4, 3)
-    expect(snapGuideRotationRad('8', 0.77)).toBeCloseTo(0.77, 3)
+    const tol = (2 * Math.PI) / 180
+    expect(snapGuideRotationRad('2', pi4 + tol * 0.4, tol)).toBeCloseTo(pi4, 3)
+    expect(snapGuideRotationRad('3', Math.PI / 6 + tol * 0.4, tol)).toBeCloseTo(Math.PI / 6, 3)
+    expect(snapGuideRotationRad('4', pi4 + tol * 0.4, tol)).toBeCloseTo(pi4, 3)
+    expect(snapGuideRotationRad('8', 0.77, tol)).toBeCloseTo(0.77, 3)
   })
 
   it('soft magnetism only pulls when within 2° tolerance', () => {

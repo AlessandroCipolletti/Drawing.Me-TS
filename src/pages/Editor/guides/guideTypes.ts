@@ -2,6 +2,9 @@ export type SymmetrySectorCount = '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' 
 
 export type SymmetryMode = 'off' | SymmetrySectorCount
 
+/** Restored when the user turns mirrors on and has no prior sector choice */
+export const DEFAULT_SYMMETRY_SECTOR: SymmetrySectorCount = '6'
+
 export const SYMMETRY_SECTOR_COUNTS: readonly SymmetrySectorCount[] = [
   '2',
   '3',
@@ -46,7 +49,7 @@ export const createDefaultSceneGuides = (
   canvasHeight: number
 ): SceneGuidesState => ({
   symmetry: 'off',
-  lastSymmetryMode: 'off',
+  lastSymmetryMode: DEFAULT_SYMMETRY_SECTOR,
   rotationRad: 0,
   originX: canvasWidth / 2,
   originY: canvasHeight / 2,
