@@ -106,6 +106,8 @@ import {
   drawStepEnd,
 } from './editorStrokeSession'
 import { createEditorPointerHandlers } from './editorPointerRouter'
+import { createColorDropController } from './colorDropController'
+import { registerEditorCalls } from './editorCalls'
 import { findValueWithMagnetism } from './editorUtils'
 import { currentCanvasHasZoom, registerCanvasZoomCheck } from './editorCanvasZoom'
 import { registerEditorCoworkingPort } from 'app/editorCoworkingPort'
@@ -122,6 +124,7 @@ registerCanvasZoomCheck(() => isCanvasZoomed(state, initialState.canvas))
 let lastActiveDrawingId: number | false = false
 let pointerCleanup: (() => void) | null = null
 let activeStrokeSession: ReturnType<typeof createEditorStrokeSession> | null = null
+let activeColorDropController: ReturnType<typeof createColorDropController> | null = null
 
 const setLastActiveDrawingId = (id: number) => {
   lastActiveDrawingId = id
@@ -203,6 +206,29 @@ const bindEditorInput = () => {
     setToolColor,
   })
   activeStrokeSession = strokeSession
+  activeColorDropController = createColorDropController({
+    state,
+    coordsAreInsideLayer,
+    pageToLayerCoords: (clientX, clientY) => {
+      const [x, y] = getMouseCoords(state, initialState.canvas, {
+        clientX,
+        clientY,
+      } as MouseEvent)
+      return { x, y }
+    },
+    performBucketFill: (x, y, color, sendForCoworking) =>
+      strokeSession.performBucketFill(x, y, color, undefined, sendForCoworking),
+  })
+  registerEditorCalls({
+    beginColorDropFromSwatch: (hex, clientX, clientY) =>
+      activeColorDropController?.beginColorDropFromSwatch(hex, clientX, clientY),
+    updateColorDropPointer: (clientX, clientY) =>
+      activeColorDropController?.updateColorDropPointer(clientX, clientY),
+    endColorDropPointer: (clientX, clientY) =>
+      activeColorDropController?.endColorDropPointer(clientX, clientY),
+    cancelColorDrop: () => activeColorDropController?.cancelColorDrop(),
+    isColorDropActive: () => activeColorDropController?.isColorDropActive() ?? false,
+  })
   const snapLayerResizePoint = (x: number, y: number): [number, number] => {
     if (!state.resizeMode.useMagnetism) return [x, y]
     const magnetismCoords = Layers.getMagnetismCoords()
@@ -428,6 +454,8 @@ export const open = async (
 export const close = async () => {
   activeStrokeSession?.dismissQuickShape()
   activeStrokeSession = null
+  activeColorDropController?.cancelColorDrop()
+  activeColorDropController = null
   stopLassoMarchingAnts()
   removeGlobalStatus('drawith__EDITOR-OPEN')
   removeGlobalStatus('drawith__EDITOR-COWORKING')

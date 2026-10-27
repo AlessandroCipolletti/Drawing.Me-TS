@@ -342,6 +342,7 @@ interface WorkerWandSession {
   seedGx: number
   seedGy: number
   baseTolerance: number
+  boundariesWeakMode: boolean
   rgba: Uint8ClampedArray
   mask: Uint8Array
   queue: Int32Array
@@ -371,7 +372,7 @@ const computeWorkerWandTolerance = (
     session.seedGx,
     session.seedGy,
     effectiveTolerance,
-    true,
+    session.boundariesWeakMode,
     session.mask,
     session.queue
   )
@@ -418,6 +419,7 @@ if (isDedicatedWorkerScope) {
         seedGx,
         seedGy,
         baseTolerance,
+        boundariesWeakMode = true,
         rgba,
         tolerance = 0,
       } = data
@@ -431,6 +433,7 @@ if (isDedicatedWorkerScope) {
         seedGx,
         seedGy,
         baseTolerance,
+        boundariesWeakMode: boundariesWeakMode !== false,
         rgba,
         mask: new Uint8Array(pixelCount),
         queue: new Int32Array(pixelCount),

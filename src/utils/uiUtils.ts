@@ -503,6 +503,13 @@ export const addListHorizontalScrollClickAndPressHandlers = (
 
   listElement.addEventListener(Params.eventStart, onTouchStart, { passive: false })
   listElement.addEventListener('wheel', onWheel, { passive: false })
+
+  return {
+    cancelPendingLongPress: () => {
+      clearTimeout(longPressTimeout)
+      longPressTimeout = false
+    },
+  }
 }
 
 const MARGE_TO_START_SCROLLING = 100

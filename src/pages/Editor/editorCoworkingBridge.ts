@@ -4,13 +4,14 @@ import { syncLayerDisplayDuringStroke } from './components/Layers/layerMask'
 import * as Tools from './components/Tools'
 import { round } from 'utils/mathUtils'
 import {
-  fillWithBucket,
+  type BucketFillOptions,
   fillCompletely,
   ExtendedCanvasContext,
   StrokeSample,
   StrokeToolParams,
 } from 'utils/canvasUtils'
 import { drawMultipleCoworkingSteps } from './editorUtils'
+import { fillActiveLayerWithBucketAt } from './bucketFillPipeline'
 import { smudgeTouchTypeToInputKind } from './smudgeKernel'
 import { CoworkingStepsPayload, EditorState } from './editorTypes'
 
@@ -69,18 +70,34 @@ export const addTouchStepDataKeys = (
   if (typeof wireInputKind === 'number' && !Number.isNaN(wireInputKind)) {
     step.inputKind = wireInputKind
   }
+  const wireColorDropTol = stepDataArray[21]
+  if (typeof wireColorDropTol === 'number' && !Number.isNaN(wireColorDropTol)) {
+    step.colorDropUserTolerance = wireColorDropTol
+  }
+  const wireColorDropSoft = stepDataArray[22]
+  if (typeof wireColorDropSoft === 'number') {
+    step.colorDropSoftFill = wireColorDropSoft === 1
+  }
   return step
 }
 
 export const removeTouchStepDataKeys = (
   stepData: Partial<StrokeSample>
 ): Array<string | number | undefined> => {
-  const wire = stepDataKeys.map((key) => {
+  const wire: Array<string | number | undefined> = stepDataKeys.map((key) => {
     const e = stepData[key]
-    return typeof e === 'number' ? round(e, 4) : e
+    if (typeof e === 'number') return round(e, 4)
+    if (typeof e === 'string') return e
+    return undefined
   })
   if (typeof stepData.inputKind === 'number') {
     wire.push(stepData.inputKind)
+  }
+  if (typeof stepData.colorDropUserTolerance === 'number') {
+    wire.push(round(stepData.colorDropUserTolerance, 0))
+  }
+  if (typeof stepData.colorDropSoftFill === 'boolean') {
+    wire.push(stepData.colorDropSoftFill ? 1 : 0)
   }
   return wire
 }
@@ -133,14 +150,52 @@ const removeToolDataKeys = (toolData: WireToolData): CoworkingStepsPayload['tool
   toolData.customProps,
 ]
 
-const receiveBucketFromCoworker = async (layerId: string, x: number, y: number, color: string) => {
+const receiveBucketFromCoworker = async (
+  layerId: string,
+  x: number,
+  y: number,
+  color: string,
+  step?: StrokeSample
+) => {
   const context = Layers.getLayerContext(layerId)
+  const bucketOpts: BucketFillOptions = {}
+  if (typeof step?.colorDropUserTolerance === 'number') {
+    bucketOpts.userTolerance = step.colorDropUserTolerance
+  }
+  if (typeof step?.colorDropSoftFill === 'boolean') {
+    bucketOpts.boundariesWeekModeOverride = step.colorDropSoftFill
+  }
   if (Layers.isYourLayerEmpty(layerId)) {
     fillCompletely(context, color, context.canvas.width, context.canvas.height)
   } else {
-    await fillWithBucket(context, x, y, color, context.canvas.width, context.canvas.height)
+    const res = fillActiveLayerWithBucketAt(layerId, x, y, color, bucketOpts)
+    if (res) await res
   }
   await Layers.addLayerHistoryContentChangedStep(layerId)
+}
+
+export const sendCoworkingBucketFill = (
+  state: EditorState,
+  layerId: string,
+  x: number,
+  y: number,
+  color: string
+) => {
+  Coworking.clearSteps()
+  state.stepsSinceLastCoworkingUpdate = 0
+  const step: Partial<StrokeSample> = { type: 'start', x, y }
+  Coworking.addStep(
+    removeTouchStepDataKeys(step as Partial<StrokeSample>) as unknown as StrokeSample
+  )
+  const toolData = removeToolDataKeys({
+    name: 'bucket',
+    version: state.currentToolProps.version,
+    color,
+    globalCompositeOperation: state.currentToolProps.globalCompositeOperation,
+    frameImageName: false,
+    customProps: {},
+  })
+  Coworking.sendSteps(layerId, toolData)
 }
 
 export const drawCoworkingStepsPayload = async (

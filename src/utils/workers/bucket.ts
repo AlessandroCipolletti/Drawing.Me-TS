@@ -10,16 +10,16 @@ interface Rgba {
 const pixelCompare = (
   i: number,
   targetColor: Rgba,
-  bucketData: Uint8ClampedArray,
-  bucketDataLength: number,
+  compareData: Uint8ClampedArray,
+  dataLength: number,
   tolerance: number
 ): boolean => {
-  if (i < 0 || i >= bucketDataLength) return false
+  if (i < 0 || i >= dataLength) return false
   return (
-    (targetColor.a > 0 || MATH.abs(targetColor.a - bucketData[i + 3]) <= tolerance) &&
-    MATH.abs(targetColor.r - bucketData[i]) <= tolerance &&
-    MATH.abs(targetColor.g - bucketData[i + 1]) <= tolerance &&
-    MATH.abs(targetColor.b - bucketData[i + 2]) <= tolerance
+    (targetColor.a > 0 || MATH.abs(targetColor.a - compareData[i + 3]) <= tolerance) &&
+    MATH.abs(targetColor.r - compareData[i]) <= tolerance &&
+    MATH.abs(targetColor.g - compareData[i + 1]) <= tolerance &&
+    MATH.abs(targetColor.b - compareData[i + 2]) <= tolerance
   )
 }
 
@@ -27,27 +27,59 @@ const pixelCompareAndSet = (
   i: number,
   targetColor: Rgba,
   fillColor: Rgba,
-  bucketData: Uint8ClampedArray,
-  bucketDataLength: number,
+  compareData: Uint8ClampedArray,
+  writeData: Uint8ClampedArray,
+  dataLength: number,
   tolerance: number,
-  boundariesWeekMode: boolean
+  boundariesWeekMode: boolean,
+  visited: Uint8Array
 ): boolean => {
-  const res = pixelCompare(i, targetColor, bucketData, bucketDataLength, tolerance)
+  if (i < 0 || i >= dataLength) return false
+  const p = i >> 2
+  if (visited[p]) return false
+
+  const res = pixelCompare(i, targetColor, compareData, dataLength, tolerance)
   if (res || boundariesWeekMode) {
-    bucketData[i + 0] = fillColor.r
-    bucketData[i + 1] = fillColor.g
-    bucketData[i + 2] = fillColor.b
-    bucketData[i + 3] = fillColor.a || bucketData[i + 3]
+    visited[p] = 1
+    writeData[i + 0] = fillColor.r
+    writeData[i + 1] = fillColor.g
+    writeData[i + 2] = fillColor.b
+    writeData[i + 3] = fillColor.a || writeData[i + 3]
   }
   return res
 }
 
+const shouldQueueNeighbor = (
+  i: number,
+  targetColor: Rgba,
+  compareData: Uint8ClampedArray,
+  dataLength: number,
+  tolerance: number,
+  boundariesWeekMode: boolean,
+  visited: Uint8Array
+): boolean => {
+  if (i < 0 || i >= dataLength) return false
+  if (visited[i >> 2]) return false
+  return pixelCompare(i, targetColor, compareData, dataLength, tolerance) || boundariesWeekMode
+}
+
 self.addEventListener('message', (event: MessageEvent) => {
-  const { id, bucketData, fillColor, linePxWidth, targetColor, boundariesWeekMode, tolerance } =
-    event.data
+  const {
+    id,
+    bucketData,
+    readData,
+    fillColor,
+    linePxWidth,
+    targetColor,
+    boundariesWeekMode,
+    tolerance,
+  } = event.data
   let i: number = event.data.i
 
-  const bucketDataLength = bucketData.length
+  const writeData: Uint8ClampedArray = bucketData
+  const compareData: Uint8ClampedArray = readData ?? bucketData
+  const bucketDataLength = writeData.length
+  const visited = new Uint8Array(bucketDataLength >> 2)
   const pixelsQueue: number[] = [i]
 
   while (pixelsQueue.length) {
@@ -57,15 +89,17 @@ self.addEventListener('message', (event: MessageEvent) => {
         i,
         targetColor,
         fillColor,
-        bucketData,
+        compareData,
+        writeData,
         bucketDataLength,
         tolerance,
-        boundariesWeekMode
+        boundariesWeekMode,
+        visited
       )
     ) {
       let leftIndex = i
       let rightIndex = i
-      const marginLeft = Math.trunc(i / linePxWidth) * linePxWidth
+      const marginLeft = MATH.trunc(i / linePxWidth) * linePxWidth
       const marginRight = marginLeft + linePxWidth
       while (
         marginLeft < rightIndex &&
@@ -74,10 +108,12 @@ self.addEventListener('message', (event: MessageEvent) => {
           rightIndex,
           targetColor,
           fillColor,
-          bucketData,
+          compareData,
+          writeData,
           bucketDataLength,
           tolerance,
-          boundariesWeekMode
+          boundariesWeekMode,
+          visited
         )
       ) {
         // scan left boundary
@@ -89,32 +125,49 @@ self.addEventListener('message', (event: MessageEvent) => {
           leftIndex,
           targetColor,
           fillColor,
-          bucketData,
+          compareData,
+          writeData,
           bucketDataLength,
           tolerance,
-          boundariesWeekMode
+          boundariesWeekMode,
+          visited
         )
       ) {
         // scan right boundary
       }
       for (let j = rightIndex; j < leftIndex; j += 4) {
+        const above = j - linePxWidth
         if (
-          j - linePxWidth >= 0 &&
-          (pixelCompare(j - linePxWidth, targetColor, bucketData, bucketDataLength, tolerance) ||
-            boundariesWeekMode)
+          shouldQueueNeighbor(
+            above,
+            targetColor,
+            compareData,
+            bucketDataLength,
+            tolerance,
+            boundariesWeekMode,
+            visited
+          )
         ) {
-          pixelsQueue.push(j - linePxWidth)
+          pixelsQueue.push(above)
         }
+        const below = j + linePxWidth
         if (
-          j + linePxWidth < bucketDataLength &&
-          (pixelCompare(j + linePxWidth, targetColor, bucketData, bucketDataLength, tolerance) ||
-            boundariesWeekMode)
+          shouldQueueNeighbor(
+            below,
+            targetColor,
+            compareData,
+            bucketDataLength,
+            tolerance,
+            boundariesWeekMode,
+            visited
+          )
         ) {
-          pixelsQueue.push(j + linePxWidth)
+          pixelsQueue.push(below)
         }
       }
     }
   }
 
-  self.postMessage({ id, bucketData }, [bucketData.buffer] as any)
+  const transfer = [writeData.buffer]
+  self.postMessage({ id, bucketData: writeData }, transfer as any)
 })

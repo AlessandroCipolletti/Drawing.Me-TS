@@ -1,7 +1,11 @@
 import * as Coworking from 'modules/Coworking'
-import { fillCanvasWithImage, type ExtendedCanvasContext } from 'utils/canvasUtils'
+import {
+  fillCanvasWithImage,
+  getNewContextForCanvas,
+  type ExtendedCanvasContext,
+} from 'utils/canvasUtils'
 import { layersBridge } from './layersBridge'
-import { createNewLayerCanvas, LayerCanvasElement, LayerRecord, state } from './layersState'
+import { LayerCanvasElement, LayerRecord, state } from './layersState'
 
 type LayerMaskRole = 'none' | 'upper' | 'lower'
 
@@ -121,8 +125,12 @@ export const getLayerDomCanvas = (layer: LayerRecord): LayerCanvasElement =>
 
 export const ensureLayerDisplayCanvas = (layer: LayerRecord) => {
   if (!layer.displayCanvas) {
-    layer.displayCanvas = createNewLayerCanvas()
-    layer.displayCanvas.classList.add('editor__layer-canvas')
+    const canvas = document.createElement('canvas') as typeof layer.canvas
+    canvas.width = layer.canvas.width
+    canvas.height = layer.canvas.height
+    canvas.context = getNewContextForCanvas(canvas, true)
+    canvas.classList.add('editor__layer-canvas')
+    layer.displayCanvas = canvas
   }
 }
 

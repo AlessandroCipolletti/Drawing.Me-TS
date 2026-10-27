@@ -900,6 +900,10 @@ export interface MagicWandUpdatePayload {
   tolerance: number
 }
 
+export interface MagicWandSessionOptions {
+  boundariesWeakMode?: boolean
+}
+
 export interface MagicWandSession {
   sessionId: number
   workW: number
@@ -909,6 +913,7 @@ export interface MagicWandSession {
   seedGx: number
   seedGy: number
   baseTolerance: number
+  boundariesWeakMode: boolean
   useWorker: boolean
   rgba: Uint8ClampedArray | null
   mask: Uint8Array | null
@@ -1008,7 +1013,7 @@ const computeSyncMagicWandSession = (
     session.seedGx,
     session.seedGy,
     effectiveTolerance,
-    true,
+    session.boundariesWeakMode,
     session.mask,
     session.queue
   )
@@ -1032,8 +1037,10 @@ export const createMagicWandSession = (
   sourceCanvas: HTMLCanvasElement | OffscreenCanvas,
   seedX: number,
   seedY: number,
-  onUpdate?: (payload: MagicWandUpdatePayload) => void
+  onUpdate?: (payload: MagicWandUpdatePayload) => void,
+  options?: MagicWandSessionOptions
 ): MagicWandSession | null => {
+  const boundariesWeakMode = options?.boundariesWeakMode !== false
   const fullW = sourceCanvas.width
   const fullH = sourceCanvas.height
   if (fullW <= 0 || fullH <= 0) return null
@@ -1082,6 +1089,7 @@ export const createMagicWandSession = (
       seedGx,
       seedGy,
       baseTolerance,
+      boundariesWeakMode,
       useWorker: true,
       rgba: null,
       mask: null,
@@ -1108,6 +1116,7 @@ export const createMagicWandSession = (
         seedGx,
         seedGy,
         baseTolerance,
+        boundariesWeakMode,
         rgba: imageData.data,
         tolerance: 0,
       },
@@ -1126,6 +1135,7 @@ export const createMagicWandSession = (
     seedGx,
     seedGy,
     baseTolerance,
+    boundariesWeakMode,
     useWorker: false,
     rgba: imageData.data,
     mask: new Uint8Array(pixelCount),

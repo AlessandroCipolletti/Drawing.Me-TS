@@ -559,7 +559,10 @@ describe('Shell Pages Smoke Tests (Messages, NotSupported, Info, Folder)', () =>
       editorRefs.container!,
       ColorPickerView({
         colors: [{ id: 1, initialHex: '#ff0000', brightness: 50, finalHex: '#ff0000' }],
-        labels: { brightness: 'Brightness:', suggested: 'Suggested:' },
+        labels: {
+          brightness: 'Brightness:',
+          suggested: 'Suggested:',
+        },
         refs: colorPickerRefs,
       })
     )

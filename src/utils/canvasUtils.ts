@@ -65,6 +65,9 @@ export interface StrokeSample {
   strokeRotationOffset?: number
   /** Smudge coworking: 0 finger, 1 pen/mouse */
   inputKind?: number
+  /** Legacy coworking wire (older ColorDrop builds). */
+  colorDropUserTolerance?: number
+  colorDropSoftFill?: boolean
 }
 
 export interface StrokeToolParams {
@@ -1542,48 +1545,83 @@ const getBucketWorker = () => {
   return bucketWorker
 }
 
-export const fillWithBucket = (
-  destinationContext: CanvasRenderingContext2D,
+export interface BucketFillOptions {
+  userTolerance?: number
+  toleranceOverride?: number
+  boundariesWeekModeOverride?: boolean
+  preserveTransparentPixels?: boolean
+}
+
+const computeBucketBaseTolerance = (targetColor: RgbaColor) =>
+  (targetColor.a ?? 0) < 255 && targetColor.r + targetColor.g + targetColor.b > 0
+    ? config.bucketColorsToleranceWithTransparency
+    : config.bucketColorsToleranceWithoutTransparency
+
+export const fillWithBucketAt = (
+  writeContext: CanvasRenderingContext2D,
+  readContext: CanvasRenderingContext2D,
   x: number,
   y: number,
   fillColorInput: string | RgbaColor,
   canvasWidth: number,
-  canvasHeight: number
+  canvasHeight: number,
+  options?: BucketFillOptions
 ): false | Promise<void> => {
-  const image = destinationContext.getImageData(0, 0, canvasWidth, canvasHeight)
+  const fillX = x
+  const fillY = y
 
-  const i = (MATH.floor(x) + MATH.floor(y) * canvasWidth) * 4
+  const readImage = readContext.getImageData(0, 0, canvasWidth, canvasHeight)
+  const writeImage = writeContext.getImageData(0, 0, canvasWidth, canvasHeight)
+
+  const pxX = MATH.min(MATH.max(0, MATH.floor(fillX)), MATH.max(0, canvasWidth - 1))
+  const pxY = MATH.min(MATH.max(0, MATH.floor(fillY)), MATH.max(0, canvasHeight - 1))
+  const i = (pxX + pxY * canvasWidth) * 4
   const linePxWidth = canvasWidth * 4
 
   const targetColor = {
-    r: image.data[i + 0],
-    g: image.data[i + 1],
-    b: image.data[i + 2],
-    a: image.data[i + 3],
+    r: readImage.data[i + 0],
+    g: readImage.data[i + 1],
+    b: readImage.data[i + 2],
+    a: readImage.data[i + 3],
   }
+  const baseTolerance = computeBucketBaseTolerance(targetColor)
+  const userTol =
+    typeof options?.userTolerance === 'number'
+      ? Math.max(0, Math.min(255, Math.round(options.userTolerance)))
+      : 0
   const tolerance =
-    targetColor.a < 255 && targetColor.r + targetColor.g + targetColor.b > 0
-      ? config.bucketColorsToleranceWithTransparency
-      : config.bucketColorsToleranceWithoutTransparency
+    typeof options?.toleranceOverride === 'number'
+      ? Math.max(0, Math.min(255, Math.round(options.toleranceOverride)))
+      : Math.min(255, baseTolerance + userTol)
+
   const fillColor = { ...colorStringToRgb(fillColorInput) }
   fillColor.a = round((fillColor.a ?? 1) * 255, 0)
 
   if (
-    image.data[i + 3] > 0 &&
+    readImage.data[i + 3] > 0 &&
     compareRgbColorsWithinTollerance(targetColor, fillColor, tolerance)
   ) {
     return false
   }
 
   fillColor.a = targetColor.a === 0 ? 255 : 0
-  const boundariesWeekMode = getBucketBoundariesWeakMode(targetColor, fillColor)
 
+  const boundariesWeekMode = resolveFillBoundariesWeekMode(
+    targetColor,
+    fillColor,
+    options?.boundariesWeekModeOverride
+  )
+
+  const readCopy = new Uint8ClampedArray(readImage.data)
+  const writeBefore =
+    options?.preserveTransparentPixels === true ? new Uint8ClampedArray(writeImage.data) : null
   const id = uuidv4()
   const worker = getBucketWorker()
   worker.postMessage(
     {
       id,
-      bucketData: image.data,
+      bucketData: writeImage.data,
+      readData: readCopy,
       i,
       linePxWidth,
       targetColor,
@@ -1591,12 +1629,22 @@ export const fillWithBucket = (
       boundariesWeekMode,
       tolerance,
     },
-    [image.data.buffer]
+    [writeImage.data.buffer, readCopy.buffer]
   )
-  const width = image.width
-  const height = image.height
+  const width = writeImage.width
+  const height = writeImage.height
   return waitWorkerMessage(worker, id).then(({ bucketData }) => {
-    destinationContext.putImageData(new ImageData(bucketData, width, height), 0, 0)
+    if (writeBefore) {
+      for (let p = 3; p < bucketData.length; p += 4) {
+        if (writeBefore[p] === 0) {
+          bucketData[p - 3] = writeBefore[p - 3]
+          bucketData[p - 2] = writeBefore[p - 2]
+          bucketData[p - 1] = writeBefore[p - 1]
+          bucketData[p] = 0
+        }
+      }
+    }
+    writeContext.putImageData(new ImageData(bucketData, width, height), 0, 0)
   })
 }
 
@@ -1605,6 +1653,15 @@ const bucketColorsHistoryContains = (color: RgbaColor, history: RgbaColor[]) => 
     (c) =>
       !(Math.abs(c.r - color.r) > 1 || Math.abs(c.g - color.g) > 1 || Math.abs(c.b - color.b) > 1)
   )
+}
+
+const resolveFillBoundariesWeekMode = (
+  targetColor: RgbaColor,
+  fillColor: RgbaColor,
+  explicitOverride?: boolean
+): boolean => {
+  if (typeof explicitOverride === 'boolean') return explicitOverride
+  return getBucketBoundariesWeakMode(targetColor, fillColor)
 }
 
 const getBucketBoundariesWeakMode = (targetColor: RgbaColor, fillColor: RgbaColor): boolean => {

@@ -14,6 +14,7 @@ import {
 import { mount } from 'ui/mount'
 
 import { ColorPickerView } from './ColorPickerView'
+import { attachColorDropSwatchHandlers } from './colorDropSwatch'
 import {
   addNewColorDom,
   closeParams,
@@ -226,6 +227,8 @@ const deleteSelectedColor = (e: Event) => {
   }
 }
 
+let cancelColorPickerLongPress: () => void = () => {}
+
 const initDom = async (container: HTMLElement) => {
   mount(
     container,
@@ -237,7 +240,13 @@ const initDom = async (container: HTMLElement) => {
   )
 
   if (refs.colorsContainer) {
-    addListHorizontalScrollClickAndPressHandlers(refs.colorsContainer, onListClick, onListLongPress)
+    const listPress = addListHorizontalScrollClickAndPressHandlers(
+      refs.colorsContainer,
+      onListClick,
+      onListLongPress
+    )
+    cancelColorPickerLongPress = listPress.cancelPendingLongPress
+    attachColorDropSwatchHandlers(refs.colorsContainer)
   }
   refs.input?.addEventListener('input', onInputChange)
   refs.randomButtom?.addEventListener(Params.eventStart, onRandomTouchStart)
@@ -307,4 +316,5 @@ registerEditorCalls({
   deselectPipette,
   getCurrentColorsPalette,
   getCurrentSelectedColorId,
+  cancelColorPickerLongPress: () => cancelColorPickerLongPress(),
 })

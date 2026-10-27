@@ -236,6 +236,11 @@ interface PipetteState {
   context: CanvasRenderingContext2D | null
 }
 
+interface ColorDropState {
+  active: boolean
+  fillHex: string
+}
+
 export interface CurrentToolProps extends Omit<ToolConfigProps, 'color'> {
   color: string
   randomColor: boolean
@@ -275,6 +280,7 @@ export interface EditorState {
   lassoMode: LassoModeState
   quickShapeMode: QuickShapeModeState
   pipette: PipetteState
+  colorDrop: ColorDropState
   currentLayerGCO: GlobalCompositeOperation
   currentToolGCO?: GlobalCompositeOperation
   currentLayerIsActive: boolean
@@ -502,6 +508,10 @@ export const createInitialEditorState = (
     currentColor: false,
     isOnCanvas: false,
     context: null,
+  },
+  colorDrop: {
+    active: false,
+    fillHex: '',
   },
   currentLayerGCO: 'source-over',
   currentToolGCO: 'source-over',

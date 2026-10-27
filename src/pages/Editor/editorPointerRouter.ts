@@ -41,6 +41,7 @@ const isDesktopCanvasPan = (params: {
   Boolean(Params.isDesktop && params.desktopCanvasPanMode && params.pointerType === 'mouse')
 
 export const resolveTouchStartAction = (params: {
+  colorDropActive?: boolean
   isResizing: boolean
   resizeModeActive: boolean
   lassoModeActive?: boolean
@@ -55,6 +56,7 @@ export const resolveTouchStartAction = (params: {
   toolName?: string
   currentLayerIsActive: boolean
 }): TouchDispatchAction => {
+  if (params.colorDropActive) return 'none'
   if (params.isResizing) return 'none'
   if (isDesktopCanvasPan(params)) return 'panCanvas'
   if (
@@ -78,6 +80,7 @@ export const resolveTouchStartAction = (params: {
 }
 
 export const resolveTouchMoveAction = (params: {
+  colorDropActive?: boolean
   isResizing: boolean
   resizeModeActive: boolean
   lassoModeActive?: boolean
@@ -92,6 +95,7 @@ export const resolveTouchMoveAction = (params: {
   toolName?: string
   currentLayerIsActive: boolean
 }): TouchDispatchAction => {
+  if (params.colorDropActive) return 'none'
   if (params.isResizing) return 'none'
   if (isDesktopCanvasPan(params) && params.isZooming) return 'panCanvas'
   if (
@@ -115,6 +119,7 @@ export const resolveTouchMoveAction = (params: {
 }
 
 export const resolveTouchEndAction = (params: {
+  colorDropActive?: boolean
   isResizing: boolean
   resizeModeActive: boolean
   lassoModeActive?: boolean
@@ -128,6 +133,7 @@ export const resolveTouchEndAction = (params: {
   toolName?: string
   currentLayerIsActive: boolean
 }): TouchDispatchAction => {
+  if (params.colorDropActive) return 'none'
   if (params.isResizing) return 'none'
   if (isDesktopCanvasPan(params) && params.isZooming) return 'panCanvas'
   if (params.currentDeviceHasStylus && params.isZooming) return 'dragZoom'
@@ -473,6 +479,7 @@ export const createEditorPointerHandlers = (deps: PointerRouterDeps) => {
       state.currentDeviceHasStylus = true
     }
     const action = resolveTouchStartAction({
+      colorDropActive: state.colorDrop.active,
       isResizing: state.resizeMode.isResizing,
       resizeModeActive: state.resizeMode.active,
       lassoModeActive: state.lassoMode?.active,
@@ -576,6 +583,7 @@ export const createEditorPointerHandlers = (deps: PointerRouterDeps) => {
     const batch = queuedMoves.splice(0, queuedMoves.length)
     for (const touchEvent of batch) {
       const action = resolveTouchMoveAction({
+        colorDropActive: state.colorDrop.active,
         isResizing: state.resizeMode.isResizing,
         resizeModeActive: state.resizeMode.active,
         lassoModeActive: state.lassoMode?.active,
@@ -652,6 +660,7 @@ export const createEditorPointerHandlers = (deps: PointerRouterDeps) => {
     }
     paintQueuedMoves()
     const action = resolveTouchEndAction({
+      colorDropActive: state.colorDrop.active,
       isResizing: state.resizeMode.isResizing,
       resizeModeActive: state.resizeMode.active,
       lassoModeActive: state.lassoMode?.active,

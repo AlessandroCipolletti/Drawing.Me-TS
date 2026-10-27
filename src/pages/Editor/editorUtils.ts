@@ -77,7 +77,13 @@ export const drawMultipleCoworkingSteps = async (
     start?: (ctx: ExtendedCanvasContext, step: StrokeSample, toolProps: CurrentToolProps) => boolean
     move?: (ctx: ExtendedCanvasContext, step: StrokeSample, toolProps: CurrentToolProps) => boolean
     end?: (ctx: ExtendedCanvasContext, step: StrokeSample, toolProps: CurrentToolProps) => boolean
-    bucket: (layerId: string, x: number, y: number, color: string) => Promise<void>
+    bucket: (
+      layerId: string,
+      x: number,
+      y: number,
+      color: string,
+      step?: StrokeSample
+    ) => Promise<void>
   }
 ) => {
   const destinationContext = getLayerContext(layerId)
@@ -110,7 +116,7 @@ export const drawMultipleCoworkingSteps = async (
   }
 
   if (currentCoworkingToolProps.name === 'bucket') {
-    await fns.bucket(layerId, steps[0].x, steps[0].y, currentCoworkingToolProps.color)
+    await fns.bucket(layerId, steps[0].x, steps[0].y, currentCoworkingToolProps.color, steps[0])
   } else if (currentCoworkingToolProps.name === 'smudge') {
     const session = createSmudgeStrokeSession()
     for (const step of steps) {

@@ -232,6 +232,13 @@
   width: 92%;
   height: calc(2 * var(--colorpicker-height));
   flex-direction: column;
+  justify-content: space-evenly;
+}
+.drawith__PHONE
+  .editor-colorpicker__params-container
+  > div:not(.editor-colorpicker__params-button) {
+  flex: 1 1 0;
+  justify-content: center;
 }
 .drawith__EDITOR-FULLSCREEN .editor-colorpicker__params-container {
   transform: translate3d(-50%, 125%, 0rem);
@@ -255,6 +262,8 @@
   flex-direction: row;
   justify-content: space-around;
   align-items: center;
+  align-self: stretch;
+  min-height: 0;
 }
 .drawith__TABLET
   .editor-colorpicker__params-container
@@ -271,11 +280,29 @@
 .drawith__PHONE .editor-colorpicker__params-container.params-container-visible {
   top: calc(100% - var(--header-height) - (2 * var(--colorpicker-height)) - 0.6rem);
 }
+.editor-colorpicker__suggested-container {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  align-self: stretch;
+  height: 100%;
+  gap: 0.28rem;
+  box-sizing: border-box;
+}
+.editor-colorpicker__suggested-container .editor-colorpicker__color {
+  margin: 0;
+  flex-shrink: 0;
+}
+
 .editor-colorpicker__params-container .editor-colorpicker__params-button {
-  width: 3.2rem;
-  height: 3.2rem;
-  margin-right: 0.8rem;
-  margin-left: 0.8rem;
+  width: 2.35rem;
+  height: 2.35rem;
+  margin-right: 0.55rem;
+  margin-left: 0.55rem;
+  flex-shrink: 0;
+  align-self: center;
+  border-radius: 0.55rem;
   cursor: pointer;
   transition:
     background-color 150ms ease,
@@ -303,4 +330,16 @@
   text-transform: uppercase;
   letter-spacing: 0.05rem;
   padding-right: 1.2rem;
+}
+
+.editor-colorpicker__color-drop-ghost {
+  position: fixed;
+  z-index: 10050;
+  width: 2.4rem;
+  height: 2.4rem;
+  border-radius: 50%;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.35);
+  border: 2px solid rgba(255, 255, 255, 0.85);
 }

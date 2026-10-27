@@ -20,6 +20,12 @@ export interface EditorCalls {
   getCurrentColorsPalette: () => PaletteColor[]
   getCurrentSelectedColorId: () => number
   addOptionButtonsGroup: (buttons?: HTMLElement[], side?: 'left' | 'center' | 'right') => void
+  beginColorDropFromSwatch: (fillHex: string, clientX: number, clientY: number) => void
+  updateColorDropPointer: (clientX: number, clientY: number) => void
+  endColorDropPointer: (clientX: number, clientY: number) => void
+  cancelColorDrop: () => void
+  isColorDropActive: () => boolean
+  cancelColorPickerLongPress: () => void
 }
 
 export const editorCalls = {} as EditorCalls

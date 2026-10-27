@@ -7,13 +7,14 @@ import * as Tools from './components/Tools'
 import * as Ruler from './components/Ruler'
 import { round, getOriginalCoordsFromScaleRotation } from 'utils/mathUtils'
 import {
-  fillWithBucket,
   fillCompletely,
   drawStrokeSample,
   ExtendedCanvasContext,
   StrokeSample,
   StrokeToolParams,
+  type BucketFillOptions,
 } from 'utils/canvasUtils'
+import { fillActiveLayerWithBucketAt } from './bucketFillPipeline'
 import {
   updateCurrentTouchData,
   getStepData,
@@ -373,6 +374,52 @@ export const createEditorStrokeSession = (deps: StrokeSessionDeps) => {
       smudgeTouchTypeToInputKind(state.currentTouch.type)
     )
 
+  const performBucketFill = async (
+    x: number,
+    y: number,
+    color: string,
+    options?: BucketFillOptions,
+    sendForCoworking = true
+  ): Promise<boolean> => {
+    if (!coordsAreInsideLayer(x, y)) return false
+    const layerId = Layers.getCurrentSelectedLayerId()
+    const context = layerId ? Layers.getLayerContext(layerId) : refs.layerContext
+    if (!layerId || !context?.canvas) return false
+
+    flushPendingHistorySave()
+    const lassoSel = Layers.getActiveLassoSelection()
+    if (lassoSel && context.canvas) {
+      capturePreStrokeOutsideForLasso(context.canvas, lassoSel.maskCanvas)
+    }
+
+    let hasBeenUsed = false
+    if (Layers.isYourLayerEmpty(layerId)) {
+      fillCompletely(context, color, context.canvas.width, context.canvas.height)
+      if (lassoSel) {
+        applyLassoMaskCompositeToContext(context)
+      }
+      hasBeenUsed = true
+      syncLayerDisplayDuringStroke(layerId)
+      saveStepHistory()
+    } else {
+      const res = fillActiveLayerWithBucketAt(layerId, x, y, color, options)
+      if (res) {
+        hasBeenUsed = true
+        await res
+        if (Layers.hasActiveLassoSelection()) {
+          applyLassoMaskCompositeToContext(context)
+        }
+        syncLayerDisplayDuringStroke(layerId)
+        saveStepHistory()
+      }
+    }
+
+    if (hasBeenUsed && Coworking.isOpen() && sendForCoworking) {
+      sendCoworkingStep(state, { type: 'start', x, y }, true)
+    }
+    return hasBeenUsed
+  }
+
   const useBucket = async (
     context: ExtendedCanvasContext,
     x: number,
@@ -380,47 +427,8 @@ export const createEditorStrokeSession = (deps: StrokeSessionDeps) => {
     color: string,
     sendForCoworking = true
   ) => {
-    if (coordsAreInsideLayer(x, y)) {
-      flushPendingHistorySave()
-      const lassoSel = Layers.getActiveLassoSelection()
-      if (lassoSel && context.canvas) {
-        capturePreStrokeOutsideForLasso(context.canvas, lassoSel.maskCanvas)
-      }
-      let hasBeenUsed = false
-      if (Layers.isYourLayerEmpty()) {
-        fillCompletely(context, color, context.canvas.width, context.canvas.height)
-        if (lassoSel) {
-          applyLassoMaskCompositeToContext(context)
-        }
-        hasBeenUsed = true
-        const layerId = Layers.getCurrentSelectedLayerId()
-        if (layerId) syncLayerDisplayDuringStroke(layerId)
-        saveStepHistory()
-      } else {
-        const res = fillWithBucket(
-          context,
-          x,
-          y,
-          color,
-          context.canvas.width,
-          context.canvas.height
-        )
-        if (res) {
-          hasBeenUsed = true
-          res.then(() => {
-            if (Layers.hasActiveLassoSelection()) {
-              applyLassoMaskCompositeToContext(context)
-            }
-            const layerId = Layers.getCurrentSelectedLayerId()
-            if (layerId) syncLayerDisplayDuringStroke(layerId)
-            saveStepHistory()
-          })
-        }
-      }
-      if (hasBeenUsed && Coworking.isOpen() && sendForCoworking) {
-        sendCoworkingStep(state, { type: 'start', x, y }, true)
-      }
-    }
+    void context
+    await performBucketFill(x, y, color, undefined, sendForCoworking)
   }
 
   const shouldUseLineAdaptation = () => shouldAdaptStrokeLine(state.currentToolProps)
@@ -1019,5 +1027,6 @@ export const createEditorStrokeSession = (deps: StrokeSessionDeps) => {
     makeTouchEndNearRuler,
     applyQuickShapeVariant,
     dismissQuickShape,
+    performBucketFill,
   }
 }
