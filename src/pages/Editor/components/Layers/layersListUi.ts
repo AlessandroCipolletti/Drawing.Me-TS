@@ -4,6 +4,17 @@ import { preventDefault } from 'utils/domUtils'
 import { round, convertAngleDegToRad } from 'utils/mathUtils'
 import { cropImageWithMargin, flipImage } from 'utils/imageUtils'
 import { fillCanvasWithImage } from 'utils/canvasUtils'
+import {
+  buildWarpDenseMesh,
+  getAlphaBounds,
+  getMeshBounds,
+  getQuadBounds,
+  readSourceImageData,
+  warpMesh as renderWarpMesh,
+  warpQuad,
+} from 'utils/imageWarp'
+import type { ResizeFramePayload } from 'pages/Editor/editorTypes'
+import { cloneCanvasSource, getTransformBounds } from 'pages/Editor/resizeTransformSession'
 import { handleElementsListDragAndDrop } from 'utils/uiUtils'
 import { delay } from 'utils/jsUtils'
 import { timing } from 'main/Theme'
@@ -39,6 +50,7 @@ import {
   MagicWandUpdatePayload,
   requestMagicWandSessionTolerance,
 } from './layerLasso'
+import Params from 'main/Params'
 
 const paramsAreClosed = () => state.paramsTimeout === false
 
@@ -267,12 +279,92 @@ const updateParamsByLayer = (layerId: string | false = state.currentSelectedLaye
   }
 }
 
-const paintResizeFrame = (ctx: CanvasRenderingContext2D) => {
+const paintTransformFrame = (ctx: CanvasRenderingContext2D) => {
   if (!refs.imageForResize) return
-  const { x, y, w, h, r } = state.lastResizeCoords
+  const frame = state.lastResizeCoords
+  const source = refs.resizeBaseSnapshot || refs.imageForResize
+  const { x, y, w, h, r, transformKind, quad, warpMesh } = frame
   const minX = round(x - w / 2, 1)
   const minY = round(y - h / 2, 1)
   const rotation = convertAngleDegToRad(r)
+  // Drag preview: render the warp at reduced resolution (capped long edge)
+  // and let drawImage upscale it. Release/commit renders at full resolution.
+  const previewMaxDimension = Params.isTablet || Params.isPhone ? 560 : 720
+  const getPreviewScale = (width: number, height: number) => {
+    if (!frame.previewCoarse) return 1
+    const longest = Math.max(width, height)
+    return longest > 0 ? Math.min(1, previewMaxDimension / longest) : 1
+  }
+  const paintWarpResult = (
+    warped: HTMLCanvasElement,
+    boundsMinX: number,
+    boundsMinY: number,
+    boundsW?: number,
+    boundsH?: number
+  ) => {
+    const scaled = boundsW !== undefined && boundsH !== undefined
+    if (refs.backgroundForResize) {
+      fillCanvasWithImage(ctx, refs.backgroundForResize, 0, 0)
+      fillCanvasWithImage(
+        ctx,
+        warped,
+        boundsMinX,
+        boundsMinY,
+        scaled ? boundsW : undefined,
+        scaled ? boundsH : undefined,
+        undefined,
+        false
+      )
+    } else if (scaled) {
+      fillCanvasWithImage(ctx, warped, boundsMinX, boundsMinY, boundsW, boundsH)
+    } else {
+      fillCanvasWithImage(ctx, warped, boundsMinX, boundsMinY)
+    }
+  }
+  if (
+    (transformKind === 'distort' || transformKind === 'perspective') &&
+    quad &&
+    source.width > 0 &&
+    source.height > 0
+  ) {
+    const qb = getQuadBounds(quad)
+    const qbW = qb.maxX - qb.minX
+    const qbH = qb.maxY - qb.minY
+    const warped = warpQuad(
+      source,
+      { minX: 0, minY: 0, maxX: source.width, maxY: source.height },
+      quad,
+      {
+        sourcePixels: refs.resizeWarpSourcePixels ?? undefined,
+        previewScale: getPreviewScale(qbW, qbH),
+      }
+    )
+    paintWarpResult(warped, qb.minX, qb.minY, qbW, qbH)
+    return
+  }
+  if (transformKind === 'warp' && warpMesh && source.width > 0 && source.height > 0) {
+    // Same subdivision count in drag preview and final save: using fewer
+    // subdivisions while dragging approximated the Catmull-Rom surface
+    // differently, so the HD result visibly shifted from the preview.
+    const subdivisions = 8
+    const dense = buildWarpDenseMesh(warpMesh, subdivisions)
+    const mb = getMeshBounds(dense.points)
+    const mbW = mb.maxX - mb.minX
+    const mbH = mb.maxY - mb.minY
+    const warped = renderWarpMesh(
+      source,
+      { minX: 0, minY: 0, maxX: source.width, maxY: source.height },
+      warpMesh,
+      {
+        sourcePixels: refs.resizeWarpSourcePixels ?? undefined,
+        previewScale: getPreviewScale(mbW, mbH),
+        subdivisionsPerCell: subdivisions,
+        denseMesh: dense,
+      }
+    )
+    paintWarpResult(warped, mb.minX, mb.minY, mbW, mbH)
+    return
+  }
   if (refs.backgroundForResize) {
     fillCanvasWithImage(ctx, refs.backgroundForResize, 0, 0)
     fillCanvasWithImage(ctx, refs.imageForResize, minX, minY, w, h, rotation, false)
@@ -281,17 +373,116 @@ const paintResizeFrame = (ctx: CanvasRenderingContext2D) => {
   }
 }
 
-export const updateCanvasContent = (
-  madeChanges: boolean,
-  x: number,
-  y: number,
-  w: number,
-  h: number,
+/** Flatten current transform preview into a new working bitmap (no history step). */
+export const bakeResizeSessionWorkingPixels = (): {
+  x: number
+  y: number
+  w: number
+  h: number
   r: number
-) => {
-  state.lastResizeCoords = { x, y, w, h, r }
+} | null => {
+  if (!refs.imageForResize || !state.currentSelectedLayerId) return null
+  const layer = state.layers[state.currentSelectedLayerId]
+  if (!layer) return null
+  const frame = {
+    ...state.lastResizeCoords,
+    previewCoarse: false,
+  }
+  state.lastResizeCoords = frame
+  const temp = document.createElement('canvas')
+  temp.width = layer.canvas.width
+  temp.height = layer.canvas.height
+  const tempCtx = temp.getContext('2d')
+  if (!tempCtx) return null
+  paintTransformFrame(tempCtx)
+  const bounds = getTransformBounds(
+    frame.transformKind,
+    frame.x,
+    frame.y,
+    frame.w,
+    frame.h,
+    frame.r,
+    frame.quad,
+    frame.warpMesh
+  )
+  const cropW = Math.max(1, Math.ceil(bounds.maxX - bounds.minX))
+  const cropH = Math.max(1, Math.ceil(bounds.maxY - bounds.minY))
+  const crop = document.createElement('canvas')
+  crop.width = cropW
+  crop.height = cropH
+  const cropCtx = crop.getContext('2d', { willReadFrequently: true })!
+  cropCtx.drawImage(temp, bounds.minX, bounds.minY, cropW, cropH, 0, 0, cropW, cropH)
+  if (refs.backgroundForResize) {
+    const flat = document.createElement('canvas')
+    flat.width = temp.width
+    flat.height = temp.height
+    const flatCtx = flat.getContext('2d')!
+    flatCtx.drawImage(refs.backgroundForResize, 0, 0)
+    flatCtx.drawImage(crop, bounds.minX, bounds.minY)
+    refs.backgroundForResize = flat
+  }
+  // Re-tighten around actual pixels: after a shrink/distort the geometric box
+  // can be mostly transparent, so the next tool would waste most of its range.
+  let workingCrop = crop
+  let effectiveMinX = bounds.minX
+  let effectiveMinY = bounds.minY
+  let effectiveW = cropW
+  let effectiveH = cropH
+  const tight = getAlphaBounds(cropCtx.getImageData(0, 0, cropW, cropH))
+  if (tight) {
+    effectiveMinX = bounds.minX + tight.minX
+    effectiveMinY = bounds.minY + tight.minY
+    effectiveW = tight.maxX - tight.minX + 1
+    effectiveH = tight.maxY - tight.minY + 1
+    if (effectiveW !== cropW || effectiveH !== cropH) {
+      workingCrop = document.createElement('canvas')
+      workingCrop.width = effectiveW
+      workingCrop.height = effectiveH
+      workingCrop
+        .getContext('2d')!
+        .drawImage(
+          crop,
+          tight.minX,
+          tight.minY,
+          effectiveW,
+          effectiveH,
+          0,
+          0,
+          effectiveW,
+          effectiveH
+        )
+    }
+  }
+  refs.imageForResize = workingCrop
+  refs.resizeBaseSnapshot = cloneCanvasSource(workingCrop)
+  refs.resizeWarpSourcePixels = readSourceImageData(refs.resizeBaseSnapshot)
+  const next = {
+    x: round(effectiveMinX + effectiveW / 2, 1),
+    y: round(effectiveMinY + effectiveH / 2, 1),
+    w: round(effectiveW, 1),
+    h: round(effectiveH, 1),
+    r: 0,
+  }
+  state.lastResizeCoords = {
+    ...next,
+    transformKind: frame.transformKind,
+    quad: null,
+    warpMesh: null,
+    previewCoarse: false,
+  }
+  return next
+}
+
+export const confirmResizeModeFromToolbar = () => {
+  if (state.resizeMode) {
+    void endResizeMode()
+  }
+}
+
+export const updateCanvasContent = (madeChanges: boolean, frame: ResizeFramePayload) => {
+  state.lastResizeCoords = { ...frame }
   if (state.currentSelectedLayerId && refs.imageForResize) {
-    paintLayerDisplay(state.currentSelectedLayerId, paintResizeFrame)
+    paintLayerDisplay(state.currentSelectedLayerId, paintTransformFrame)
   }
   if (madeChanges) {
     editorCalls.toggleButton('undo', true)
@@ -672,6 +863,11 @@ export const startTransformLassoSelectionInPlace = () => {
   refs.maskDownLayerButton?.classList.add('disabled')
   editorCalls.deselectPipette(true, false, true)
   refs.imageForResize = selection.selectedCanvas
+  if (refs.resizeBaseSnapshot) {
+    refs.resizeBaseSnapshot.width = refs.resizeBaseSnapshot.height = 0
+  }
+  refs.resizeBaseSnapshot = cloneCanvasSource(selection.selectedCanvas)
+  refs.resizeWarpSourcePixels = readSourceImageData(refs.resizeBaseSnapshot)
   refs.backgroundForResize = selection.outsideCanvas
   state.lassoTransformPoints = (state.lassoFloatBasePoints || selection.points).map(([x, y]) => [
     x,
@@ -730,6 +926,11 @@ const startResizeMode = () => {
     0
   )
   refs.imageForResize = image
+  if (refs.resizeBaseSnapshot) {
+    refs.resizeBaseSnapshot.width = refs.resizeBaseSnapshot.height = 0
+  }
+  refs.resizeBaseSnapshot = cloneCanvasSource(image)
+  refs.resizeWarpSourcePixels = readSourceImageData(refs.resizeBaseSnapshot)
   updateMagnetismCoords(state.currentSelectedLayerId)
   editorFacade.showDragBox(
     round(minX + width / 2, 1),
@@ -749,7 +950,8 @@ const saveResizeModeIfNeeded = async () => {
   if (shouldBakeResize && state.currentSelectedLayerId) {
     const layer = state.layers[state.currentSelectedLayerId]
     if (layer) {
-      paintResizeFrame(layer.canvas.context)
+      state.lastResizeCoords = { ...state.lastResizeCoords, previewCoarse: false }
+      paintTransformFrame(layer.canvas.context)
       state.lassoFloatDirty = false
       syncLayerDisplay(state.currentSelectedLayerId)
       refreshMaskDependents(state.currentSelectedLayerId)
@@ -786,6 +988,11 @@ const saveResizeModeIfNeeded = async () => {
   }
   state.resizeModeMadeChanges = false
   refs.imageForResize = null
+  if (refs.resizeBaseSnapshot) {
+    refs.resizeBaseSnapshot.width = refs.resizeBaseSnapshot.height = 0
+    refs.resizeBaseSnapshot = null
+  }
+  refs.resizeWarpSourcePixels = null
   if (refs.backgroundForResize) {
     refs.backgroundForResize.width = refs.backgroundForResize.height = 0
     refs.backgroundForResize = null
@@ -816,6 +1023,9 @@ const endResizeMode = async () => {
     w: 0,
     h: 0,
     r: 0,
+    transformKind: 'resize',
+    quad: null,
+    warpMesh: null,
   }
   editorFacade.hideDragBox()
   layersBridge.updateUndoRedoButtons()
@@ -850,14 +1060,7 @@ const flipLayer = async (e: Event, layerId: string | false, horizontally: boolea
     if (state.resizeMode && refs.imageForResize) {
       editorFacade.flushPendingResizeFrame()
       refs.imageForResize = flipImage(refs.imageForResize, horizontally)
-      updateCanvasContent(
-        true,
-        state.lastResizeCoords.x,
-        state.lastResizeCoords.y,
-        state.lastResizeCoords.w,
-        state.lastResizeCoords.h,
-        state.lastResizeCoords.r
-      )
+      updateCanvasContent(true, { ...state.lastResizeCoords })
     } else {
       const [content, x, y] = cropImageWithMargin(
         layer.canvas,

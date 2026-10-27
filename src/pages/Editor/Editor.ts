@@ -60,7 +60,6 @@ import {
   appendLayer as compositorAppendLayer,
   setLayerContext as compositorSetLayerContext,
   updateEditorLayer as compositorUpdateEditorLayer,
-  updateDragBoxHandlersPosition,
   updateLassoBarPosition,
   updateQuickShapeBarPosition,
   hideQuickShapeBar,
@@ -76,7 +75,14 @@ import {
   animateDragBoxHandlersPositionToOrigin,
   applyToolSelection,
   applyToolColorSelection,
+  applyTransformKindChange,
+  handleTransformQuadChange,
+  handleTransformMeshChange,
+  updateResizeBarPosition,
+  updateTransformOverlay,
 } from './editorCompositor'
+import { addQuadCornerHandlers, addWarpMeshHandlers } from './resizeTransformHandlers'
+import { TRANSFORM_KINDS } from './resizeTransformSession'
 import { QuickShapeVariant } from './editorQuickShape'
 import {
   toggleFullscreen as lifecycleToggleFullscreen,
@@ -100,6 +106,7 @@ import {
   drawStepEnd,
 } from './editorStrokeSession'
 import { createEditorPointerHandlers } from './editorPointerRouter'
+import { findValueWithMagnetism } from './editorUtils'
 import { currentCanvasHasZoom, registerCanvasZoomCheck } from './editorCanvasZoom'
 import { registerEditorCoworkingPort } from 'app/editorCoworkingPort'
 
@@ -147,7 +154,7 @@ export const drawCoworkingMultipleStepsData = (data: CoworkingStepsPayload) => {
 
 const updateDragBoxHandlers = () => {
   if (state.resizeMode.active) {
-    updateDragBoxHandlersPosition(refs)
+    updateTransformOverlay(state, refs)
   }
 }
 const updateFloatingOptionBars = () => {
@@ -156,6 +163,9 @@ const updateFloatingOptionBars = () => {
   }
   if (state.quickShapeMode?.active) {
     updateQuickShapeBarPosition(state, refs)
+  }
+  if (state.resizeMode?.active) {
+    updateResizeBarPosition(state, refs)
   }
 }
 const onGestureStart = (x: number, y: number) => handleGestureStart(state, refs, x, y)
@@ -193,6 +203,13 @@ const bindEditorInput = () => {
     setToolColor,
   })
   activeStrokeSession = strokeSession
+  const snapLayerResizePoint = (x: number, y: number): [number, number] => {
+    if (!state.resizeMode.useMagnetism) return [x, y]
+    const magnetismCoords = Layers.getMagnetismCoords()
+    const [sx] = findValueWithMagnetism(x, magnetismCoords.x)
+    const [sy] = findValueWithMagnetism(y, magnetismCoords.y)
+    return [sx || x, sy || y]
+  }
   const pointerHandlers = createEditorPointerHandlers({
     state,
     refs,
@@ -219,8 +236,41 @@ const bindEditorInput = () => {
     (e) => getMouseCoords(state, initialState.canvas, e),
     pointerHandlers.onResizeLayerContentTouchStart,
     pointerHandlers.onResizeLayerContentTouchMove,
-    pointerHandlers.onResizeLayerContentTouchEnd
+    pointerHandlers.onResizeLayerContentTouchEnd,
+    0,
+    () => state.resizeMode.transformKind
   )
+  addQuadCornerHandlers(
+    [refs.dragBulletTL!, refs.dragBulletTR!, refs.dragBulletBR!, refs.dragBulletBL!],
+    () => state.resizeMode.quad!,
+    (e) => getMouseCoords(state, initialState.canvas, e),
+    pointerHandlers.onResizeLayerContentTouchStart,
+    (quad) => handleTransformQuadChange(state, refs, quad),
+    pointerHandlers.onResizeLayerContentTouchEnd,
+    () => state.resizeMode.transformKind,
+    snapLayerResizePoint
+  )
+  addWarpMeshHandlers(
+    refs.resizeWarpBullets,
+    () => state.resizeMode.warpMesh!,
+    (e) => getMouseCoords(state, initialState.canvas, e),
+    pointerHandlers.onResizeLayerContentTouchStart,
+    (mesh) => handleTransformMeshChange(state, refs, mesh),
+    pointerHandlers.onResizeLayerContentTouchEnd,
+    () => state.resizeMode.transformKind === 'warp',
+    snapLayerResizePoint
+  )
+  refs.resizeTransformBar?.addEventListener(Params.eventStart, preventDefault)
+  for (const kind of TRANSFORM_KINDS) {
+    refs.resizeTransformKindButtons?.[kind]?.addEventListener(Params.eventStart, (e) => {
+      preventDefault(e)
+      applyTransformKindChange(state, refs, kind)
+    })
+  }
+  refs.resizeTransformDoneButton?.addEventListener(Params.eventStart, (e) => {
+    preventDefault(e)
+    Layers.confirmResizeModeFromToolbar()
+  })
   pointerCleanup = handlePointerEvents(refs.touchLayer!, {
     onSingleTouchStart: pointerHandlers.onTouchStart,
     onSingleTouchMove: pointerHandlers.onTouchMove,

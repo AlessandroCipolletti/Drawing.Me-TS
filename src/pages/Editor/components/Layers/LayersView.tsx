@@ -24,6 +24,8 @@ export interface LayersRefs {
   lassoButton: HTMLElement | null
   gcoButton: HTMLElement | null
   imageForResize: HTMLCanvasElement | OffscreenCanvas | null
+  resizeBaseSnapshot: HTMLCanvasElement | null
+  resizeWarpSourcePixels: ImageData | null
   backgroundForResize: HTMLCanvasElement | OffscreenCanvas | null
 }
 

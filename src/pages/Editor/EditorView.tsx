@@ -1,5 +1,6 @@
 import { h } from 'ui/jsx-runtime'
-import { EditorRefs } from './editorTypes'
+import { EditorRefs, TransformKind } from './editorTypes'
+import { TRANSFORM_KIND_LABELS, TRANSFORM_KINDS } from './resizeTransformSession'
 
 export type { EditorRefs }
 
@@ -20,6 +21,11 @@ const QUICK_SHAPE_VARIANT_ITEMS: ReadonlyArray<{ id: string; label: string }> = 
   { id: 'regularHexagon', label: 'Regular' },
   { id: 'freehand', label: 'Original' },
 ]
+
+const setWarpBulletRef = (refs: EditorRefs, index: number, el: HTMLElement | null) => {
+  if (!refs.resizeWarpBullets) refs.resizeWarpBullets = []
+  refs.resizeWarpBullets[index] = el
+}
 
 export const EditorView = ({ refs }: { refs: EditorRefs }) => (
   <div
@@ -218,6 +224,50 @@ export const EditorView = ({ refs }: { refs: EditorRefs }) => (
         <div class="editor-lasso__action-icon svg-icon-close svg-icon-dark" />
       </div>
     </div>
+    <canvas
+      class="editor-resize__quad-overlay displayNone"
+      ref={(el) => {
+        refs.resizeQuadOverlay = el
+      }}
+    />
+    <canvas
+      class="editor-resize__mesh-overlay displayNone"
+      ref={(el) => {
+        refs.resizeMeshOverlay = el
+      }}
+    />
+    <div
+      class="editor-resize__bar params-container editor-lasso__bar displayNone"
+      ref={(el) => {
+        refs.resizeTransformBar = el
+      }}
+    >
+      {TRANSFORM_KINDS.map((kind: TransformKind) => (
+        <div
+          class="editor-lasso__action"
+          data-resize-transform={kind}
+          ref={(el) => {
+            if (!refs.resizeTransformKindButtons) {
+              refs.resizeTransformKindButtons = {}
+            }
+            refs.resizeTransformKindButtons[kind] = el
+          }}
+        >
+          <span class="editor-lasso__action-label">{TRANSFORM_KIND_LABELS[kind]}</span>
+        </div>
+      ))}
+      <div class="editor-lasso__divider" />
+      <div
+        class="editor-lasso__action editor-lasso__action--icon-only"
+        data-resize-action="done"
+        title="Done"
+        ref={(el) => {
+          refs.resizeTransformDoneButton = el
+        }}
+      >
+        <div class="editor-lasso__action-icon svg-icon-close svg-icon-dark" />
+      </div>
+    </div>
     <div
       class="editor-quickshape__bar params-container displayNone"
       ref={(el) => {
@@ -319,6 +369,66 @@ export const EditorView = ({ refs }: { refs: EditorRefs }) => (
         refs.dragBulletRT = el
       }}
     >
+      <div />
+    </div>
+    <div class="dragBullet dragBulletWarp displayNone" ref={(el) => setWarpBulletRef(refs, 0, el)}>
+      <div />
+    </div>
+    <div class="dragBullet dragBulletWarp displayNone" ref={(el) => setWarpBulletRef(refs, 1, el)}>
+      <div />
+    </div>
+    <div class="dragBullet dragBulletWarp displayNone" ref={(el) => setWarpBulletRef(refs, 2, el)}>
+      <div />
+    </div>
+    <div class="dragBullet dragBulletWarp displayNone" ref={(el) => setWarpBulletRef(refs, 3, el)}>
+      <div />
+    </div>
+    <div class="dragBullet dragBulletWarp displayNone" ref={(el) => setWarpBulletRef(refs, 4, el)}>
+      <div />
+    </div>
+    <div
+      class="dragBullet dragBulletWarp dragBulletWarpInner displayNone"
+      ref={(el) => setWarpBulletRef(refs, 5, el)}
+    >
+      <div />
+    </div>
+    <div
+      class="dragBullet dragBulletWarp dragBulletWarpInner displayNone"
+      ref={(el) => setWarpBulletRef(refs, 6, el)}
+    >
+      <div />
+    </div>
+    <div class="dragBullet dragBulletWarp displayNone" ref={(el) => setWarpBulletRef(refs, 7, el)}>
+      <div />
+    </div>
+    <div class="dragBullet dragBulletWarp displayNone" ref={(el) => setWarpBulletRef(refs, 8, el)}>
+      <div />
+    </div>
+    <div
+      class="dragBullet dragBulletWarp dragBulletWarpInner displayNone"
+      ref={(el) => setWarpBulletRef(refs, 9, el)}
+    >
+      <div />
+    </div>
+    <div
+      class="dragBullet dragBulletWarp dragBulletWarpInner displayNone"
+      ref={(el) => setWarpBulletRef(refs, 10, el)}
+    >
+      <div />
+    </div>
+    <div class="dragBullet dragBulletWarp displayNone" ref={(el) => setWarpBulletRef(refs, 11, el)}>
+      <div />
+    </div>
+    <div class="dragBullet dragBulletWarp displayNone" ref={(el) => setWarpBulletRef(refs, 12, el)}>
+      <div />
+    </div>
+    <div class="dragBullet dragBulletWarp displayNone" ref={(el) => setWarpBulletRef(refs, 13, el)}>
+      <div />
+    </div>
+    <div class="dragBullet dragBulletWarp displayNone" ref={(el) => setWarpBulletRef(refs, 14, el)}>
+      <div />
+    </div>
+    <div class="dragBullet dragBulletWarp displayNone" ref={(el) => setWarpBulletRef(refs, 15, el)}>
       <div />
     </div>
   </div>

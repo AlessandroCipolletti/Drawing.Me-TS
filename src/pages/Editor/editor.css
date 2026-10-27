@@ -274,6 +274,16 @@ div.editor__magnetised-line-r {
 .editor-lasso__action.selected .editor-lasso__action-icon {
   background-color: #ffffff;
 }
+.editor-lasso__action.selected:hover:not(.disabled) {
+  background-color: var(--accent-ink);
+  border-color: var(--accent-ink);
+}
+.editor-lasso__action.selected:hover:not(.disabled) .editor-lasso__action-label {
+  color: #ffffff;
+}
+.editor-lasso__action.selected:hover:not(.disabled) .editor-lasso__action-icon {
+  background-color: #ffffff;
+}
 .editor-lasso__action:active:not(.disabled) {
   transform: scale(0.95);
 }
@@ -321,6 +331,35 @@ div.editor__magnetised-line-r {
 }
 .drawith__PHONE .editor-lasso__action-icon + .editor-lasso__action-label {
   display: none;
+}
+
+/* RESIZE TRANSFORM OVERLAYS */
+.editor-resize__quad-overlay,
+.editor-resize__mesh-overlay {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1000;
+}
+.params-container.editor-resize__bar {
+  z-index: 1002;
+}
+.dragBullet.dragBulletWarp {
+  z-index: 1001;
+}
+.dragBullet.dragBulletWarp > div {
+  width: 1.6rem;
+  height: 1.6rem;
+  background-color: var(--palette-white);
+  border-color: var(--accent-ink-strong);
+}
+.dragBullet.dragBulletWarpInner > div {
+  width: 1.9rem;
+  height: 1.9rem;
+  background-color: var(--accent-warm);
 }
 
 /* QUICKSHAPE FLOATING ACTION BAR */

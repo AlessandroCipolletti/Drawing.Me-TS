@@ -23,6 +23,7 @@ import {
   updateLayerContentCoordsAfterDragResize,
   handleResizeLayerContentTouchMove,
   handleDragLayerContentTouchMove,
+  flushPendingResizeFrame,
 } from './editorCompositor'
 import { round } from 'utils/mathUtils'
 import { updatePipette, closePipetteCursor } from './editorLifecycle'
@@ -622,9 +623,10 @@ export const createEditorPointerHandlers = (deps: PointerRouterDeps) => {
     refs.magnetisedLineR?.classList.add('displayNone')
     refs.magnetisedLineY?.classList.add('displayNone')
     refs.magnetisedLineX?.classList.add('displayNone')
+    state.resizeMode.isResizing = false
+    flushPendingResizeFrame(state, refs)
     updateLayerContentCoordsAfterDragResize(state, refs)
     Layers.updateMagnetismCoords(undefined, !!state.resizeMode.r)
-    state.resizeMode.isResizing = false
   }
 
   const onPanCanvasTouchEnd = () => {

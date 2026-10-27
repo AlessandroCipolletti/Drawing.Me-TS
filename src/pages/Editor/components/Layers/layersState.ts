@@ -4,6 +4,8 @@ import * as Coworking from 'modules/Coworking'
 import { getNewContextForCanvas, ExtendedCanvasContext } from 'utils/canvasUtils'
 import { deepCopy } from 'utils/jsUtils'
 import { LayersRefs } from './LayersView'
+import type { TransformKind } from 'pages/Editor/editorTypes'
+import type { QuadCorners, WarpMesh } from 'utils/imageWarp'
 import type { LassoExtractionResult, LassoPoint } from './layerLasso'
 import {
   MagnetismEntry,
@@ -118,6 +120,10 @@ export interface LayersState {
     w: number
     h: number
     r: number
+    transformKind: TransformKind
+    quad: QuadCorners | null
+    warpMesh: WarpMesh | null
+    previewCoarse?: boolean
   }
 }
 
@@ -160,6 +166,9 @@ const initialState: LayersState = {
     w: 0,
     h: 0,
     r: 0,
+    transformKind: 'resize',
+    quad: null,
+    warpMesh: null,
   },
 }
 
@@ -205,6 +214,8 @@ export const refs: LayersRefs = {
   lassoButton: null,
   visibilityLayerButton: null,
   imageForResize: null,
+  resizeBaseSnapshot: null,
+  resizeWarpSourcePixels: null,
   backgroundForResize: null,
   opacitySlider: null,
   opacityCursor: null,

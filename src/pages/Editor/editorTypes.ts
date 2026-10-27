@@ -1,5 +1,21 @@
 import { ToolConfigProps } from './config'
 import { ExtendedCanvasContext } from 'utils/canvasUtils'
+import type { QuadCorners, WarpMesh } from 'utils/imageWarp'
+
+export type TransformKind = 'resize' | 'distort' | 'perspective' | 'warp'
+
+export type ResizeFramePayload = {
+  x: number
+  y: number
+  w: number
+  h: number
+  r: number
+  transformKind: TransformKind
+  quad: QuadCorners | null
+  warpMesh: WarpMesh | null
+  /** Coarse warp sampling while a handle is actively dragged. */
+  previewCoarse?: boolean
+}
 
 export interface EditorRefs {
   container: HTMLElement | null
@@ -43,6 +59,12 @@ export interface EditorRefs {
   quickShapeBar: HTMLElement | null
   quickShapeVariantButtons: Record<string, HTMLElement>
   quickShapeCancelButton: HTMLElement | null
+  resizeTransformBar: HTMLElement | null
+  resizeTransformKindButtons: Partial<Record<TransformKind, HTMLElement>>
+  resizeTransformDoneButton: HTMLElement | null
+  resizeQuadOverlay: HTMLCanvasElement | null
+  resizeMeshOverlay: HTMLCanvasElement | null
+  resizeWarpBullets: Array<HTMLElement | null>
 }
 
 export const createInitialEditorRefs = (): EditorRefs => ({
@@ -87,6 +109,12 @@ export const createInitialEditorRefs = (): EditorRefs => ({
   quickShapeBar: null,
   quickShapeVariantButtons: {},
   quickShapeCancelButton: null,
+  resizeTransformBar: null,
+  resizeTransformKindButtons: {},
+  resizeTransformDoneButton: null,
+  resizeQuadOverlay: null,
+  resizeMeshOverlay: null,
+  resizeWarpBullets: [],
 })
 
 export interface EditorTouchState {
@@ -156,11 +184,14 @@ export interface ResizeModeState {
   active: boolean
   useMagnetism: boolean
   isResizing: boolean
+  transformKind: TransformKind
   x: number
   y: number
   w: number
   h: number
   r: number
+  quad: QuadCorners | null
+  warpMesh: WarpMesh | null
   startDragX: number
   startDragY: number
   fromLeft?: boolean
@@ -428,11 +459,14 @@ export const createInitialEditorState = (
     active: false,
     useMagnetism: true,
     isResizing: false,
+    transformKind: 'resize',
     x: -1,
     y: -1,
     w: -1,
     h: -1,
     r: 0,
+    quad: null,
+    warpMesh: null,
     startDragX: -1,
     startDragY: -1,
   },

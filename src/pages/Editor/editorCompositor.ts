@@ -22,18 +22,26 @@ import {
   EditorState,
   PointerTouchEvent,
   ResizeModeState,
+  ResizeFramePayload,
+  TransformKind,
 } from './editorTypes'
+import { buildWarpDenseMesh, QuadCorners, WarpMesh } from 'utils/imageWarp'
+import {
+  createSessionMeshFromAffine,
+  getTransformBounds,
+  isAffineTransformKind,
+  quadFromAffine,
+} from './resizeTransformSession'
 import { QuickShapeBounds, QuickShapeVariant } from './editorQuickShape'
 import { initPipetteCursor } from './editorLifecycle'
 
 let resizeRafId: number | null = null
+
+export type { ResizeFramePayload }
+
 let pendingResizeFrame: {
   madeChanges: boolean
-  x: number
-  y: number
-  w: number
-  h: number
-  r: number
+  frame: ResizeFramePayload
 } | null = null
 
 export const changePaper = (refs: EditorRefs, paper: string) => {
@@ -510,7 +518,7 @@ export const hideQuickShapeBar = (state: EditorState, refs: EditorRefs) => {
   refs.quickShapeBar?.classList.remove('editor-quickshape__bar--pulse')
 }
 
-export const updateDragBoxHandlersPosition = (refs: EditorRefs) => {
+const updateDragBoxHandlersPosition = (refs: EditorRefs) => {
   if (
     !refs.dragBulletOriginTL ||
     !refs.dragBulletOriginTR ||
@@ -550,75 +558,82 @@ const commitDragBoxFrame = (
   state: EditorState,
   refs: EditorRefs,
   madeChanges: boolean,
-  x: number,
-  y: number,
-  w: number,
-  h: number,
-  r: number
+  frame: ResizeFramePayload
 ) => {
   if (!refs.dragBox || !state.resizeMode?.active) return
-  refs.dragBox.style.cssText = `
+  const { x, y, w, h, r, transformKind, quad, warpMesh } = frame
+  const bounds = getTransformBounds(transformKind, x, y, w, h, r, quad, warpMesh)
+  const boxW = bounds.maxX - bounds.minX
+  const boxH = bounds.maxY - bounds.minY
+  const boxCx = (bounds.minX + bounds.maxX) / 2
+  const boxCy = (bounds.minY + bounds.maxY) / 2
+  const useRotatedBox = isAffineTransformKind(transformKind)
+  refs.dragBox.style.cssText = useRotatedBox
+    ? `
     left: ${round(x / Params.pxScale, 1)}px;
     top: ${round(y / Params.pxScale, 1)}px;
     width: ${round(w / Params.pxScale, 1)}px;
     height: ${round(h / Params.pxScale, 1)}px;
     transform: translate3d(-50%, -50%, 0px) rotate3d(0, 0, 1, ${r}deg);
   `
-  updateDragBoxHandlersPosition(refs)
-  Layers.updateCanvasContent(madeChanges, x, y, w, h, r)
+    : `
+    left: ${round(boxCx / Params.pxScale, 1)}px;
+    top: ${round(boxCy / Params.pxScale, 1)}px;
+    width: ${round(boxW / Params.pxScale, 1)}px;
+    height: ${round(boxH / Params.pxScale, 1)}px;
+    transform: translate3d(-50%, -50%, 0px) rotate3d(0, 0, 1, 0deg);
+  `
+  updateTransformOverlay(state, refs)
+  Layers.updateCanvasContent(madeChanges, frame)
 }
 
 export const flushPendingResizeFrame = (state: EditorState, refs: EditorRefs) => {
   if (pendingResizeFrame) {
-    const frame = pendingResizeFrame
+    const pending = pendingResizeFrame
     cancelPendingResizeRaf()
-    commitDragBoxFrame(state, refs, frame.madeChanges, frame.x, frame.y, frame.w, frame.h, frame.r)
+    commitDragBoxFrame(state, refs, pending.madeChanges, pending.frame)
   } else {
     cancelPendingResizeRaf()
   }
 }
 
+const buildResizeFramePayload = (state: EditorState): ResizeFramePayload => ({
+  x: state.resizeMode.x,
+  y: state.resizeMode.y,
+  w: state.resizeMode.w,
+  h: state.resizeMode.h,
+  r: state.resizeMode.r,
+  transformKind: state.resizeMode.transformKind,
+  quad: state.resizeMode.quad,
+  warpMesh: state.resizeMode.warpMesh,
+  previewCoarse: state.resizeMode.isResizing,
+})
+
 const updateDragBox = (
   state: EditorState,
   refs: EditorRefs,
   madeChanges: boolean,
-  x: number,
-  y: number,
-  w: number,
-  h: number,
-  r = 0
+  partial: Partial<ResizeFramePayload> & Pick<ResizeFramePayload, 'x' | 'y' | 'w' | 'h' | 'r'>
 ) => {
   if (!refs.dragBox) return
   state.resizeMode = {
     ...state.resizeMode,
-    x,
-    y,
-    w,
-    h,
-    r,
+    ...partial,
   }
+  const frame = buildResizeFramePayload(state)
   if (!madeChanges) {
     cancelPendingResizeRaf()
-    commitDragBoxFrame(state, refs, false, x, y, w, h, r)
+    commitDragBoxFrame(state, refs, false, frame)
     return
   }
-  pendingResizeFrame = { madeChanges, x, y, w, h, r }
+  pendingResizeFrame = { madeChanges, frame }
   if (resizeRafId === null) {
     resizeRafId = requestAnimationFrame(() => {
       resizeRafId = null
-      const frame = pendingResizeFrame
+      const pending = pendingResizeFrame
       pendingResizeFrame = null
-      if (frame) {
-        commitDragBoxFrame(
-          state,
-          refs,
-          frame.madeChanges,
-          frame.x,
-          frame.y,
-          frame.w,
-          frame.h,
-          frame.r
-        )
+      if (pending) {
+        commitDragBoxFrame(state, refs, pending.madeChanges, pending.frame)
       }
     })
   }
@@ -635,8 +650,10 @@ export const showDragBox = (
 ) => {
   state.resizeMode.active = true
   state.resizeMode.useMagnetism = useMagnetism
+  state.resizeMode.transformKind = 'resize'
   fadeInElements(
     [
+      refs.resizeTransformBar,
       refs.dragBox,
       refs.dragBulletTL,
       refs.dragBulletTR,
@@ -649,18 +666,293 @@ export const showDragBox = (
       refs.dragBulletRT,
     ].filter(Boolean) as HTMLElement[]
   )
-  updateDragBox(state, refs, false, x, y, w, h)
+  state.resizeMode.quad = quadFromAffine(x, y, w, h, 0)
+  state.resizeMode.warpMesh = createSessionMeshFromAffine(x, y, w, h, 0)
+  updateDragBox(state, refs, false, { x, y, w, h, r: 0 })
+  syncResizeTransformToolbar(state, refs)
+  updateResizeBarPosition(state, refs)
+}
+
+const getScreenPointFromLayer = (
+  state: EditorState,
+  refs: EditorRefs,
+  lx: number,
+  ly: number,
+  originRect?: DOMRect
+): [number, number] | null => {
+  const rect = originRect ?? refs.canvasOrigin?.getBoundingClientRect()
+  if (!rect) return null
+  const rad = ((state.canvas.rotation || 0) * Math.PI) / 180
+  const cos = Math.cos(rad)
+  const sin = Math.sin(rad)
+  const scale = state.canvas.scale || 1
+  const sx = rect.left + ((lx / Params.pxScale) * cos - (ly / Params.pxScale) * sin) * scale
+  const sy = rect.top + ((lx / Params.pxScale) * sin + (ly / Params.pxScale) * cos) * scale
+  return [sx, sy]
+}
+
+/** Resize an overlay canvas only when its size actually changes (assigning width clears it). */
+const ensureOverlayCanvasSize = (canvas: HTMLCanvasElement) => {
+  if (canvas.width !== Params.width) canvas.width = Params.width
+  if (canvas.height !== Params.height) canvas.height = Params.height
+}
+
+export const updateTransformOverlay = (state: EditorState, refs: EditorRefs) => {
+  if (!state.resizeMode.active) return
+  const kind = state.resizeMode.transformKind
+  const affine = isAffineTransformKind(kind)
+  refs.dragBulletT?.classList.toggle('displayNone', !affine)
+  refs.dragBulletR?.classList.toggle('displayNone', !affine)
+  refs.dragBulletB?.classList.toggle('displayNone', !affine)
+  refs.dragBulletL?.classList.toggle('displayNone', !affine)
+  refs.dragBulletRT?.classList.toggle('displayNone', !affine)
+  const cornerOnly = kind === 'distort' || kind === 'perspective'
+  refs.dragBulletTL?.classList.toggle('displayNone', !affine && !cornerOnly)
+  refs.dragBulletTR?.classList.toggle('displayNone', !affine && !cornerOnly)
+  refs.dragBulletBL?.classList.toggle('displayNone', !affine && !cornerOnly)
+  refs.dragBulletBR?.classList.toggle('displayNone', !affine && !cornerOnly)
+
+  refs.resizeWarpBullets?.forEach((el) => el?.classList.toggle('displayNone', kind !== 'warp'))
+
+  if (affine) {
+    updateDragBoxHandlersPosition(refs)
+    refs.resizeQuadOverlay?.classList.add('displayNone')
+    refs.resizeMeshOverlay?.classList.add('displayNone')
+    return
+  }
+
+  if (kind === 'warp' && state.resizeMode.warpMesh) {
+    const originRect = refs.canvasOrigin?.getBoundingClientRect()
+    refs.resizeWarpBullets?.forEach((el, index) => {
+      if (!el || !originRect) return
+      const p = state.resizeMode.warpMesh!.points[index]
+      const screen = getScreenPointFromLayer(state, refs, p.x, p.y, originRect)
+      if (!screen) return
+      el.style.cssText = `left: ${round(screen[0], 0)}px; top: ${round(screen[1], 0)}px`
+    })
+    drawWarpMeshOverlay(state, refs)
+    refs.resizeQuadOverlay?.classList.add('displayNone')
+    return
+  }
+
+  if ((kind === 'distort' || kind === 'perspective') && state.resizeMode.quad) {
+    const quad = state.resizeMode.quad
+    const originRect = refs.canvasOrigin?.getBoundingClientRect()
+    const mapCorner = (index: number, el: HTMLElement | null) => {
+      if (!el || !originRect) return
+      const screen = getScreenPointFromLayer(state, refs, quad[index].x, quad[index].y, originRect)
+      if (!screen) return
+      el.style.cssText = `left: ${round(screen[0], 0)}px; top: ${round(screen[1], 0)}px`
+    }
+    mapCorner(0, refs.dragBulletTL)
+    mapCorner(1, refs.dragBulletTR)
+    mapCorner(2, refs.dragBulletBR)
+    mapCorner(3, refs.dragBulletBL)
+    drawQuadOverlay(state, refs, quad)
+    refs.resizeMeshOverlay?.classList.add('displayNone')
+  }
+}
+
+const drawQuadOverlay = (state: EditorState, refs: EditorRefs, quad: QuadCorners) => {
+  const canvas = refs.resizeQuadOverlay
+  if (!canvas) return
+  canvas.classList.remove('displayNone')
+  canvas.style.opacity = '1'
+  ensureOverlayCanvasSize(canvas)
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return
+  ctx.clearRect(0, 0, canvas.width, canvas.height)
+  const originRect = refs.canvasOrigin?.getBoundingClientRect()
+  if (!originRect) return
+  const pts = quad
+    .map((p) => getScreenPointFromLayer(state, refs, p.x, p.y, originRect))
+    .filter(Boolean) as Array<[number, number]>
+  if (pts.length !== 4) return
+  ctx.strokeStyle = 'rgba(59, 130, 246, 0.95)'
+  ctx.lineWidth = 1.5
+  ctx.beginPath()
+  ctx.moveTo(pts[0][0], pts[0][1])
+  for (let i = 1; i < 4; i++) ctx.lineTo(pts[i][0], pts[i][1])
+  ctx.closePath()
+  ctx.stroke()
+}
+
+const drawWarpMeshOverlay = (state: EditorState, refs: EditorRefs) => {
+  const canvas = refs.resizeMeshOverlay
+  const mesh = state.resizeMode.warpMesh
+  if (!canvas || !mesh) return
+  canvas.classList.remove('displayNone')
+  canvas.style.opacity = '1'
+  ensureOverlayCanvasSize(canvas)
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return
+  ctx.clearRect(0, 0, canvas.width, canvas.height)
+  ctx.strokeStyle = 'rgba(59, 130, 246, 0.85)'
+  ctx.lineWidth = 1.25
+  const sub = 8
+  const dense = buildWarpDenseMesh(mesh, sub)
+  const originRect = refs.canvasOrigin?.getBoundingClientRect()
+  if (!originRect) return
+  const screenPts = dense.points
+    .map((p) => getScreenPointFromLayer(state, refs, p.x, p.y, originRect))
+    .filter(Boolean) as Array<[number, number]>
+  const idx = (i: number, j: number) => j * dense.cols + i
+  for (let cj = 0; cj < mesh.rows; cj++) {
+    const j = cj * sub
+    ctx.beginPath()
+    for (let i = 0; i < dense.cols; i++) {
+      const pt = screenPts[idx(i, j)]
+      if (i === 0) ctx.moveTo(pt[0], pt[1])
+      else ctx.lineTo(pt[0], pt[1])
+    }
+    ctx.stroke()
+  }
+  for (let ci = 0; ci < mesh.cols; ci++) {
+    const i = ci * sub
+    ctx.beginPath()
+    for (let j = 0; j < dense.rows; j++) {
+      const pt = screenPts[idx(i, j)]
+      if (j === 0) ctx.moveTo(pt[0], pt[1])
+      else ctx.lineTo(pt[0], pt[1])
+    }
+    ctx.stroke()
+  }
+}
+
+export const updateResizeBarPosition = (state: EditorState, refs: EditorRefs) => {
+  if (!refs.resizeTransformBar || !state.resizeMode.active) return
+  for (const [kind, btn] of Object.entries(refs.resizeTransformKindButtons || {})) {
+    btn?.classList.toggle('selected', state.resizeMode.transformKind === kind)
+  }
+  if (Params.isPhone) {
+    refs.resizeTransformBar.style.left = '50%'
+    refs.resizeTransformBar.style.top = ''
+    return
+  }
+  const bounds = getTransformBounds(
+    state.resizeMode.transformKind,
+    state.resizeMode.x,
+    state.resizeMode.y,
+    state.resizeMode.w,
+    state.resizeMode.h,
+    state.resizeMode.r,
+    state.resizeMode.quad,
+    state.resizeMode.warpMesh
+  )
+  const originRect = refs.canvasOrigin?.getBoundingClientRect()
+  if (!originRect) return
+  const rad = ((state.canvas.rotation || 0) * Math.PI) / 180
+  const cos = Math.cos(rad)
+  const sin = Math.sin(rad)
+  const scale = state.canvas.scale || 1
+  const corners: Array<[number, number]> = [
+    [bounds.minX / Params.pxScale, bounds.minY / Params.pxScale],
+    [bounds.maxX / Params.pxScale, bounds.minY / Params.pxScale],
+    [bounds.minX / Params.pxScale, bounds.maxY / Params.pxScale],
+    [bounds.maxX / Params.pxScale, bounds.maxY / Params.pxScale],
+  ]
+  let screenMinX = Infinity
+  let screenMaxX = -Infinity
+  let screenMinY = Infinity
+  let screenMaxY = -Infinity
+  for (const [lx, ly] of corners) {
+    const sx = originRect.left + (lx * cos - ly * sin) * scale
+    const sy = originRect.top + (lx * sin + ly * cos) * scale
+    if (sx < screenMinX) screenMinX = sx
+    if (sx > screenMaxX) screenMaxX = sx
+    if (sy < screenMinY) screenMinY = sy
+    if (sy > screenMaxY) screenMaxY = sy
+  }
+  const barRect = refs.resizeTransformBar.getBoundingClientRect()
+  const barW = barRect.width || 420
+  const barH = barRect.height || 46
+  const minLeft = state.canvas.offset.left + barW / 2 + 10
+  const maxLeft = Math.max(minLeft, Params.width - state.canvas.offset.right - barW / 2 - 10)
+  const minTop = state.canvas.offset.top + 10
+  const maxTop = Math.max(minTop, Params.height - state.canvas.offset.bottom - barH - 10)
+  const targetLeft = getNumberInBetween(minLeft, maxLeft, (screenMinX + screenMaxX) / 2, 0)
+  let targetTop = screenMinY - barH - 14
+  if (targetTop < minTop) targetTop = screenMaxY + 14
+  targetTop = getNumberInBetween(minTop, maxTop, targetTop, 0)
+  refs.resizeTransformBar.style.left = `${round(targetLeft, 0)}px`
+  refs.resizeTransformBar.style.top = `${round(targetTop, 0)}px`
+}
+
+const syncResizeTransformToolbar = (state: EditorState, refs: EditorRefs) => {
+  refs.resizeTransformBar?.classList.remove('displayNone')
+  updateResizeBarPosition(state, refs)
+}
+
+export const applyTransformKindChange = (
+  state: EditorState,
+  refs: EditorRefs,
+  kind: TransformKind
+) => {
+  if (!state.resizeMode.active || state.resizeMode.transformKind === kind) return
+  flushPendingResizeFrame(state, refs)
+  const baked = Layers.bakeResizeSessionWorkingPixels()
+  if (!baked) return
+  let quad: QuadCorners | null = null
+  let warpMesh: WarpMesh | null = null
+  if (kind === 'distort' || kind === 'perspective') {
+    quad = quadFromAffine(baked.x, baked.y, baked.w, baked.h, baked.r)
+  } else if (kind === 'warp') {
+    warpMesh = createSessionMeshFromAffine(baked.x, baked.y, baked.w, baked.h, baked.r)
+  }
+  state.resizeMode = {
+    ...state.resizeMode,
+    transformKind: kind,
+    x: baked.x,
+    y: baked.y,
+    w: baked.w,
+    h: baked.h,
+    r: baked.r,
+    quad,
+    warpMesh,
+  }
+  updateDragBox(state, refs, true, buildResizeFramePayload(state))
+  syncResizeTransformToolbar(state, refs)
+}
+
+export const handleTransformQuadChange = (
+  state: EditorState,
+  refs: EditorRefs,
+  quad: QuadCorners
+) => {
+  state.resizeMode.quad = quad
+  updateDragBox(state, refs, true, { ...buildResizeFramePayload(state), quad })
+}
+
+export const handleTransformMeshChange = (state: EditorState, refs: EditorRefs, mesh: WarpMesh) => {
+  state.resizeMode.warpMesh = mesh
+  updateDragBox(state, refs, true, { ...buildResizeFramePayload(state), warpMesh: mesh })
 }
 
 export const hideDragBox = (state: EditorState, refs: EditorRefs) => {
   flushPendingResizeFrame(state, refs)
   state.resizeMode.active = false
+  state.resizeMode.transformKind = 'resize'
+  state.resizeMode.quad = null
+  state.resizeMode.warpMesh = null
   state.resizeMode.w =
     state.resizeMode.h =
     state.resizeMode.x =
     state.resizeMode.y =
     state.resizeMode.r =
       -1
+  refs.resizeQuadOverlay?.getContext('2d')?.clearRect(0, 0, Params.width, Params.height)
+  refs.resizeMeshOverlay?.getContext('2d')?.clearRect(0, 0, Params.width, Params.height)
+  // Hide overlays/warp bullets synchronously: fadeOutElements commits
+  // opacity:0 inline, and these elements are never faded back in — the
+  // mesh/quad guides stayed invisible on every activation after the first.
+  for (const el of [
+    refs.resizeQuadOverlay,
+    refs.resizeMeshOverlay,
+    ...(refs.resizeWarpBullets || []),
+  ]) {
+    el?.classList.add('displayNone')
+    if (el) el.style.opacity = ''
+  }
   fadeOutElements(
     [
       refs.dragBox,
@@ -673,6 +965,7 @@ export const hideDragBox = (state: EditorState, refs: EditorRefs) => {
       refs.dragBulletR,
       refs.dragBulletB,
       refs.dragBulletRT,
+      refs.resizeTransformBar,
     ].filter(Boolean) as HTMLElement[]
   )
 }
@@ -701,16 +994,21 @@ export const animateDragBoxHandlersPositionToOrigin = (
 
 export const updateLayerContentCoordsAfterDragResize = (state: EditorState, refs: EditorRefs) => {
   flushPendingResizeFrame(state, refs)
-  const rad = ((state.resizeMode.r || 0) * Math.PI) / 180
-  const cos = Math.abs(Math.cos(rad))
-  const sin = Math.abs(Math.sin(rad))
-  const boundW = state.resizeMode.w * cos + state.resizeMode.h * sin
-  const boundH = state.resizeMode.w * sin + state.resizeMode.h * cos
+  const bounds = getTransformBounds(
+    state.resizeMode.transformKind,
+    state.resizeMode.x,
+    state.resizeMode.y,
+    state.resizeMode.w,
+    state.resizeMode.h,
+    state.resizeMode.r,
+    state.resizeMode.quad,
+    state.resizeMode.warpMesh
+  )
   Layers.setLayerCoordsAfterDragResize(
-    Math.max(0, round(state.resizeMode.x - boundW / 2)),
-    Math.max(0, round(state.resizeMode.y - boundH / 2)),
-    Math.min(state.canvas.width, round(state.resizeMode.x + boundW / 2)),
-    Math.min(state.canvas.height, round(state.resizeMode.y + boundH / 2))
+    Math.max(0, round(bounds.minX)),
+    Math.max(0, round(bounds.minY)),
+    Math.min(state.canvas.width, round(bounds.maxX)),
+    Math.min(state.canvas.height, round(bounds.maxY))
   )
 }
 
@@ -771,16 +1069,13 @@ export const handleResizeLayerContentTouchMove = (
     }
   }
 
-  updateDragBox(
-    state,
-    refs,
-    true,
-    newResizeState.x,
-    newResizeState.y,
-    newResizeState.w,
-    newResizeState.h,
-    newResizeState.r
-  )
+  updateDragBox(state, refs, true, {
+    x: newResizeState.x,
+    y: newResizeState.y,
+    w: newResizeState.w,
+    h: newResizeState.h,
+    r: newResizeState.r,
+  })
 }
 
 export const handleDragLayerContentTouchMove = (
@@ -807,14 +1102,39 @@ export const handleDragLayerContentTouchMove = (
     refs.magnetisedLineY.classList.toggle('displayNone', !magnetismLineY)
   }
 
-  updateDragBox(
-    state,
-    refs,
-    true,
-    round(newX, 1),
-    round(newY, 1),
-    state.resizeMode.w,
-    state.resizeMode.h,
-    state.resizeMode.r
-  )
+  const dx = round(newX, 1) - state.resizeMode.x
+  const dy = round(newY, 1) - state.resizeMode.y
+  const kind = state.resizeMode.transformKind
+  if (kind === 'distort' || kind === 'perspective') {
+    if (state.resizeMode.quad) {
+      const quad = state.resizeMode.quad.map((p) => ({
+        x: round(p.x + dx, 1),
+        y: round(p.y + dy, 1),
+      })) as QuadCorners
+      state.resizeMode.x = round(newX, 1)
+      state.resizeMode.y = round(newY, 1)
+      handleTransformQuadChange(state, refs, quad)
+      return
+    }
+  }
+  if (kind === 'warp' && state.resizeMode.warpMesh) {
+    const mesh: WarpMesh = {
+      ...state.resizeMode.warpMesh,
+      points: state.resizeMode.warpMesh.points.map((p) => ({
+        x: round(p.x + dx, 1),
+        y: round(p.y + dy, 1),
+      })),
+    }
+    state.resizeMode.x = round(newX, 1)
+    state.resizeMode.y = round(newY, 1)
+    handleTransformMeshChange(state, refs, mesh)
+    return
+  }
+  updateDragBox(state, refs, true, {
+    x: round(newX, 1),
+    y: round(newY, 1),
+    w: state.resizeMode.w,
+    h: state.resizeMode.h,
+    r: state.resizeMode.r,
+  })
 }

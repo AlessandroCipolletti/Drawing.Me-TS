@@ -922,8 +922,11 @@ export const addResizeBulletsHandlers = (
     rotation: boolean
   ) => void,
   onEnd: (state: any) => void,
-  waitingTime = DEFAULT_MOVE_WAITING_TIME
+  waitingTime = DEFAULT_MOVE_WAITING_TIME,
+  getTransformKind?: () => string
 ) => {
+  const cornerKeepsAspectRatio = () => !getTransformKind || getTransformKind() === 'resize'
+  const isAffineHandleMode = () => !getTransformKind || getTransformKind() === 'resize'
   let dragEnabled = true
   let initialState: any
   let lastState: any
@@ -946,6 +949,7 @@ export const addResizeBulletsHandlers = (
     oppositePoint: HTMLElement,
     selectedResize: any
   ) => {
+    if (!isAffineHandleMode()) return
     preventDefault(e)
     onStart()
     initialState = getCurrentState()
@@ -1039,6 +1043,7 @@ export const addResizeBulletsHandlers = (
   }
 
   const handleRotationStart = (e: Event) => {
+    if (!isAffineHandleMode()) return
     preventDefault(e)
     onStart()
     initialState = getCurrentState()
@@ -1125,10 +1130,14 @@ export const addResizeBulletsHandlers = (
   const handleResizeChangeL = (e: any) => handleResizeChange(true, false, true, false, false, e)
   const handleResizeChangeT = (e: any) => handleResizeChange(false, true, false, true, false, e)
   const handleResizeChangeB = (e: any) => handleResizeChange(false, false, false, true, false, e)
-  const handleResizeChangeTL = (e: any) => handleResizeChange(true, true, true, true, true, e)
-  const handleResizeChangeTR = (e: any) => handleResizeChange(false, true, true, true, true, e)
-  const handleResizeChangeBR = (e: any) => handleResizeChange(false, false, true, true, true, e)
-  const handleResizeChangeBL = (e: any) => handleResizeChange(true, false, true, true, true, e)
+  const handleResizeChangeTL = (e: any) =>
+    handleResizeChange(true, true, true, true, cornerKeepsAspectRatio(), e)
+  const handleResizeChangeTR = (e: any) =>
+    handleResizeChange(false, true, true, true, cornerKeepsAspectRatio(), e)
+  const handleResizeChangeBR = (e: any) =>
+    handleResizeChange(false, false, true, true, cornerKeepsAspectRatio(), e)
+  const handleResizeChangeBL = (e: any) =>
+    handleResizeChange(true, false, true, true, cornerKeepsAspectRatio(), e)
   R.addEventListener(Params.eventStart, (e) => handleResizeStart(e, R, L, handleResizeChangeR))
   L.addEventListener(Params.eventStart, (e) => handleResizeStart(e, L, R, handleResizeChangeL))
   T.addEventListener(Params.eventStart, (e) => handleResizeStart(e, T, B, handleResizeChangeT))

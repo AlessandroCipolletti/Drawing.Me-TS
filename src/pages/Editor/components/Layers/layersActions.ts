@@ -113,6 +113,11 @@ const _deleteLayer = async (
     layersBridge.endLassoMode()
   }
   refs.imageForResize = null
+  if (refs.resizeBaseSnapshot) {
+    refs.resizeBaseSnapshot.width = refs.resizeBaseSnapshot.height = 0
+    refs.resizeBaseSnapshot = null
+  }
+  refs.resizeWarpSourcePixels = null
   if (refs.backgroundForResize) {
     refs.backgroundForResize.width = refs.backgroundForResize.height = 0
     refs.backgroundForResize = null
