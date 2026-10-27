@@ -69,7 +69,8 @@
 
 .editor__layer-canvas,
 .editor__canvas-for-line,
-.editor__lasso-canvas {
+.editor__lasso-canvas,
+.editor-guides__overlay {
   position: absolute;
   top: 0rem;
   left: 0rem;
@@ -83,6 +84,14 @@
 .editor__lasso-canvas {
   z-index: 998;
   pointer-events: none;
+}
+.editor-guides__overlay {
+  z-index: 999;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+.editor-guides__overlay--faded {
+  opacity: 0.15;
 }
 
 .editor__canvas-origin,
@@ -343,6 +352,50 @@ div.editor__magnetised-line-r {
   height: 100%;
   pointer-events: none;
   z-index: 1000;
+}
+.dragBullet.editor-guides__origin-bullet,
+.dragBullet.editor-guides__rotation-bullet {
+  touch-action: none;
+}
+.dragBullet.editor-guides__origin-bullet {
+  z-index: 549;
+  transition: opacity 0.2s ease;
+}
+.dragBullet.editor-guides__origin-bullet.editor-guides__origin-bullet--faded {
+  opacity: 0.15;
+}
+.dragBullet.editor-guides__origin-bullet > div {
+  width: 2.1rem;
+  height: 2.1rem;
+  background-color: var(--accent-ink);
+  border: solid 0.25rem var(--palette-gray-4);
+  cursor: grab;
+  transition: transform 120ms ease;
+}
+.dragBullet.editor-guides__origin-bullet.editor-guides__origin-bullet--dragging > div {
+  cursor: grabbing;
+  transform: translate3d(-50%, -50%, 0px) scale(1.15);
+}
+.dragBullet.editor-guides__rotation-bullet {
+  z-index: 549;
+  transition: opacity 0.2s ease;
+}
+.dragBullet.editor-guides__rotation-bullet.editor-guides__rotation-bullet--faded {
+  opacity: 0.15;
+}
+.dragBullet.editor-guides__rotation-bullet > div {
+  width: 1.75rem;
+  height: 1.75rem;
+  background-color: var(--palette-gray-2);
+  border: solid 0.22rem var(--accent-ink);
+  border-radius: 50%;
+  cursor: grab;
+  transition: transform 120ms ease;
+  box-sizing: border-box;
+}
+.dragBullet.editor-guides__rotation-bullet.editor-guides__rotation-bullet--dragging > div {
+  cursor: grabbing;
+  transform: translate3d(-50%, -50%, 0px) scale(1.12);
 }
 .params-container.editor-resize__bar {
   z-index: 1002;

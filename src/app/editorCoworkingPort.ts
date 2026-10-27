@@ -80,6 +80,7 @@ export interface EditorCoworkingPort {
   ) => void
   clearLayerFromCoworker: (layerId: string) => void
   receiveLayerFromCoworker: (layerId: string) => void
+  applySceneGuidesFromCoworker?: (guides: unknown) => void
 }
 
 export const editorCoworkingPort = {} as EditorCoworkingPort

@@ -22,6 +22,8 @@ export interface ToolbarRefs {
   toolPreviewPopup: HTMLElement | null
   toolPreviewCanvas: HTMLCanvasElement | null
   toolPreviewContext: ExtendedCanvasContext | null
+  guidesButton: HTMLElement | null
+  guidesPanelSlot: HTMLElement | null
 }
 
 const edgeIconOutlineOffsets = ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw'] as const
@@ -105,6 +107,14 @@ export const ToolbarView = ({ refs }: { refs: ToolbarRefs }) => (
             }}
           />
         </div>
+        <div
+          class="editor-toolbar__button"
+          ref={(el) => {
+            refs.guidesButton = el
+          }}
+        >
+          <div class="editor-toolbar__guides-icon svg-icon-specular svg-icon-dark" />
+        </div>
       </div>
 
       <div
@@ -128,6 +138,12 @@ export const ToolbarView = ({ refs }: { refs: ToolbarRefs }) => (
         refs.params = el
       }}
     >
+      <div
+        class="editor-toolbar__guides-slot"
+        ref={(el) => {
+          refs.guidesPanelSlot = el
+        }}
+      />
       <div
         class="horizontal-slider editor-toolbar__slider"
         ref={(el) => {

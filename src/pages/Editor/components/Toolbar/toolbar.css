@@ -232,6 +232,11 @@
   width: 4.1rem;
   text-align: center;
 }
+.editor-toolbar__guides-icon {
+  width: 2.3rem !important;
+  height: 2.3rem !important;
+}
+
 .editor-toolbar__label-button.editor-toolbar__size span {
   text-align: right;
   margin-right: 0.2rem;

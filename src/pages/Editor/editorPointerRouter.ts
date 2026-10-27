@@ -164,6 +164,8 @@ export interface PointerRouterDeps {
     onStepTouchEnd: (e: PointerTouchEvent) => void
     dismissQuickShape?: () => void
   }
+  onStylusStrokeNearCanvas?: () => void
+  onStylusStrokeEnd?: () => void
 }
 
 export const createEditorPointerHandlers = (deps: PointerRouterDeps) => {
@@ -177,6 +179,8 @@ export const createEditorPointerHandlers = (deps: PointerRouterDeps) => {
     onGestureChange,
     onGestureEnd,
     session,
+    onStylusStrokeNearCanvas,
+    onStylusStrokeEnd,
   } = deps
 
   const onResizeLayerContentTouchStart = () => {
@@ -494,6 +498,12 @@ export const createEditorPointerHandlers = (deps: PointerRouterDeps) => {
       toolName: state.currentToolProps.name,
       currentLayerIsActive: state.currentLayerIsActive,
     })
+    if (action !== 'none') {
+      Tools.closeVersions()
+      Layers.closeParams()
+      Toolbar.closeParams()
+      ColorPicker.closeParams()
+    }
     if (action === 'panCanvas') onPanCanvasTouchStart(touchEvent)
     else if (action === 'dragLayer') {
       session.dismissQuickShape?.()
@@ -508,7 +518,12 @@ export const createEditorPointerHandlers = (deps: PointerRouterDeps) => {
     } else if (action === 'pipette') {
       session.dismissQuickShape?.()
       onPipetteTouchStart(touchEvent)
-    } else if (action === 'step') session.onStepTouchStart(touchEvent)
+    } else if (action === 'step') {
+      if (touchEvent?.touchType === TOUCH_TYPE_STYLUS) {
+        onStylusStrokeNearCanvas?.()
+      }
+      session.onStepTouchStart(touchEvent)
+    }
   }
 
   const onResizeLayerContentTouchMove = (
@@ -680,7 +695,10 @@ export const createEditorPointerHandlers = (deps: PointerRouterDeps) => {
     else if (action === 'lasso') onLassoTouchEnd(e)
     else if (action === 'lassoMove') onLassoMoveTouchEnd(e)
     else if (action === 'pipette') onPipetteTouchEnd()
-    else if (action === 'step') session.onStepTouchEnd(e)
+    else if (action === 'step') {
+      session.onStepTouchEnd(e)
+      onStylusStrokeEnd?.()
+    }
   }
 
   return {

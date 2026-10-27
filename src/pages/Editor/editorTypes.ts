@@ -65,6 +65,11 @@ export interface EditorRefs {
   resizeQuadOverlay: HTMLCanvasElement | null
   resizeMeshOverlay: HTMLCanvasElement | null
   resizeWarpBullets: Array<HTMLElement | null>
+  guidesOverlay: HTMLCanvasElement | null
+  guidesOriginAnchor: HTMLElement | null
+  guidesOriginBullet: HTMLElement | null
+  guidesRotationAnchor: HTMLElement | null
+  guidesRotationBullet: HTMLElement | null
 }
 
 export const createInitialEditorRefs = (): EditorRefs => ({
@@ -115,6 +120,11 @@ export const createInitialEditorRefs = (): EditorRefs => ({
   resizeQuadOverlay: null,
   resizeMeshOverlay: null,
   resizeWarpBullets: [],
+  guidesOverlay: null,
+  guidesOriginAnchor: null,
+  guidesOriginBullet: null,
+  guidesRotationAnchor: null,
+  guidesRotationBullet: null,
 })
 
 export interface EditorTouchState {
@@ -381,6 +391,7 @@ export interface PreloadedDrawingRecord {
   }>
   selectedColorId?: number
   layersSidebarExpanded?: boolean
+  sceneGuides?: import('./guides/guideTypes').SceneGuidesSnapshot
 }
 
 export const createInitialEditorState = (

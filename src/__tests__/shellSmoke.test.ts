@@ -474,12 +474,19 @@ describe('Shell Pages Smoke Tests (Messages, NotSupported, Info, Folder)', () =>
     expect(editorRefs.container).not.toBeNull()
     expect(editorRefs.canvasContainer).not.toBeNull()
     expect(editorRefs.canvasForLine).not.toBeNull()
+    expect(editorRefs.guidesOverlay).not.toBeNull()
+    expect(editorRefs.guidesOriginAnchor).not.toBeNull()
+    expect(editorRefs.guidesOriginBullet).not.toBeNull()
+    expect(editorRefs.guidesRotationAnchor).not.toBeNull()
+    expect(editorRefs.guidesRotationBullet).not.toBeNull()
 
     const toolbarRefs = {} as ToolbarRefs
     mount(editorRefs.container!, ToolbarView({ refs: toolbarRefs }))
     expect(toolbarRefs.container).not.toBeNull()
     expect(toolbarRefs.slider).not.toBeNull()
     expect(toolbarRefs.toolPreviewCanvas).not.toBeNull()
+    expect(toolbarRefs.guidesButton).not.toBeNull()
+    expect(toolbarRefs.guidesPanelSlot).not.toBeNull()
 
     const toolsRefs: ToolsRefs = {
       toolsContainer: null,

@@ -32,9 +32,25 @@ import { fadeOutElements } from 'utils/animationsUtils'
 import { getNewContextForCanvas } from 'utils/canvasUtils'
 import { renderBrushPreview } from 'pages/Editor/brushPreviewPipeline'
 import { timing, spacing } from 'main/Theme'
+import {
+  mountGuidesPanel,
+  closeGuidesPanel,
+  showGuidesPanel,
+  setGuidesParamsInactivityBumper,
+  setGuidesToolbarSyncHandler,
+  notifyGuidesPanelChange,
+  syncGuidesPanelUi,
+} from 'pages/Editor/guides/guidesPanel'
+import {
+  disableSymmetryGuides,
+  guidesState,
+  restoreLastSymmetryMode,
+} from 'pages/Editor/guides/guidesState'
+import { isGuidesActive } from 'pages/Editor/guides/guideTypes'
 
 const config = {
   paramsCloseDelay: 7 * 1000,
+  guidesParamsCloseDelay: 20 * 1000,
   toolPreviewCanvasSize: 30,
   slidersWaitingTime: 0, // Fix legacy bug: coalesce preview via requestAnimationFrame instead of 40ms timeout
 }
@@ -45,7 +61,7 @@ interface ToolbarState {
   sizeValue: number
   alphaPerc: number
   alphaValue: number
-  currentParamsProp: '' | 'size' | 'alpha'
+  currentParamsProp: '' | 'size' | 'alpha' | 'guides'
   currentToolProps: CurrentToolProps
   toolPreviewCanvasSize: number
   toolPreviewTouchEvents: PreviewTouchSample[] | false
@@ -69,6 +85,30 @@ const initialState: ToolbarState = {
 
 let state: ToolbarState = deepCopy(initialState)
 let previewRafPending = false
+let guidesParamsTeardownTimer: ReturnType<typeof setTimeout> | false = false
+
+const optionsShowTransitionMs = () => parseInt(timing.OPTIONS_SHOW_TRANSITION, 10) || 500
+
+const cancelGuidesParamsTeardown = () => {
+  if (guidesParamsTeardownTimer !== false) {
+    clearTimeout(guidesParamsTeardownTimer)
+    guidesParamsTeardownTimer = false
+  }
+}
+
+const finishGuidesParamsUiNow = () => {
+  cancelGuidesParamsTeardown()
+  refs.params?.classList.remove('editor-toolbar__params--guides')
+  closeGuidesPanel()
+}
+
+const scheduleGuidesParamsUiTeardown = () => {
+  cancelGuidesParamsTeardown()
+  guidesParamsTeardownTimer = setTimeout(() => {
+    guidesParamsTeardownTimer = false
+    finishGuidesParamsUiNow()
+  }, optionsShowTransitionMs())
+}
 
 const refs: ToolbarRefs = {
   container: null,
@@ -91,6 +131,8 @@ const refs: ToolbarRefs = {
   toolPreviewPopup: null,
   toolPreviewCanvas: null,
   toolPreviewContext: null,
+  guidesButton: null,
+  guidesPanelSlot: null,
 }
 
 const toggleParams = () => {
@@ -109,12 +151,51 @@ const openParams = () => {
   refs.params?.classList.add('params-container-visible')
 }
 
+const bumpGuidesParamsInactivityTimeout = () => {
+  if (state.currentParamsProp !== 'guides') return
+  if (!refs.params?.classList.contains('params-container-visible')) return
+  if (state.paramsTimeout !== false) {
+    clearTimeout(state.paramsTimeout)
+  }
+  state.paramsTimeout = setTimeout(closeParams, config.guidesParamsCloseDelay)
+}
+
+const openGuidesParams = () => {
+  cancelGuidesParamsTeardown()
+  if (state.paramsTimeout !== false) {
+    clearTimeout(state.paramsTimeout)
+  }
+  state.paramsTimeout = setTimeout(closeParams, config.guidesParamsCloseDelay)
+  refs.params?.classList.add('editor-toolbar__params--guides')
+  showGuidesPanel()
+  refs.params?.classList.add('params-container-visible')
+  state.currentParamsProp = 'guides'
+  syncGuidesToolbarChrome()
+}
+
+const leaveGuidesParamsMode = () => {
+  finishGuidesParamsUiNow()
+}
+
+export const syncGuidesToolbarChrome = () => {
+  refs.guidesButton?.classList.toggle('selected', isGuidesActive(guidesState))
+}
+
 export const closeParams = () => {
   if (state.paramsTimeout !== false) {
-    refs.params?.classList.remove('params-container-visible')
     clearTimeout(state.paramsTimeout)
-    state.paramsTimeout = false
-    state.currentParamsProp = ''
+  }
+  state.paramsTimeout = false
+  const closingGuides =
+    state.currentParamsProp === 'guides' ||
+    Boolean(refs.params?.classList.contains('editor-toolbar__params--guides'))
+  refs.params?.classList.remove('params-container-visible')
+  state.currentParamsProp = ''
+  syncGuidesToolbarChrome()
+  if (closingGuides) {
+    scheduleGuidesParamsUiTeardown()
+  } else {
+    finishGuidesParamsUiNow()
   }
 }
 
@@ -162,6 +243,10 @@ const updateParams = (value: number) => {
 }
 
 const onSliderDrag = (value: number, inProgress: boolean) => {
+  if (state.currentParamsProp === 'guides') {
+    return
+  }
+  leaveGuidesParamsMode()
   openParams()
   if (state.currentParamsProp === 'size') {
     updateSize(value, inProgress)
@@ -214,24 +299,41 @@ const updateAlpha = (perc: number, inProgress: boolean) => {
   }
 }
 
-const onSizeSingleTap = () => {
-  if (state.currentParamsProp === 'size') {
-    toggleParams()
-  } else {
-    updateParams(state.sizePerc)
-    openParams()
-    state.currentParamsProp = 'size'
+const dismissGuidesParamsForBrushParams = () => {
+  cancelGuidesParamsTeardown()
+  if (state.paramsTimeout !== false) {
+    clearTimeout(state.paramsTimeout)
+    state.paramsTimeout = false
+  }
+  refs.params?.classList.remove('params-container-visible')
+  finishGuidesParamsUiNow()
+  if (state.currentParamsProp === 'guides') {
+    state.currentParamsProp = ''
   }
 }
 
-const onAlphaSingleTap = () => {
-  if (state.currentParamsProp === 'alpha') {
+const openBrushParam = (prop: 'size' | 'alpha', perc: number) => {
+  if (state.currentParamsProp === 'guides') {
+    dismissGuidesParamsForBrushParams()
+  } else {
+    leaveGuidesParamsMode()
+  }
+  if (state.currentParamsProp === prop) {
     toggleParams()
   } else {
-    updateParams(state.alphaPerc)
+    updateParams(perc)
     openParams()
-    state.currentParamsProp = 'alpha'
+    state.currentParamsProp = prop
   }
+  syncGuidesToolbarChrome()
+}
+
+const onSizeSingleTap = () => {
+  openBrushParam('size', state.sizePerc)
+}
+
+const onAlphaSingleTap = () => {
+  openBrushParam('alpha', state.alphaPerc)
 }
 
 const onSizeTouchStart = (e: Event) => {
@@ -314,7 +416,12 @@ const addOptionButtonsGroup = (
   side: 'left' | 'center' | 'right' = 'center'
 ) => {
   const wrapper = createDom('editor-toolbar__options-group')
-  for (const button of buttons) {
+  const items = [...buttons]
+  if (side === 'center' && refs.guidesButton) {
+    const insertIndex = items.length >= 2 ? items.length - 2 : items.length
+    items.splice(insertIndex, 0, refs.guidesButton)
+  }
+  for (const button of items) {
     button.classList.add('editor-toolbar__button')
     wrapper.appendChild(button)
   }
@@ -386,11 +493,48 @@ const initDom = async (container: HTMLElement) => {
   }
   refs.sizeButton?.addEventListener(Params.eventStart, onSizeTouchStart)
   refs.alphaButton?.addEventListener(Params.eventStart, onAlphaTouchStart)
+  if (refs.guidesPanelSlot) {
+    mountGuidesPanel(refs.guidesPanelSlot)
+  }
+  setGuidesParamsInactivityBumper(bumpGuidesParamsInactivityTimeout)
+  setGuidesToolbarSyncHandler(syncGuidesToolbarChrome)
+  syncGuidesToolbarChrome()
+  refs.guidesButton?.addEventListener(Params.eventStart, (e) => {
+    preventDefault(e)
+    editorCalls.closeResizeModeIfNeeded()
+    const paramsVisible = refs.params?.classList.contains('params-container-visible')
+    const guidesPanelOpen = state.currentParamsProp === 'guides' && paramsVisible
+
+    if (isGuidesActive(guidesState)) {
+      disableSymmetryGuides()
+      closeParams()
+      syncGuidesPanelUi()
+      notifyGuidesPanelChange()
+      syncGuidesToolbarChrome()
+      return
+    }
+
+    if (guidesPanelOpen) {
+      closeParams()
+      return
+    }
+
+    if (paramsVisible) {
+      closeParams()
+    }
+
+    if (restoreLastSymmetryMode()) {
+      syncGuidesPanelUi()
+      notifyGuidesPanelChange()
+    }
+    openGuidesParams()
+  })
   refs.backButton?.addEventListener(Params.eventStart, editorFacade.saveAndGoToFolder)
   refs.goFullscreenButton?.addEventListener(Params.eventStart, editorFacade.toggleFullscreen)
 }
 
 export const init = async (container: HTMLElement) => {
+  cancelGuidesParamsTeardown()
   state = deepCopy(initialState)
   previewRafPending = false
   if (Params.isPhone) {
@@ -401,6 +545,8 @@ export const init = async (container: HTMLElement) => {
 }
 
 export const remove = async () => {
+  cancelGuidesParamsTeardown()
+  finishGuidesParamsUiNow()
   restoreStatusLabel()
   state = deepCopy(initialState)
   previewRafPending = false

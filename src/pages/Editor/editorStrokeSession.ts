@@ -54,6 +54,7 @@ import {
   smudgeStrokeStep,
   smudgeTouchTypeToInputKind,
 } from './smudgeKernel'
+import { drawStrokeWithGuides } from './guides/guidesStroke'
 
 let cursorRafId = 0
 let pendingCursorSize = 0
@@ -79,19 +80,19 @@ export const drawStepStart = (
   context: ExtendedCanvasContext,
   stepData: StrokeSample,
   tool: StrokeToolParams
-) => drawStrokeSample(context, { ...stepData, type: 'start' }, tool, true)
+) => drawStrokeWithGuides(context, { ...stepData, type: 'start' }, tool, true)
 
 export const drawStepMove = (
   context: ExtendedCanvasContext,
   stepData: StrokeSample,
   tool: StrokeToolParams
-) => drawStrokeSample(context, { ...stepData, type: 'move' }, tool, true)
+) => drawStrokeWithGuides(context, { ...stepData, type: 'move' }, tool, true)
 
 export const drawStepEnd = (
   context: ExtendedCanvasContext,
   stepData: StrokeSample,
   tool: StrokeToolParams
-) => drawStrokeSample(context, { ...stepData, type: 'end' }, tool, true)
+) => drawStrokeWithGuides(context, { ...stepData, type: 'end' }, tool, true)
 
 export const updateCurrentTouchType = (state: EditorState, touchEvent?: PointerTouchEvent) => {
   state.currentTouch.type =
@@ -489,7 +490,7 @@ export const createEditorStrokeSession = (deps: StrokeSessionDeps) => {
       quickShapeToolSnapshot
     )
     for (const step of samples) {
-      drawStrokeSample(targetCtx, step, quickShapeToolSnapshot, true)
+      drawStrokeWithGuides(targetCtx, step, quickShapeToolSnapshot, true)
     }
     targetCtx.globalAlpha = 1
     targetCtx.globalCompositeOperation = 'source-over'

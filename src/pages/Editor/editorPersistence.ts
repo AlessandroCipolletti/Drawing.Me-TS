@@ -17,6 +17,7 @@ import {
   setBackgroundSavingId,
 } from 'utils/localDbUtils'
 import { EditorState } from './editorTypes'
+import { getGuidesSnapshot } from './guides/guidesState'
 
 const labels = {
   draftError: 'An error occurred during draft saving',
@@ -43,6 +44,7 @@ interface ExportedDrawingData {
   madeByCorowking?: boolean
   layers?: unknown[]
   layersSidebarExpanded?: boolean
+  sceneGuides?: unknown
 }
 
 const getCurrentDrawingInfo = async (state: EditorState): Promise<ExportedDrawingData> => {
@@ -53,6 +55,7 @@ const getCurrentDrawingInfo = async (state: EditorState): Promise<ExportedDrawin
   currentDrawing.toolsCustomProps = Tools.getToolsCustomProps()
   currentDrawing.selectedTool = Tools.getCurrentSelectedTool()
   currentDrawing.layersSidebarExpanded = Layers.isLayersSidebarExpanded()
+  currentDrawing.sceneGuides = getGuidesSnapshot()
   return currentDrawing
 }
 

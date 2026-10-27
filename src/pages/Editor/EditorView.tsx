@@ -146,6 +146,24 @@ export const EditorView = ({ refs }: { refs: EditorRefs }) => (
           refs.lassoCanvas = el
         }}
       />
+      <canvas
+        class="editor-guides__overlay displayNone"
+        ref={(el) => {
+          refs.guidesOverlay = el
+        }}
+      />
+      <div
+        class="dragBulletOrigins editor-guides__origin-anchor"
+        ref={(el) => {
+          refs.guidesOriginAnchor = el
+        }}
+      />
+      <div
+        class="dragBulletOrigins editor-guides__rotation-anchor"
+        ref={(el) => {
+          refs.guidesRotationAnchor = el
+        }}
+      />
     </div>
     <div
       class="editor-lasso__bar params-container displayNone"
@@ -429,6 +447,22 @@ export const EditorView = ({ refs }: { refs: EditorRefs }) => (
       <div />
     </div>
     <div class="dragBullet dragBulletWarp displayNone" ref={(el) => setWarpBulletRef(refs, 15, el)}>
+      <div />
+    </div>
+    <div
+      class="dragBullet editor-guides__origin-bullet displayNone"
+      ref={(el) => {
+        refs.guidesOriginBullet = el
+      }}
+    >
+      <div />
+    </div>
+    <div
+      class="dragBullet editor-guides__rotation-bullet displayNone"
+      ref={(el) => {
+        refs.guidesRotationBullet = el
+      }}
+    >
       <div />
     </div>
   </div>

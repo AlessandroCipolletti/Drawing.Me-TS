@@ -97,6 +97,8 @@ const receiveNewLayer = (layer: CoworkerLayerPayload) => {
 const peerMessageHandlers: Record<string, (data: any) => void> = {
   [editorEvents.coworkingSteps]: (data) =>
     withEditor(() => editorCoworkingPort.drawCoworkingMultipleStepsData(data)),
+  [editorEvents.sceneGuides]: (data) =>
+    withEditor(() => editorCoworkingPort.applySceneGuidesFromCoworker?.(data.guides)),
   [editorEvents.newLayer]: (data) => receiveNewLayer(data.layer),
   [editorEvents.clientEnvironment]: (data) => checkCoworkerEnvironment(data),
   [editorEvents.selectedLayer]: (data) =>
@@ -415,6 +417,13 @@ export const sendSelectedLayer = (layerId: string) => {
   peerClient?.sendMessage({
     event: editorEvents.selectedLayer,
     data: { layerId },
+  })
+}
+
+export const sendSceneGuides = (guides: unknown) => {
+  peerClient?.sendMessage({
+    event: editorEvents.sceneGuides,
+    data: { guides },
   })
 }
 

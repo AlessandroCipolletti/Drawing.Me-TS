@@ -14,6 +14,7 @@ import { drawMultipleCoworkingSteps } from './editorUtils'
 import { fillActiveLayerWithBucketAt } from './bucketFillPipeline'
 import { smudgeTouchTypeToInputKind } from './smudgeKernel'
 import { CoworkingStepsPayload, EditorState } from './editorTypes'
+import { expandStepsForCoworking } from './guides/guidesStroke'
 
 const stepDataKeys: Array<keyof StrokeSample> = [
   'type',
@@ -233,8 +234,12 @@ export const sendCoworkingQuickShapeSteps = (
 ) => {
   Coworking.clearSteps()
   state.stepsSinceLastCoworkingUpdate = 0
+  const toolName = state.currentToolProps.name || ''
   for (const step of steps) {
-    Coworking.addStep(removeTouchStepDataKeys(step) as unknown as StrokeSample)
+    const expanded = expandStepsForCoworking(step, toolName)
+    for (const s of expanded) {
+      Coworking.addStep(removeTouchStepDataKeys(s) as unknown as StrokeSample)
+    }
   }
   const toolData = removeToolDataKeys({
     name: state.currentToolProps.name,
@@ -262,18 +267,26 @@ export const sendCoworkingStep = (
       customProps: Tools.getCurrentToolCustomProps() as Record<string, unknown>,
     })
     if (stepData) {
-      Coworking.addStep(
-        removeTouchStepDataKeys(
-          withSmudgeCoworkingFields(state, stepData)
-        ) as unknown as StrokeSample
+      const toolName = state.currentToolProps.name || ''
+      const expanded = expandStepsForCoworking(
+        withSmudgeCoworkingFields(state, stepData) as StrokeSample,
+        toolName
       )
+      for (const step of expanded) {
+        Coworking.addStep(removeTouchStepDataKeys(step) as unknown as StrokeSample)
+      }
     }
     Coworking.sendSteps(Layers.getCurrentSelectedLayerId(), toolData)
     state.stepsSinceLastCoworkingUpdate = 0
   } else {
-    Coworking.addStep(
-      removeTouchStepDataKeys(withSmudgeCoworkingFields(state, stepData)) as unknown as StrokeSample
+    const toolName = state.currentToolProps.name || ''
+    const expanded = expandStepsForCoworking(
+      withSmudgeCoworkingFields(state, stepData) as StrokeSample,
+      toolName
     )
-    state.stepsSinceLastCoworkingUpdate += 1
+    for (const step of expanded) {
+      Coworking.addStep(removeTouchStepDataKeys(step) as unknown as StrokeSample)
+    }
+    state.stepsSinceLastCoworkingUpdate += expanded.length
   }
 }

@@ -7,6 +7,7 @@ import * as Header from 'components/Header'
 import * as ColorPicker from './components/ColorPicker'
 import { PaletteColor } from './components/ColorPicker/ColorPicker'
 import * as Toolbar from './components/Toolbar'
+import { syncGuidesToolbarChrome } from './components/Toolbar/Toolbar'
 import * as Layers from './components/Layers'
 import * as Tools from './components/Tools'
 import * as Ruler from './components/Ruler'
@@ -111,6 +112,32 @@ import { registerEditorCalls } from './editorCalls'
 import { findValueWithMagnetism } from './editorUtils'
 import { currentCanvasHasZoom, registerCanvasZoomCheck } from './editorCanvasZoom'
 import { registerEditorCoworkingPort } from 'app/editorCoworkingPort'
+import { resetGuidesState, applyGuidesSnapshot } from './guides/guidesState'
+import {
+  renderGuidesOverlay,
+  scheduleGuidesOverlayRedraw,
+  setGuidesFadeClass,
+  cancelGuidesOverlayRedraw,
+  updateGuidesOriginBulletPosition,
+  updateGuidesRotationBulletPosition,
+} from './guides/guidesRender'
+import {
+  bindGuidesOriginBullet,
+  bindGuidesRotationBullet,
+  clearGuidesTouch,
+} from './guides/guidesTouch'
+import {
+  setGuidesPanelChangeHandler,
+  setGuidesPanelCanvasSize,
+  syncGuidesPanelUi,
+} from './guides/guidesPanel'
+import {
+  setGuidesCoworkingRedraw,
+  applyRemoteSceneGuides,
+  clearGuidesCoworking,
+  sendSceneGuidesIfCoworking,
+} from './guides/guidesCoworking'
+import type { SceneGuidesSnapshot } from './guides/guideTypes'
 
 export const config: EditorConfig = editorDefaultConfig
 
@@ -159,6 +186,24 @@ const updateDragBoxHandlers = () => {
   if (state.resizeMode.active) {
     updateTransformOverlay(state, refs)
   }
+  updateGuidesOriginBulletPosition(refs)
+  updateGuidesRotationBulletPosition(refs)
+}
+
+let guidesFadeRestoreTimer: ReturnType<typeof setTimeout> | null = null
+
+const restoreGuidesOverlayOpacity = () => {
+  if (guidesFadeRestoreTimer) {
+    clearTimeout(guidesFadeRestoreTimer)
+    guidesFadeRestoreTimer = null
+  }
+  setGuidesFadeClass('')
+  scheduleGuidesOverlayRedraw(state, refs)
+}
+
+const scheduleRestoreGuidesOverlayOpacity = () => {
+  if (guidesFadeRestoreTimer) clearTimeout(guidesFadeRestoreTimer)
+  guidesFadeRestoreTimer = setTimeout(restoreGuidesOverlayOpacity, 400)
 }
 const updateFloatingOptionBars = () => {
   if (state.lassoMode?.active) {
@@ -174,17 +219,24 @@ const updateFloatingOptionBars = () => {
 const onGestureStart = (x: number, y: number) => handleGestureStart(state, refs, x, y)
 const onGestureChange = (x: number, y: number, scale: number, rotation: number) =>
   handleGestureChange(state, refs, config, updateDragBoxHandlers, x, y, scale, rotation)
-const onGestureEnd = (_x: number, _y: number, scale: number, rotation: number) =>
+const onGestureEnd = (_x: number, _y: number, scale: number, rotation: number) => {
   handleGestureEnd(
     state,
     initialState.canvas,
     refs,
     config,
     updateDragBoxHandlers,
-    (duration) => animateDragBoxHandlersPositionToOrigin(refs, duration),
+    (duration) =>
+      animateDragBoxHandlersPositionToOrigin(refs, duration, () => {
+        updateGuidesOriginBulletPosition(refs)
+        updateGuidesRotationBulletPosition(refs)
+      }),
     scale,
     rotation
   )
+  renderGuidesOverlay(state, refs)
+  scheduleRestoreGuidesOverlayOpacity()
+}
 
 export const getCanvasPxSizes = (withCoworking = false): [number, number] =>
   getCanvasPxSizesForEditor(state, config, withCoworking)
@@ -193,6 +245,7 @@ const onRotate = () =>
   handleViewportRotate(state, initialState.canvas, refs, config, () => {
     updateDragBoxHandlers()
     updateFloatingOptionBars()
+    scheduleGuidesOverlayRedraw(state, refs)
   })
 const onKeyDown = (e: KeyboardEvent) =>
   handleEditorKeyDown(state, e, () => activeStrokeSession?.dismissQuickShape())
@@ -236,6 +289,26 @@ const bindEditorInput = () => {
     const [sy] = findValueWithMagnetism(y, magnetismCoords.y)
     return [sx || x, sy || y]
   }
+  const onGuidesGeometryChanged = () => {
+    renderGuidesOverlay(state, refs)
+    sendSceneGuidesIfCoworking(state.canvas.width, state.canvas.height)
+  }
+  const onGuidesGeometryPersist = () => {
+    persistSetDrawingModified(state, config, setLastActiveDrawingId)
+  }
+  bindGuidesOriginBullet(
+    refs.guidesOriginBullet,
+    (e) => getMouseCoords(state, initialState.canvas, e),
+    () => ({ width: state.canvas.width, height: state.canvas.height }),
+    onGuidesGeometryChanged,
+    onGuidesGeometryPersist
+  )
+  bindGuidesRotationBullet(
+    refs.guidesRotationBullet,
+    (e) => getMouseCoords(state, initialState.canvas, e),
+    onGuidesGeometryChanged,
+    onGuidesGeometryPersist
+  )
   const pointerHandlers = createEditorPointerHandlers({
     state,
     refs,
@@ -246,6 +319,13 @@ const bindEditorInput = () => {
     onGestureChange,
     onGestureEnd,
     session: strokeSession,
+    onStylusStrokeNearCanvas: () => {
+      setGuidesFadeClass('faded')
+      renderGuidesOverlay(state, refs)
+    },
+    onStylusStrokeEnd: () => {
+      scheduleRestoreGuidesOverlayOpacity()
+    },
   })
   addResizeBulletsHandlers(
     refs.dragBulletTL!,
@@ -417,6 +497,23 @@ export const open = async (
 
   setDraftInterval(state, config, true, setLastActiveDrawingId)
   initEditorUtils(state.canvas.width, state.canvas.height)
+  resetGuidesState(state.canvas.width, state.canvas.height)
+  applyGuidesSnapshot(
+    preloadedDrawing.sceneGuides as SceneGuidesSnapshot | undefined,
+    state.canvas.width,
+    state.canvas.height
+  )
+  setGuidesPanelCanvasSize(state.canvas.width, state.canvas.height)
+  setGuidesPanelChangeHandler(() => {
+    renderGuidesOverlay(state, refs)
+    syncGuidesToolbarChrome()
+    persistSetDrawingModified(state, config, setLastActiveDrawingId)
+  })
+  setGuidesCoworkingRedraw(() => {
+    renderGuidesOverlay(state, refs)
+    syncGuidesPanelUi()
+    syncGuidesToolbarChrome()
+  })
   await Toolbar.init(refs.container!)
   await Layers.init(
     refs.container!,
@@ -446,6 +543,8 @@ export const open = async (
 
   if (refs.container) await fadeInElements([refs.container])
   initCanvasCenter(state, refs)
+  renderGuidesOverlay(state, refs)
+  syncGuidesToolbarChrome()
   state.pageOpened = true
   state.modifiedSinceLastSave = false
   setSpinner(false)
@@ -478,6 +577,9 @@ export const close = async () => {
   ColorPicker.remove()
   Toolbar.remove()
   Ruler.remove()
+  clearGuidesTouch()
+  clearGuidesCoworking()
+  cancelGuidesOverlayRedraw()
   removeCanvasUtils()
   state = initState(initialState)
   coworking = undefined
@@ -540,4 +642,6 @@ registerEditorFacade({
 registerEditorCoworkingPort({
   getCanvasPxSizes,
   drawCoworkingMultipleStepsData,
+  applySceneGuidesFromCoworker: (guides) =>
+    applyRemoteSceneGuides(guides as SceneGuidesSnapshot, state.canvas.width, state.canvas.height),
 })

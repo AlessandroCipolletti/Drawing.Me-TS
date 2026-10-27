@@ -979,10 +979,11 @@ export const animateDragBoxHandlersPositionToOrigin = (
   onStep?.()
   return new Promise((resolve) => {
     const startTime = performance.now()
+    const totalDuration = duration + 50
     const step = (now: number) => {
       updateDragBoxHandlersPosition(refs)
       onStep?.()
-      if (now - startTime < duration) {
+      if (now - startTime < totalDuration) {
         requestAnimationFrame(step)
       } else {
         resolve()

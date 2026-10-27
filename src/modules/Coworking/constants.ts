@@ -22,6 +22,7 @@ export const editorEvents = {
   lassoCutToLayer: 'EDITOR_LASSO_CUT_TO_LAYER',
   clearLayer: 'EDITOR_CLEAR_LAYER',
   transferLayer: 'EDITOR_TRANSFER_LAYER',
+  sceneGuides: 'EDITOR_SCENE_GUIDES',
 } as const
 
 export const SOCKET_CONNECTED_STATUS = 'drawith__SOCKET_CONNECTED'
