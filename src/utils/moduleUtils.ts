@@ -94,6 +94,8 @@ const removeEl = (el: any) => {
       removeEl((el as any).toolImageShape.canvas)
       ;(el as any).toolImageShape.canvas = null
       ;(el as any).toolImageShape.context = null
+      ;(el as any).toolImageShape.cache?.clear()
+      ;(el as any).toolImageShape.scaledCache?.clear()
     }
   }
 }

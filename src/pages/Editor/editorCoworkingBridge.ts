@@ -33,6 +33,7 @@ const stepDataKeys: Array<keyof StrokeSample> = [
   'stepLength',
   'aspectRatio',
   'oldAspectRatio',
+  'strokeDistance',
 ]
 
 const toStepNumber = (value: string | number | null | undefined, fallback = Number.NaN): number =>
@@ -60,8 +61,9 @@ export const addTouchStepDataKeys = (
     stepLength: toStepNumber(stepDataArray[15]),
     aspectRatio: toStepNumber(stepDataArray[16], 1),
     oldAspectRatio: toStepNumber(stepDataArray[17], 1),
+    strokeDistance: toStepNumber(stepDataArray[18], 0),
   }
-  const wireInputKind = stepDataArray[18]
+  const wireInputKind = stepDataArray[19]
   if (typeof wireInputKind === 'number' && !Number.isNaN(wireInputKind)) {
     step.inputKind = wireInputKind
   }

@@ -9,10 +9,11 @@ import {
   colorStringToRgb,
   compareRgbColorsWithinTollerance,
   applyDeterministicColorJitter,
+  rgbToHex,
   RgbaColor,
 } from './colorsUtils'
 import { deepCopy, waitWorkerMessage } from './jsUtils'
-import type { StampSpacingMode, ToolConfigProps } from 'pages/Editor/config'
+import type { ColorVariationMode, StampSpacingMode, ToolConfigProps } from 'pages/Editor/config'
 
 import {
   TOOL_FRAME_CIRCLE,
@@ -55,6 +56,8 @@ export interface StrokeSample {
   stepLength: number
   aspectRatio?: number
   oldAspectRatio?: number
+  /** Cumulative px travelled from the stroke start up to this sample (cycle colour mode). */
+  strokeDistance?: number
   /** Smudge coworking: 0 finger, 1 pen/mouse */
   inputKind?: number
 }
@@ -93,6 +96,8 @@ export interface StrokeToolParams {
   colorJitterHue?: number
   colorJitterSat?: number
   colorJitterLight?: number
+  colorVariationMode?: ColorVariationMode
+  colorCycleLengthPx?: number
   preserveStampRemainder?: boolean
 }
 
@@ -197,6 +202,12 @@ export const normalizeToolDrawParams = <T extends Partial<ToolConfigProps> & Str
     colorJitterHue: clampNum(finiteOr(tool.colorJitterHue, 0), 0, 180),
     colorJitterSat: clampNum(finiteOr(tool.colorJitterSat, 0), 0, 1),
     colorJitterLight: clampNum(finiteOr(tool.colorJitterLight, 0), 0, 1),
+    colorVariationMode: (['off', 'random', 'cycle'] as const).includes(
+      tool.colorVariationMode as ColorVariationMode
+    )
+      ? (tool.colorVariationMode as ColorVariationMode)
+      : 'random',
+    colorCycleLengthPx: clampNum(finiteOr(tool.colorCycleLengthPx, 240), 10, 5000),
     stampCompositeOperation: validStampGCO,
   }
 
@@ -252,6 +263,10 @@ export interface ExtendedCanvasContext extends CanvasRenderingContext2D {
     color: string
     canvas: OffscreenCanvas | HTMLCanvasElement
     context: OffscreenCanvasRenderingContext2D | CanvasRenderingContext2D
+    /** Tinted stamp variants keyed by `frameImageName|color` (LRU, see setImageShapeIfNeeded). */
+    cache?: Map<string, OffscreenCanvas | HTMLCanvasElement>
+    /** Tinted stamps pre-scaled to quantized draw sizes, keyed by tint key + size (LRU). */
+    scaledCache?: Map<string, OffscreenCanvas | HTMLCanvasElement>
   }
 }
 
@@ -640,6 +655,77 @@ const drawParticlesRect = (
   })
 }
 
+const MAX_SCALED_STAMP_VARIANTS = 24
+
+const quantizeStampSize = (value: number): number => {
+  const step = value <= 32 ? 2 : value <= 96 ? 4 : 8
+  return Math.max(step, Math.round(value / step) * step)
+}
+
+const getScaledTintedStamp = (
+  destinationContext: ExtendedCanvasContext,
+  tinted: OffscreenCanvas | HTMLCanvasElement,
+  width: number,
+  height: number
+): { canvas: OffscreenCanvas | HTMLCanvasElement; width: number; height: number } | null => {
+  const srcW = tinted?.width || 0
+  const srcH = tinted?.height || 0
+  if (!srcW || !srcH || (srcW <= width * 1.5 && srcH <= height * 1.5)) return null
+  const shape = destinationContext.toolImageShape
+  const bw = Math.min(srcW, quantizeStampSize(width))
+  const bh = Math.max(1, Math.min(srcH, Math.round((bw * height) / Math.max(1, width))))
+  if (!shape.scaledCache) shape.scaledCache = new Map()
+  const key = `${shape.frameImageName}|${shape.color}|${bw}x${bh}`
+  const cached = shape.scaledCache.get(key)
+  if (cached) {
+    shape.scaledCache.delete(key)
+    shape.scaledCache.set(key, cached)
+    return { canvas: cached, width: bw, height: bh }
+  }
+  let canvas: OffscreenCanvas | HTMLCanvasElement | undefined
+  try {
+    canvas = createOffscreenOrCanvas(bw, bh)
+    const ctx = canvas.getContext('2d') as CanvasRenderingContext2D | null
+    if (!ctx) return null
+    ctx.drawImage(tinted, 0, 0, bw, bh)
+  } catch {
+    return null
+  }
+  shape.scaledCache.set(key, canvas)
+  while (shape.scaledCache.size > MAX_SCALED_STAMP_VARIANTS) {
+    const oldest = shape.scaledCache.keys().next().value as string | undefined
+    if (oldest === undefined || oldest === key) break
+    shape.scaledCache.delete(oldest)
+  }
+  return { canvas, width: bw, height: bh }
+}
+
+const drawStampImage = (
+  destinationContext: ExtendedCanvasContext,
+  image: OffscreenCanvas | HTMLCanvasElement,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  rotation: number
+) => {
+  if (rotation) {
+    destinationContext.translate(x, y)
+    destinationContext.rotate(rotation)
+    destinationContext.drawImage(image, -width / 2, -height / 2, width, height)
+    destinationContext.rotate(-rotation)
+    destinationContext.translate(-x, -y)
+  } else {
+    destinationContext.drawImage(
+      image,
+      MATH.round(x - width / 2),
+      MATH.round(y - height / 2),
+      width,
+      height
+    )
+  }
+}
+
 const drawCanvasImage = (
   destinationContext: ExtendedCanvasContext,
   x: number,
@@ -660,28 +746,23 @@ const drawCanvasImage = (
   ) {
     setImageShapeIfNeeded(destinationContext, tool.frameImageFile, tool.frameImageName, color)
   }
-  const image = destinationContext.toolImageShape.canvas
+  const tinted = destinationContext.toolImageShape.canvas
   destinationContext.lastDrawCoordX = x
   destinationContext.lastDrawCoordY = y
   destinationContext.globalAlpha = alpha
-  const width = size
-  const height =
-    MATH.abs(aspectRatio - 1) > 0.001 ? MATH.max(1, round(size / aspectRatio, 1)) : size
-  if (rotation) {
-    destinationContext.translate(x, y)
-    destinationContext.rotate(rotation)
-    destinationContext.drawImage(image, -width / 2, -height / 2, width, height)
-    destinationContext.rotate(-rotation)
-    destinationContext.translate(-x, -y)
-  } else {
-    destinationContext.drawImage(
-      image,
-      MATH.round(x - width / 2),
-      MATH.round(y - height / 2),
-      width,
-      height
-    )
+  let width = size
+  let height = MATH.abs(aspectRatio - 1) > 0.001 ? MATH.max(1, round(size / aspectRatio, 1)) : size
+  // Draw from a tint pre-scaled to (a quantization of) the stamp size: resampling
+  // a 512px soft gradient on every stamp is the dominant cost for dense brushes,
+  // while the pre-scaled variant is prepared once per colour/size bucket.
+  let image: OffscreenCanvas | HTMLCanvasElement = tinted
+  const scaled = getScaledTintedStamp(destinationContext, tinted, width, height)
+  if (scaled) {
+    image = scaled.canvas
+    width = scaled.width
+    height = scaled.height
   }
+  drawStampImage(destinationContext, image, x, y, width, height, rotation)
 }
 
 const toolShapesDrawFns: Record<
@@ -708,6 +789,30 @@ const toolShapesDrawFns: Record<
   [TOOL_FRAME_IMAGE]: drawCanvasImage,
 }
 
+const STAMP_COLOR_QUANTUM = 32
+
+const quantizeStampColor = (
+  color: string | undefined,
+  quantum = STAMP_COLOR_QUANTUM
+): string | undefined => {
+  if (!color || !color.startsWith('#')) return color
+  const { r, g, b } = colorStringToRgb(color)
+  const q = (v: number) => Math.min(255, Math.round(v / quantum) * quantum)
+  return rgbToHex(q(r), q(g), q(b))
+}
+
+/**
+ * Triangular cyclic factor in [-1, 1]: -1 at distance 0, +1 after
+ * `lengthPx`, back to -1 after `2 * lengthPx`. Continuous factor; the
+ * resulting tint is finely quantized so the tint caches stay effective.
+ */
+export const getColorCycleFactor = (distancePx: number, lengthPx: number): number => {
+  const length = Math.max(10, lengthPx || 240)
+  const phase = ((((distancePx || 0) / length) % 2) + 2) % 2
+  const tri = phase < 1 ? phase : 2 - phase
+  return tri * 2 - 1
+}
+
 const applyDeterministicStampJitter = (
   tool: StrokeToolParams,
   x: number,
@@ -715,7 +820,8 @@ const applyDeterministicStampJitter = (
   alpha: number,
   size: number,
   rotation: number,
-  aspectRatio = 1
+  aspectRatio = 1,
+  strokeDistance = 0
 ): [number, number, number, number, number, number, string | undefined] => {
   const jPos = tool.jitterPosition || 0
   const jSize = tool.jitterSize || 0
@@ -726,7 +832,10 @@ const applyDeterministicStampJitter = (
   const cHue = tool.colorJitterHue || 0
   const cSat = tool.colorJitterSat || 0
   const cLight = tool.colorJitterLight || 0
-  const hasColorJitter = Boolean(tool.color && (cHue !== 0 || cSat !== 0 || cLight !== 0))
+  const colorMode = tool.colorVariationMode || 'random'
+  const hasColorJitter = Boolean(
+    tool.color && colorMode !== 'off' && (cHue !== 0 || cSat !== 0 || cLight !== 0)
+  )
 
   let drawRotation = rotOffset !== 0 ? round(rotation + rotOffset, 4) : rotation
   if (jPos === 0 && jSize === 0 && jAlpha === 0 && jRot === 0 && jAspect === 0 && !hasColorJitter) {
@@ -759,7 +868,22 @@ const applyDeterministicStampJitter = (
     drawAspect = Math.max(0.1, round(aspectRatio * (1 + (rng() - 0.5) * 2 * jAspect), 3))
   }
   if (hasColorJitter) {
-    drawColor = applyDeterministicColorJitter(drawColor, cHue, cSat, cLight, rng(), rng(), rng())
+    if (colorMode === 'cycle') {
+      // One scalar drives every channel: the tint sweeps continuously from
+      // the lightest to the darkest variation and back along the stroke.
+      const u = (getColorCycleFactor(strokeDistance, tool.colorCycleLengthPx || 240) + 1) / 2
+      drawColor = applyDeterministicColorJitter(drawColor, cHue, cSat, cLight, u, u, u)
+    } else {
+      drawColor = applyDeterministicColorJitter(drawColor, cHue, cSat, cLight, rng(), rng(), rng())
+    }
+    // Image stamps are pre-tinted into a cached canvas per colour: quantize so
+    // a stroke reuses cached tints instead of re-tinting per stamp. Cycle mode
+    // uses a finer quantum — with its long cycle only the few tints around the
+    // current point of the gradient are ever active, so the cache stays hot
+    // while the colour still moves smoothly along the stroke.
+    if (tool.frameType === TOOL_FRAME_IMAGE) {
+      drawColor = quantizeStampColor(drawColor, colorMode === 'cycle' ? 8 : STAMP_COLOR_QUANTUM)
+    }
   }
   return [drawX, drawY, drawAlpha, drawSize, drawRotation, drawAspect, drawColor]
 }
@@ -784,7 +908,8 @@ const resolveStampDrawParams = (
   frameSize: number,
   frameRotation: number,
   frameAspect: number,
-  segmentT?: number
+  segmentT?: number,
+  strokeDistance = 0
 ): ResolvedStampDrawParams => {
   const [drawX, drawY, jitteredAlpha, jitteredSize, drawRotation, jitteredAspect, drawColor] =
     applyDeterministicStampJitter(
@@ -794,7 +919,8 @@ const resolveStampDrawParams = (
       frameAlpha,
       frameSize,
       frameRotation,
-      frameAspect
+      frameAspect,
+      strokeDistance
     )
 
   let alpha = jitteredAlpha
@@ -953,6 +1079,10 @@ const drawCurvedFunctionLine = (
         const frameAlpha = round(stepData.oldAlpha + deltaAlpha * t, 4)
         const frameRotation = stepData.oldRotation + deltaRotation * t
         const frameAspect = round(oldAspect + deltaAspect * t, 3)
+        const stampDistance =
+          typeof stepData.strokeDistance === 'number'
+            ? Math.max(0, stepData.strokeDistance - stepLength + t * stepLength)
+            : t * stepLength
         const stamp = resolveStampDrawParams(
           tool,
           frameX,
@@ -961,7 +1091,8 @@ const drawCurvedFunctionLine = (
           frameSize,
           frameRotation,
           frameAspect,
-          t
+          t,
+          stampDistance
         )
         invokeStampDraw(drawShape, destinationContext, stamp, tool)
         destinationContext.lastDrawCoordX = frameX
@@ -1004,7 +1135,9 @@ const drawStrokeSamplePausable = (
       sample.alpha,
       sample.size,
       sample.rotation,
-      sample.aspectRatio ?? 1
+      sample.aspectRatio ?? 1,
+      undefined,
+      sample.strokeDistance ?? 0
     )
     invokeStampDraw(toolShapesDrawFns[tool.frameType], destinationContext, stamp, tool)
     destinationContext.lastDrawCoordX = sample.x
@@ -1057,6 +1190,8 @@ export const fillCanvasWithImage = (
   }
 }
 
+const MAX_TINTED_STAMP_VARIANTS = 16
+
 export const setImageShapeIfNeeded = (
   destinationContext: ExtendedCanvasContext,
   image: HTMLImageElement | ImageBitmap | HTMLCanvasElement | null,
@@ -1064,19 +1199,61 @@ export const setImageShapeIfNeeded = (
   color = '#000000'
 ) => {
   if (!image || !imageName) return
-  if (
-    destinationContext.toolImageShape.frameImageName !== imageName ||
-    destinationContext.toolImageShape.color !== color
-  ) {
-    destinationContext.toolImageShape.frameImageName = imageName
-    destinationContext.toolImageShape.color = color
-    destinationContext.toolImageShape.canvas.width = image.width
-    destinationContext.toolImageShape.canvas.height = image.height
-    destinationContext.toolImageShape.context.fillStyle = color
-    destinationContext.toolImageShape.context.globalCompositeOperation = 'source-over'
-    destinationContext.toolImageShape.context.fillRect(0, 0, image.width, image.height)
-    destinationContext.toolImageShape.context.globalCompositeOperation = 'destination-in'
-    destinationContext.toolImageShape.context.drawImage(image, 0, 0, image.width, image.height)
+  const shape = destinationContext.toolImageShape
+  if (shape.frameImageName === imageName && shape.color === color) return
+
+  // Per-stamp colour jitter used to re-tint the full stamp canvas on every
+  // stamp. Cache tinted variants (LRU) so alternating colours stay cheap.
+  const key = `${imageName}|${color}`
+  if (!shape.cache) shape.cache = new Map()
+  const cached = shape.cache.get(key)
+  if (cached) {
+    shape.cache.delete(key)
+    shape.cache.set(key, cached)
+    shape.canvas = cached
+    shape.frameImageName = imageName
+    shape.color = color
+    return
+  }
+
+  let canvas: OffscreenCanvas | HTMLCanvasElement | undefined
+  let context: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null | undefined
+  try {
+    canvas = createOffscreenOrCanvas(image.width, image.height)
+    context = canvas.getContext('2d') as
+      CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null
+  } catch {
+    // Fall through to the single-slot fallback below.
+  }
+  if (!canvas || !context) {
+    // No canvas factory (tests / exotic envs): fall back to the single slot.
+    shape.frameImageName = imageName
+    shape.color = color
+    shape.canvas.width = image.width
+    shape.canvas.height = image.height
+    shape.context.fillStyle = color
+    shape.context.globalCompositeOperation = 'source-over'
+    shape.context.fillRect(0, 0, image.width, image.height)
+    shape.context.globalCompositeOperation = 'destination-in'
+    shape.context.drawImage(image, 0, 0, image.width, image.height)
+    return
+  }
+
+  context.fillStyle = color
+  context.globalCompositeOperation = 'source-over'
+  context.fillRect(0, 0, image.width, image.height)
+  context.globalCompositeOperation = 'destination-in'
+  context.drawImage(image, 0, 0, image.width, image.height)
+
+  shape.canvas = canvas
+  shape.context = context
+  shape.frameImageName = imageName
+  shape.color = color
+  shape.cache.set(key, canvas)
+  while (shape.cache.size > MAX_TINTED_STAMP_VARIANTS) {
+    const oldest = shape.cache.keys().next().value as string | undefined
+    if (oldest === undefined || oldest === key) break
+    shape.cache.delete(oldest)
   }
 }
 
@@ -1268,6 +1445,8 @@ export const getNewContextForCanvas = (
     color: '',
     canvas: shapeImageCanvas,
     context: shapeImageContext,
+    cache: new Map(),
+    scaledCache: new Map(),
   }
   return context
 }

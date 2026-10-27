@@ -1662,10 +1662,12 @@ export const buildQuickShapeStrokeSamples = (
     stepLength: 0,
     aspectRatio,
     oldAspectRatio: aspectRatio,
+    strokeDistance: 0,
   })
 
   const maxChunkPx = 24
   let prevRot = initialRot
+  let cumulativeDistance = 0
 
   for (let i = 0; i < waypoints.length - 1; i++) {
     const a = waypoints[i]
@@ -1688,6 +1690,7 @@ export const buildQuickShapeStrokeSamples = (
       const ctrlY = round((p0y + p1y) / 2, 1)
       const isFinalStep = !closed && i === waypoints.length - 2 && c === chunks
 
+      cumulativeDistance += chunkLen
       samples.push({
         type: isFinalStep ? 'end' : 'move',
         x: p1x,
@@ -1697,6 +1700,7 @@ export const buildQuickShapeStrokeSamples = (
         size,
         alpha,
         rotation: segRot,
+        strokeDistance: round(cumulativeDistance, 1),
         oldSize: size,
         oldAlpha: alpha,
         oldRotation: prevRot,

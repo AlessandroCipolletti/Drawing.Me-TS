@@ -197,8 +197,26 @@ export const applyDeterministicColorJitter = (
   const rgb = colorStringToRgb(color)
   const hsl = rgbaToHsla(rgb.r, rgb.g, rgb.b, rgb.a)
   const h = (((hsl.h + (uHue - 0.5) * 2 * hueJitterDeg) % 360) + 360) % 360
-  const s = Math.max(0, Math.min(100, round(hsl.s + (uSat - 0.5) * 2 * satJitter * 100, 0)))
-  const l = Math.max(0, Math.min(100, round(hsl.l + (uLight - 0.5) * 2 * lightJitter * 100, 0)))
+  const deltaS = (uSat - 0.5) * 2 * satJitter * 100
+  const deltaL = (uLight - 0.5) * 2 * lightJitter * 100
+  // Scale the excursion (never clamp it flat) into a safe band around the base
+  // colour: at most ±35 lightness points and never outside 25..75, saturation
+  // never below 30 (or the base saturation, when lower). Even at maximum
+  // excursion the tint is a clearly light/dark version of the selected
+  // colour — far from white, black and grey — and the base is preserved at
+  // the centre of the variation.
+  const satFloor = Math.min(hsl.s, 30)
+  const s = round(
+    hsl.s + (deltaS >= 0 ? (deltaS * (100 - hsl.s)) / 100 : (deltaS * (hsl.s - satFloor)) / 100),
+    0
+  )
+  const lightCeil = Math.min(75, hsl.l + 35)
+  const lightFloor = Math.max(25, hsl.l - 35)
+  const l = round(
+    hsl.l +
+      (deltaL >= 0 ? (deltaL * (lightCeil - hsl.l)) / 100 : (deltaL * (hsl.l - lightFloor)) / 100),
+    0
+  )
   const jittered = hslaToRgba(h, s, l, rgb.a)
   return rgbToHex(jittered.r, jittered.g, jittered.b)
 }

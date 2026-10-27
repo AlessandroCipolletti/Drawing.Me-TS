@@ -69,6 +69,7 @@ export interface StepLastState {
   aspectRatio?: number
   speedFactor?: number
   timeStamp?: number
+  strokeDistance?: number
 }
 
 export function getAltitudeFactorFromAngle(angle: number, maxFactor: number): number {
@@ -214,8 +215,10 @@ export const getStepRotation = (
         rotation += (touchData.pathRotation || 0) * pathWeight
       }
     } else if (toolsProps.handlePathRotation) {
-      const weightedPath = (touchData.pathRotation || 0) * pathWeight
-      rotation = weightedPath === 0 ? 0 : -weightedPath
+      // Same sign as the stylus branch and QuickShape: pathRotation is
+      // atan2(dy, dx) in canvas coords, matching ctx.rotate(), so the stamp
+      // axis follows the stroke direction instead of mirroring it.
+      rotation = (touchData.pathRotation || 0) * pathWeight
     }
   }
 
@@ -382,5 +385,7 @@ export const getStepData = (
     stepLength: touchData.stepLength,
     aspectRatio,
     oldAspectRatio: (lastStep.aspectRatio ?? aspectRatio) as number,
+    strokeDistance:
+      type === 'start' ? 0 : round((lastStep.strokeDistance ?? 0) + (touchData.stepLength || 0), 3),
   }
 }

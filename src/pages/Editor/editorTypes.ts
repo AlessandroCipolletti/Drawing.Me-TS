@@ -223,6 +223,7 @@ interface EditorStepSnapshot {
   aspectRatio?: number
   speedFactor?: number
   timeStamp?: number
+  strokeDistance?: number
 }
 
 export interface EditorState {

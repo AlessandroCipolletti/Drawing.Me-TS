@@ -602,6 +602,27 @@ export const CUSTOM_BRUSH_PARAM_SCHEMA: CustomBrushParamSchemaEntry[] = [
     max: 1,
     decimals: 3,
   },
+  {
+    key: 'colorVariationMode',
+    label: 'Variation',
+    kind: 'segmented',
+    section: 'color',
+    options: [
+      { value: 'off', label: 'Constant' },
+      { value: 'random', label: 'Random' },
+      { value: 'cycle', label: 'Cycle' },
+    ],
+  },
+  {
+    key: 'colorCycleLengthPx',
+    label: 'Cycle Length px',
+    kind: 'slider',
+    section: 'color',
+    min: 20,
+    max: 5000,
+    decimals: 0,
+    visibleWhen: (d) => d.colorVariationMode === 'cycle',
+  },
 
   // Rotation & stylus
   {

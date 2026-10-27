@@ -539,6 +539,9 @@ export const toggleMaskDownSelectedLayer = async (e?: Event) => {
 }
 
 export const clearCurrentLayer = async (): Promise<boolean> => {
+  if (state.lassoMode) {
+    layersBridge.endLassoMode()
+  }
   layersBridge.closeParams()
   layersBridge.updateGcoMode(false, false)
   if (

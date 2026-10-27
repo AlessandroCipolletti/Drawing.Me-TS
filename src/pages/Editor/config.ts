@@ -1,5 +1,9 @@
 export type StampSpacingMode = 'bySize' | 'fixed'
 
+/** How per-stamp colour variation is applied: constant colour, deterministic
+ * random per stamp, or a cyclic light→dark→light gradient along the stroke. */
+export type ColorVariationMode = 'off' | 'random' | 'cycle'
+
 export type ToolCustomPropsMap = {
   size?: number
   alpha?: number
@@ -87,6 +91,10 @@ export interface ToolConfigProps {
   colorJitterSat: number
   /** Deterministic per-stamp lightness jitter factor (0..1, default 0). */
   colorJitterLight: number
+  /** Colour variation strategy (default 'random'); amounts above are the range. */
+  colorVariationMode: ColorVariationMode
+  /** Px of stroke needed to go from the lightest to the darkest tint in 'cycle' mode. */
+  colorCycleLengthPx: number
   degradeAlphaBySize: boolean
   /**
    * When true and the selected opacity is at its maximum (100%), every frame of
@@ -188,6 +196,8 @@ export const toolDefaultProps: ToolConfigProps = {
   colorJitterHue: 0,
   colorJitterSat: 0,
   colorJitterLight: 0,
+  colorVariationMode: 'random',
+  colorCycleLengthPx: 240,
 
   degradeAlphaBySize: false,
   opaqueFramesAtMaxAlpha: false,

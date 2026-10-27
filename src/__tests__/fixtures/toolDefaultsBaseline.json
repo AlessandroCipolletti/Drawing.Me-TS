@@ -12,7 +12,8 @@
         "rotation": 0.6,
         "stepLength": 0,
         "aspectRatio": 1,
-        "oldAspectRatio": 1
+        "oldAspectRatio": 1,
+        "strokeDistance": 0
       },
       {
         "type": "move",
@@ -32,7 +33,8 @@
         "oldY": 50,
         "stepLength": 36.8,
         "aspectRatio": 1,
-        "oldAspectRatio": 1
+        "oldAspectRatio": 1,
+        "strokeDistance": 36.8
       },
       {
         "type": "end",
@@ -52,7 +54,8 @@
         "oldY": 74,
         "stepLength": 32.5,
         "aspectRatio": 1,
-        "oldAspectRatio": 1
+        "oldAspectRatio": 1,
+        "strokeDistance": 69.3
       }
     ],
     "opsCount": 138,
@@ -138,7 +141,8 @@
         "rotation": 0.6,
         "stepLength": 0,
         "aspectRatio": 1.586,
-        "oldAspectRatio": 1.586
+        "oldAspectRatio": 1.586,
+        "strokeDistance": 0
       },
       {
         "type": "move",
@@ -158,7 +162,8 @@
         "oldY": 50,
         "stepLength": 36.8,
         "aspectRatio": 1.672,
-        "oldAspectRatio": 1.586
+        "oldAspectRatio": 1.586,
+        "strokeDistance": 36.8
       },
       {
         "type": "end",
@@ -178,7 +183,8 @@
         "oldY": 74,
         "stepLength": 32.5,
         "aspectRatio": 1.649,
-        "oldAspectRatio": 1.672
+        "oldAspectRatio": 1.672,
+        "strokeDistance": 69.3
       }
     ],
     "opsCount": 550,
@@ -264,7 +270,8 @@
         "rotation": 0.6,
         "stepLength": 0,
         "aspectRatio": 1.879,
-        "oldAspectRatio": 1.879
+        "oldAspectRatio": 1.879,
+        "strokeDistance": 0
       },
       {
         "type": "move",
@@ -284,7 +291,8 @@
         "oldY": 50,
         "stepLength": 36.8,
         "aspectRatio": 2.003,
-        "oldAspectRatio": 1.879
+        "oldAspectRatio": 1.879,
+        "strokeDistance": 36.8
       },
       {
         "type": "end",
@@ -304,7 +312,8 @@
         "oldY": 74,
         "stepLength": 32.5,
         "aspectRatio": 1.935,
-        "oldAspectRatio": 2.003
+        "oldAspectRatio": 2.003,
+        "strokeDistance": 69.3
       }
     ],
     "opsCount": 546,
@@ -390,7 +399,8 @@
         "rotation": 0.6,
         "stepLength": 0,
         "aspectRatio": 2.237,
-        "oldAspectRatio": 2.237
+        "oldAspectRatio": 2.237,
+        "strokeDistance": 0
       },
       {
         "type": "move",
@@ -410,7 +420,8 @@
         "oldY": 50,
         "stepLength": 36.8,
         "aspectRatio": 2.391,
-        "oldAspectRatio": 2.237
+        "oldAspectRatio": 2.237,
+        "strokeDistance": 36.8
       },
       {
         "type": "end",
@@ -430,7 +441,8 @@
         "oldY": 74,
         "stepLength": 32.5,
         "aspectRatio": 2.285,
-        "oldAspectRatio": 2.391
+        "oldAspectRatio": 2.391,
+        "strokeDistance": 69.3
       }
     ],
     "opsCount": 784,
@@ -516,7 +528,8 @@
         "rotation": 0.6,
         "stepLength": 0,
         "aspectRatio": 1.659,
-        "oldAspectRatio": 1.659
+        "oldAspectRatio": 1.659,
+        "strokeDistance": 0
       },
       {
         "type": "move",
@@ -536,7 +549,8 @@
         "oldY": 50,
         "stepLength": 36.8,
         "aspectRatio": 1.725,
-        "oldAspectRatio": 1.659
+        "oldAspectRatio": 1.659,
+        "strokeDistance": 36.8
       },
       {
         "type": "end",
@@ -556,7 +570,8 @@
         "oldY": 74,
         "stepLength": 32.5,
         "aspectRatio": 1.666,
-        "oldAspectRatio": 1.725
+        "oldAspectRatio": 1.725,
+        "strokeDistance": 69.3
       }
     ],
     "opsCount": 135,
@@ -682,7 +697,8 @@
         "rotation": 0.6,
         "stepLength": 0,
         "aspectRatio": 1.451,
-        "oldAspectRatio": 1.451
+        "oldAspectRatio": 1.451,
+        "strokeDistance": 0
       },
       {
         "type": "move",
@@ -702,7 +718,8 @@
         "oldY": 50,
         "stepLength": 36.8,
         "aspectRatio": 1.533,
-        "oldAspectRatio": 1.451
+        "oldAspectRatio": 1.451,
+        "strokeDistance": 36.8
       },
       {
         "type": "end",
@@ -722,7 +739,8 @@
         "oldY": 74,
         "stepLength": 32.5,
         "aspectRatio": 1.408,
-        "oldAspectRatio": 1.533
+        "oldAspectRatio": 1.533,
+        "strokeDistance": 69.3
       }
     ],
     "opsCount": 300,
@@ -848,7 +866,8 @@
         "rotation": 0.6,
         "stepLength": 0,
         "aspectRatio": 1.527,
-        "oldAspectRatio": 1.527
+        "oldAspectRatio": 1.527,
+        "strokeDistance": 0
       },
       {
         "type": "move",
@@ -868,7 +887,8 @@
         "oldY": 50,
         "stepLength": 36.8,
         "aspectRatio": 1.613,
-        "oldAspectRatio": 1.527
+        "oldAspectRatio": 1.527,
+        "strokeDistance": 36.8
       },
       {
         "type": "end",
@@ -888,7 +908,8 @@
         "oldY": 74,
         "stepLength": 32.5,
         "aspectRatio": 1.504,
-        "oldAspectRatio": 1.613
+        "oldAspectRatio": 1.613,
+        "strokeDistance": 69.3
       }
     ],
     "opsCount": 225,
@@ -1014,7 +1035,8 @@
         "rotation": 0.6,
         "stepLength": 0,
         "aspectRatio": 1.28,
-        "oldAspectRatio": 1.28
+        "oldAspectRatio": 1.28,
+        "strokeDistance": 0
       },
       {
         "type": "move",
@@ -1034,7 +1056,8 @@
         "oldY": 50,
         "stepLength": 36.8,
         "aspectRatio": 1.311,
-        "oldAspectRatio": 1.28
+        "oldAspectRatio": 1.28,
+        "strokeDistance": 36.8
       },
       {
         "type": "end",
@@ -1054,7 +1077,8 @@
         "oldY": 74,
         "stepLength": 32.5,
         "aspectRatio": 1.311,
-        "oldAspectRatio": 1.311
+        "oldAspectRatio": 1.311,
+        "strokeDistance": 69.3
       }
     ],
     "opsCount": 4240,
@@ -1140,7 +1164,8 @@
         "rotation": 0,
         "stepLength": 0,
         "aspectRatio": 1,
-        "oldAspectRatio": 1
+        "oldAspectRatio": 1,
+        "strokeDistance": 0
       },
       {
         "type": "move",
@@ -1160,7 +1185,8 @@
         "oldY": 50,
         "stepLength": 36.8,
         "aspectRatio": 1,
-        "oldAspectRatio": 1
+        "oldAspectRatio": 1,
+        "strokeDistance": 36.8
       },
       {
         "type": "end",
@@ -1180,7 +1206,8 @@
         "oldY": 74,
         "stepLength": 32.5,
         "aspectRatio": 1,
-        "oldAspectRatio": 1
+        "oldAspectRatio": 1,
+        "strokeDistance": 69.3
       }
     ],
     "opsCount": 138,

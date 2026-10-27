@@ -14,6 +14,21 @@ import brush8Url from 'static/img/tools/brush-8.png'
 import brush9Url from 'static/img/tools/brush-9.png'
 import brush10Url from 'static/img/tools/brush-10.png'
 import brush11Url from 'static/img/tools/brush-11.png'
+import brush12Url from 'static/img/tools/brush-12.png'
+import brush13Url from 'static/img/tools/brush-13.png'
+import brush14Url from 'static/img/tools/brush-14.png'
+import brush15Url from 'static/img/tools/brush-15.png'
+import brush16Url from 'static/img/tools/brush-16.png'
+import brush17Url from 'static/img/tools/brush-17.png'
+import brush18Url from 'static/img/tools/brush-18.png'
+import brush19Url from 'static/img/tools/brush-19.png'
+import brush20Url from 'static/img/tools/brush-20.png'
+import brush21Url from 'static/img/tools/brush-21.png'
+import brush22Url from 'static/img/tools/brush-22.png'
+import brush23Url from 'static/img/tools/brush-23.png'
+import brush24Url from 'static/img/tools/brush-24.png'
+import brush25Url from 'static/img/tools/brush-25.png'
+import brush26Url from 'static/img/tools/brush-26.png'
 import highlighterHUrl from 'static/img/tools/highlighter-h.png'
 import highlighterLUrl from 'static/img/tools/highlighter-l.png'
 import highlighterRUrl from 'static/img/tools/highlighter-r.png'
@@ -120,6 +135,21 @@ export const toolsImgs: Record<string, string> = {
   'brush-9': brush9Url,
   'brush-10': brush10Url,
   'brush-11': brush11Url,
+  'brush-12': brush12Url,
+  'brush-13': brush13Url,
+  'brush-14': brush14Url,
+  'brush-15': brush15Url,
+  'brush-16': brush16Url,
+  'brush-17': brush17Url,
+  'brush-18': brush18Url,
+  'brush-19': brush19Url,
+  'brush-20': brush20Url,
+  'brush-21': brush21Url,
+  'brush-22': brush22Url,
+  'brush-23': brush23Url,
+  'brush-24': brush24Url,
+  'brush-25': brush25Url,
+  'brush-26': brush26Url,
   'highlighter-h': highlighterHUrl,
   'highlighter-l': highlighterLUrl,
   'highlighter-r': highlighterRUrl,

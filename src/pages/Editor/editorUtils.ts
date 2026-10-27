@@ -269,6 +269,7 @@ const commitTouchEventStep = (
   lastStep.alpha = stepData.alpha
   lastStep.rotation = stepData.rotation
   lastStep.aspectRatio = stepData.aspectRatio
+  lastStep.strokeDistance = stepData.strokeDistance
   lastStep.speedFactor = touchData.speedFactor
   if (touchEvent.timeStamp) {
     lastStep.timeStamp = touchEvent.timeStamp
@@ -302,6 +303,7 @@ export const updateLastStepData = (state: EditorState, stepData: StrokeSample) =
   state.lastStep.alpha = stepData.alpha
   state.lastStep.rotation = stepData.rotation
   state.lastStep.aspectRatio = stepData.aspectRatio ?? 1
+  state.lastStep.strokeDistance = stepData.strokeDistance
   if (state.currentTouch) {
     state.lastStep.speedFactor = state.currentTouch.speedFactor
     state.lastStep.timeStamp = state.currentTouch.timeStamp
