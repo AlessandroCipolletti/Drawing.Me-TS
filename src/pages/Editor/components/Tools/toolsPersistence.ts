@@ -13,6 +13,7 @@ import { ToolConfigProps, ToolCustomPropsMap, ToolVersionDefinition } from 'page
 import { TOOL_FRAME_CIRCLE, TOOL_FRAME_IMAGE } from 'pages/Editor/constants'
 import { CurrentToolProps } from 'pages/Editor/editorTypes'
 import { getImageFromUrl } from 'utils/imageUtils'
+import { logarithmicPercToValue } from 'utils/mathUtils'
 import { normalizeToolDrawParams, sanitizeToolCustomProps } from 'utils/canvasUtils'
 import {
   config,
@@ -198,13 +199,32 @@ export const getOneToolVersionCompleteProps = (
     resolvedVersionIndex >= 0 &&
     baseTool.versions[resolvedVersionIndex]
   ) {
+    const versionDef = baseTool.versions[resolvedVersionIndex]
+    const versionCustom = sanitizeToolCustomProps(versionDef.customProps)
     toolProps = {
       ...baseTool,
-      ...baseTool.versions[resolvedVersionIndex].props,
-      ...sanitizeToolCustomProps(baseTool.versions[resolvedVersionIndex].customProps),
+      ...versionDef.props,
+      ...versionCustom,
       name: baseTool.name,
-      versionName: baseTool.versions[resolvedVersionIndex].name,
+      versionName: versionDef.name,
       ...safeHigherProps,
+    }
+    // A never-customized version must open at the 50% slider defaults: its
+    // alpha/size ranges may differ from the base tool's, so the inherited
+    // absolute values would otherwise read as e.g. 48% opacity.
+    if (
+      versionDef.props.size === undefined &&
+      versionCustom.size === undefined &&
+      safeHigherProps.size === undefined
+    ) {
+      toolProps.size = logarithmicPercToValue(50, toolProps.minSize, toolProps.maxSize, 1)
+    }
+    if (
+      versionDef.props.alpha === undefined &&
+      versionCustom.alpha === undefined &&
+      safeHigherProps.alpha === undefined
+    ) {
+      toolProps.alpha = logarithmicPercToValue(50, toolProps.minAlpha, toolProps.maxAlpha, 3)
     }
   } else {
     toolProps = {

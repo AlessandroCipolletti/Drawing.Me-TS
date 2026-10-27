@@ -9,6 +9,7 @@ import {
   colorStringToRgb,
   compareRgbColorsWithinTollerance,
   applyDeterministicColorJitter,
+  mixHexColors,
   rgbToHex,
   RgbaColor,
 } from './colorsUtils'
@@ -58,6 +59,10 @@ export interface StrokeSample {
   oldAspectRatio?: number
   /** Cumulative px travelled from the stroke start up to this sample (cycle colour mode). */
   strokeDistance?: number
+  /** Raw stylus pressure 0..1 for this sample (colour pressure dynamics). */
+  force?: number
+  /** Random rotation offset chosen at the stroke start (Shape Randomized). */
+  strokeRotationOffset?: number
   /** Smudge coworking: 0 finger, 1 pen/mouse */
   inputKind?: number
 }
@@ -98,6 +103,29 @@ export interface StrokeToolParams {
   colorJitterLight?: number
   colorVariationMode?: ColorVariationMode
   colorCycleLengthPx?: number
+  secondaryColor?: string
+  colorSecondaryMix?: number
+  stampCount?: number
+  stampCountJitter?: number
+  stampScatter?: number
+  stampFlipX?: boolean
+  stampFlipY?: boolean
+  stampFlipAlternate?: boolean
+  stampRotationSnap?: number
+  stampAlphaThreshold?: number
+  sizeCycleAmount?: number
+  alphaCycleAmount?: number
+  strokeCycleLengthPx?: number
+  wobbleAmount?: number
+  wobbleLengthPx?: number
+  colorPressureHue?: number
+  colorPressureSat?: number
+  colorPressureLight?: number
+  spacingJitter?: number
+  stampEdgeBoost?: number
+  /** Internal: resolved flip for the stamp currently being drawn. */
+  stampFlipResolvedX?: boolean
+  stampFlipResolvedY?: boolean
   preserveStampRemainder?: boolean
 }
 
@@ -208,6 +236,29 @@ export const normalizeToolDrawParams = <T extends Partial<ToolConfigProps> & Str
       ? (tool.colorVariationMode as ColorVariationMode)
       : 'random',
     colorCycleLengthPx: clampNum(finiteOr(tool.colorCycleLengthPx, 240), 10, 5000),
+    secondaryColor:
+      typeof tool.secondaryColor === 'string' && tool.secondaryColor.startsWith('#')
+        ? tool.secondaryColor
+        : '',
+    colorSecondaryMix: clampNum(finiteOr(tool.colorSecondaryMix, 0), 0, 1),
+    stampCount: Math.round(clampNum(finiteOr(tool.stampCount, 1), 1, 8)),
+    stampCountJitter: clampNum(finiteOr(tool.stampCountJitter, 0), 0, 1),
+    stampScatter: clampNum(finiteOr(tool.stampScatter, 0), 0, 2),
+    stampFlipX: Boolean(tool.stampFlipX),
+    stampFlipY: Boolean(tool.stampFlipY),
+    stampFlipAlternate: Boolean(tool.stampFlipAlternate),
+    stampRotationSnap: clampNum(finiteOr(tool.stampRotationSnap, 0), 0, Math.PI),
+    stampAlphaThreshold: clampNum(finiteOr(tool.stampAlphaThreshold, 0), 0, 0.95),
+    sizeCycleAmount: clampNum(finiteOr(tool.sizeCycleAmount, 0), 0, 0.9),
+    alphaCycleAmount: clampNum(finiteOr(tool.alphaCycleAmount, 0), 0, 0.9),
+    strokeCycleLengthPx: clampNum(finiteOr(tool.strokeCycleLengthPx, 160), 10, 5000),
+    wobbleAmount: clampNum(finiteOr(tool.wobbleAmount, 0), 0, 1),
+    wobbleLengthPx: clampNum(finiteOr(tool.wobbleLengthPx, 120), 10, 5000),
+    colorPressureHue: clampNum(finiteOr(tool.colorPressureHue, 0), 0, 180),
+    colorPressureSat: clampNum(finiteOr(tool.colorPressureSat, 0), 0, 1),
+    colorPressureLight: clampNum(finiteOr(tool.colorPressureLight, 0), 0, 1),
+    spacingJitter: clampNum(finiteOr(tool.spacingJitter, 0), 0, 1),
+    stampEdgeBoost: clampNum(finiteOr(tool.stampEdgeBoost, 0), 0, 2),
     stampCompositeOperation: validStampGCO,
   }
 
@@ -261,6 +312,7 @@ export interface ExtendedCanvasContext extends CanvasRenderingContext2D {
   toolImageShape: {
     frameImageName: string
     color: string
+    threshold?: number
     canvas: OffscreenCanvas | HTMLCanvasElement
     context: OffscreenCanvasRenderingContext2D | CanvasRenderingContext2D
     /** Tinted stamp variants keyed by `frameImageName|color` (LRU, see setImageShapeIfNeeded). */
@@ -707,13 +759,17 @@ const drawStampImage = (
   y: number,
   width: number,
   height: number,
-  rotation: number
+  rotation: number,
+  flipX = false,
+  flipY = false
 ) => {
-  if (rotation) {
+  if (rotation || flipX || flipY) {
     destinationContext.translate(x, y)
-    destinationContext.rotate(rotation)
+    if (rotation) destinationContext.rotate(rotation)
+    if (flipX || flipY) destinationContext.scale(flipX ? -1 : 1, flipY ? -1 : 1)
     destinationContext.drawImage(image, -width / 2, -height / 2, width, height)
-    destinationContext.rotate(-rotation)
+    if (flipX || flipY) destinationContext.scale(flipX ? -1 : 1, flipY ? -1 : 1)
+    if (rotation) destinationContext.rotate(-rotation)
     destinationContext.translate(-x, -y)
   } else {
     destinationContext.drawImage(
@@ -744,25 +800,44 @@ const drawCanvasImage = (
     tool?.frameImageName &&
     destinationContext.toolImageShape.color !== color
   ) {
-    setImageShapeIfNeeded(destinationContext, tool.frameImageFile, tool.frameImageName, color)
+    setImageShapeIfNeeded(
+      destinationContext,
+      tool.frameImageFile,
+      tool.frameImageName,
+      color,
+      tool.stampAlphaThreshold || 0,
+      tool.stampEdgeBoost || 0
+    )
   }
   const tinted = destinationContext.toolImageShape.canvas
   destinationContext.lastDrawCoordX = x
   destinationContext.lastDrawCoordY = y
   destinationContext.globalAlpha = alpha
-  let width = size
-  let height = MATH.abs(aspectRatio - 1) > 0.001 ? MATH.max(1, round(size / aspectRatio, 1)) : size
+  const width = size
+  const height =
+    MATH.abs(aspectRatio - 1) > 0.001 ? MATH.max(1, round(size / aspectRatio, 1)) : size
   // Draw from a tint pre-scaled to (a quantization of) the stamp size: resampling
   // a 512px soft gradient on every stamp is the dominant cost for dense brushes,
   // while the pre-scaled variant is prepared once per colour/size bucket.
+  // The pre-scaled variant is only the resampling source: the stamp is still
+  // drawn at the exact interpolated width/height, so pressure/tilt-driven
+  // size changes stay continuous instead of snapping to the size buckets.
   let image: OffscreenCanvas | HTMLCanvasElement = tinted
   const scaled = getScaledTintedStamp(destinationContext, tinted, width, height)
   if (scaled) {
     image = scaled.canvas
-    width = scaled.width
-    height = scaled.height
   }
-  drawStampImage(destinationContext, image, x, y, width, height, rotation)
+  drawStampImage(
+    destinationContext,
+    image,
+    x,
+    y,
+    width,
+    height,
+    rotation,
+    Boolean(tool?.stampFlipResolvedX),
+    Boolean(tool?.stampFlipResolvedY)
+  )
 }
 
 const toolShapesDrawFns: Record<
@@ -821,7 +896,8 @@ const applyDeterministicStampJitter = (
   size: number,
   rotation: number,
   aspectRatio = 1,
-  strokeDistance = 0
+  strokeDistance = 0,
+  force = -1
 ): [number, number, number, number, number, number, string | undefined] => {
   const jPos = tool.jitterPosition || 0
   const jSize = tool.jitterSize || 0
@@ -833,12 +909,29 @@ const applyDeterministicStampJitter = (
   const cSat = tool.colorJitterSat || 0
   const cLight = tool.colorJitterLight || 0
   const colorMode = tool.colorVariationMode || 'random'
+  const hasSecondary = Boolean(
+    tool.color && tool.secondaryColor && (tool.colorSecondaryMix || 0) > 0 && colorMode !== 'off'
+  )
   const hasColorJitter = Boolean(
     tool.color && colorMode !== 'off' && (cHue !== 0 || cSat !== 0 || cLight !== 0)
   )
 
   let drawRotation = rotOffset !== 0 ? round(rotation + rotOffset, 4) : rotation
-  if (jPos === 0 && jSize === 0 && jAlpha === 0 && jRot === 0 && jAspect === 0 && !hasColorJitter) {
+  if (
+    jPos === 0 &&
+    jSize === 0 &&
+    jAlpha === 0 &&
+    jRot === 0 &&
+    jAspect === 0 &&
+    !hasColorJitter &&
+    !hasSecondary &&
+    !(
+      force >= 0 &&
+      ((tool.colorPressureHue || 0) !== 0 ||
+        (tool.colorPressureSat || 0) !== 0 ||
+        (tool.colorPressureLight || 0) !== 0)
+    )
+  ) {
     return [x, y, alpha, size, drawRotation, aspectRatio, tool.color]
   }
   const rng = createDeterministicRng(x, y, size, alpha)
@@ -885,6 +978,32 @@ const applyDeterministicStampJitter = (
       drawColor = quantizeStampColor(drawColor, colorMode === 'cycle' ? 8 : STAMP_COLOR_QUANTUM)
     }
   }
+  const pHue = tool.colorPressureHue || 0
+  const pSat = tool.colorPressureSat || 0
+  const pLight = tool.colorPressureLight || 0
+  if (drawColor && force >= 0 && (pHue !== 0 || pSat !== 0 || pLight !== 0)) {
+    // Color Pressure: the tint sweeps with stylus pressure inside the stroke.
+    const u = Math.max(0, Math.min(1, force))
+    const unit = 0.5 + u / 2
+    drawColor = applyDeterministicColorJitter(drawColor, pHue, pSat, pLight, unit, unit, unit)
+    if (tool.frameType === TOOL_FRAME_IMAGE) {
+      drawColor = quantizeStampColor(drawColor, 8)
+    }
+  }
+  if (hasSecondary && drawColor) {
+    const uSec =
+      colorMode === 'cycle'
+        ? (getColorCycleFactor(strokeDistance, tool.colorCycleLengthPx || 240) + 1) / 2
+        : rng()
+    drawColor = mixHexColors(
+      drawColor,
+      tool.secondaryColor as string,
+      (tool.colorSecondaryMix || 0) * uSec
+    )
+    if (tool.frameType === TOOL_FRAME_IMAGE && colorMode !== 'cycle') {
+      drawColor = quantizeStampColor(drawColor)
+    }
+  }
   return [drawX, drawY, drawAlpha, drawSize, drawRotation, drawAspect, drawColor]
 }
 
@@ -898,6 +1017,8 @@ interface ResolvedStampDrawParams {
   color: string | undefined
   blur: number
   compositeOp: GlobalCompositeOperation | undefined
+  flipX: boolean
+  flipY: boolean
 }
 
 const resolveStampDrawParams = (
@@ -909,7 +1030,8 @@ const resolveStampDrawParams = (
   frameRotation: number,
   frameAspect: number,
   segmentT?: number,
-  strokeDistance = 0
+  strokeDistance = 0,
+  force = -1
 ): ResolvedStampDrawParams => {
   const [drawX, drawY, jitteredAlpha, jitteredSize, drawRotation, jitteredAspect, drawColor] =
     applyDeterministicStampJitter(
@@ -920,7 +1042,8 @@ const resolveStampDrawParams = (
       frameSize,
       frameRotation,
       frameAspect,
-      strokeDistance
+      strokeDistance,
+      force
     )
 
   let alpha = jitteredAlpha
@@ -946,16 +1069,45 @@ const resolveStampDrawParams = (
     aspect = Math.max(0.05, round(aspect * (scaleX / scaleY), 3))
   }
 
+  // Stroke-distance dynamics: pulsing size/alpha and a side-to-side wobble.
+  const cycleLen = tool.strokeCycleLengthPx || 160
+  const cyclePhase = (2 * PI * Math.max(0, strokeDistance)) / cycleLen
+  if (tool.sizeCycleAmount) {
+    size = Math.max(1, round(size * (1 + tool.sizeCycleAmount * MATH.sin(cyclePhase)), 1))
+  }
+  if (tool.alphaCycleAmount) {
+    alpha = Math.max(
+      0.001,
+      Math.min(1, round(alpha * (1 + tool.alphaCycleAmount * MATH.sin(cyclePhase)), 4))
+    )
+  }
+  let finalX = drawX
+  let finalY = drawY
+  if (tool.wobbleAmount) {
+    const off =
+      MATH.sin((2 * PI * Math.max(0, strokeDistance)) / (tool.wobbleLengthPx || 120)) *
+      tool.wobbleAmount *
+      size
+    finalX = round(drawX - MATH.sin(drawRotation) * off, 1)
+    finalY = round(drawY + MATH.cos(drawRotation) * off, 1)
+  }
+  const snap = tool.stampRotationSnap || 0
+  const finalRotation = snap > 0 ? round(Math.round(drawRotation / snap) * snap, 4) : drawRotation
+  const alternateFlip = tool.stampFlipAlternate
+    ? Math.floor(Math.max(0, strokeDistance) / Math.max(4, frameSize * 0.75)) % 2 === 1
+    : false
   return {
-    x: drawX,
-    y: drawY,
+    x: finalX,
+    y: finalY,
     alpha,
     size,
-    rotation: drawRotation,
+    rotation: finalRotation,
     aspect,
     color: drawColor,
     blur: tool.stampBlur || 0,
     compositeOp: tool.stampCompositeOperation,
+    flipX: Boolean(tool.stampFlipX) !== alternateFlip,
+    flipY: Boolean(tool.stampFlipY),
   }
 }
 
@@ -979,36 +1131,59 @@ const invokeStampDraw = (
   if (stamp.alpha <= 0 || !Number.isFinite(stamp.x) || !Number.isFinite(stamp.y)) {
     return
   }
+  const drawTool: StrokeToolParams =
+    stamp.flipX || stamp.flipY
+      ? { ...tool, stampFlipResolvedX: stamp.flipX, stampFlipResolvedY: stamp.flipY }
+      : tool
+  // Shape Count: several stamps per placement, optionally jittered/scattered.
+  const maxCount = Math.max(1, Math.round(tool.stampCount || 1))
+  let count = maxCount
+  if (maxCount > 1 && (tool.stampCountJitter || 0) > 0) {
+    const rngCount = createDeterministicRng(stamp.x, stamp.y, stamp.size, stamp.alpha)
+    count = Math.max(
+      1,
+      Math.round(maxCount - rngCount() * (tool.stampCountJitter || 0) * (maxCount - 1))
+    )
+  }
+  const scatter = tool.stampScatter || 0
+  const drawAll = () => {
+    for (let i = 0; i < count; i++) {
+      let dx = 0
+      let dy = 0
+      if (i > 0 || scatter > 0) {
+        const rng = createDeterministicRng(
+          stamp.x + i * 13.7,
+          stamp.y - i * 7.3,
+          stamp.size,
+          stamp.alpha
+        )
+        if (scatter > 0) {
+          dx = round((rng() - 0.5) * 2 * scatter * stamp.size, 1)
+          dy = round((rng() - 0.5) * 2 * scatter * stamp.size, 1)
+        }
+      }
+      drawShape(
+        destinationContext,
+        stamp.x + dx,
+        stamp.y + dy,
+        stamp.alpha,
+        stamp.size,
+        stamp.rotation,
+        stamp.color,
+        stamp.blur,
+        stamp.aspect,
+        drawTool
+      )
+    }
+  }
   if (stamp.compositeOp) {
     const prevOp = destinationContext.globalCompositeOperation
     destinationContext.globalCompositeOperation = stamp.compositeOp
-    drawShape(
-      destinationContext,
-      stamp.x,
-      stamp.y,
-      stamp.alpha,
-      stamp.size,
-      stamp.rotation,
-      stamp.color,
-      stamp.blur,
-      stamp.aspect,
-      tool
-    )
+    drawAll()
     destinationContext.globalCompositeOperation = prevOp
     return
   }
-  drawShape(
-    destinationContext,
-    stamp.x,
-    stamp.y,
-    stamp.alpha,
-    stamp.size,
-    stamp.rotation,
-    stamp.color,
-    stamp.blur,
-    stamp.aspect,
-    tool
-  )
+  drawAll()
 }
 
 const drawCurvedFunctionLine = (
@@ -1064,9 +1239,20 @@ const drawCurvedFunctionLine = (
         1
       )
       const frameSize = round(stepData.oldSize + deltaSize * t, 1)
-      const pxDistanceBetweenFrames = isFixedSpacing
+      let pxDistanceBetweenFrames = isFixedSpacing
         ? fixedSpacingPx
         : round(Math.max(minPxDist, frameSize * sizeRatio), 1)
+      if ((tool.spacingJitter || 0) > 0) {
+        // Stroke Path Spacing Jitter: each gap is randomized deterministically.
+        const rngGap = createDeterministicRng(frameX, frameY, frameSize, tool.spacingJitter || 0)
+        pxDistanceBetweenFrames = round(
+          Math.max(
+            0.5,
+            pxDistanceBetweenFrames * (1 + (rngGap() - 0.5) * 2 * (tool.spacingJitter || 0))
+          ),
+          1
+        )
+      }
       if (
         distanceBetweenTwoPointsGreaterThan(
           destinationContext.lastDrawCoordX,
@@ -1092,7 +1278,8 @@ const drawCurvedFunctionLine = (
           frameRotation,
           frameAspect,
           t,
-          stampDistance
+          stampDistance,
+          stepData.force ?? -1
         )
         invokeStampDraw(drawShape, destinationContext, stamp, tool)
         destinationContext.lastDrawCoordX = frameX
@@ -1125,7 +1312,14 @@ const drawStrokeSamplePausable = (
     return false
   }
   if (tool.frameType === TOOL_FRAME_IMAGE && tool.frameImageFile && tool.frameImageName) {
-    setImageShapeIfNeeded(destinationContext, tool.frameImageFile, tool.frameImageName, tool.color)
+    setImageShapeIfNeeded(
+      destinationContext,
+      tool.frameImageFile,
+      tool.frameImageName,
+      tool.color,
+      tool.stampAlphaThreshold || 0,
+      tool.stampEdgeBoost || 0
+    )
   }
   if (sample.type === 'start') {
     const stamp = resolveStampDrawParams(
@@ -1137,7 +1331,8 @@ const drawStrokeSamplePausable = (
       sample.rotation,
       sample.aspectRatio ?? 1,
       undefined,
-      sample.strokeDistance ?? 0
+      sample.strokeDistance ?? 0,
+      sample.force ?? -1
     )
     invokeStampDraw(toolShapesDrawFns[tool.frameType], destinationContext, stamp, tool)
     destinationContext.lastDrawCoordX = sample.x
@@ -1196,15 +1391,22 @@ export const setImageShapeIfNeeded = (
   destinationContext: ExtendedCanvasContext,
   image: HTMLImageElement | ImageBitmap | HTMLCanvasElement | null,
   imageName: string | false,
-  color = '#000000'
+  color = '#000000',
+  alphaThreshold = 0,
+  edgeBoost = 0
 ) => {
   if (!image || !imageName) return
   const shape = destinationContext.toolImageShape
-  if (shape.frameImageName === imageName && shape.color === color) return
+  if (
+    shape.frameImageName === imageName &&
+    shape.color === color &&
+    (shape.threshold || 0) === alphaThreshold
+  )
+    return
 
   // Per-stamp colour jitter used to re-tint the full stamp canvas on every
   // stamp. Cache tinted variants (LRU) so alternating colours stay cheap.
-  const key = `${imageName}|${color}`
+  const key = `${imageName}|${color}|${alphaThreshold}|${edgeBoost}`
   if (!shape.cache) shape.cache = new Map()
   const cached = shape.cache.get(key)
   if (cached) {
@@ -1213,6 +1415,7 @@ export const setImageShapeIfNeeded = (
     shape.canvas = cached
     shape.frameImageName = imageName
     shape.color = color
+    shape.threshold = alphaThreshold
     return
   }
 
@@ -1229,6 +1432,7 @@ export const setImageShapeIfNeeded = (
     // No canvas factory (tests / exotic envs): fall back to the single slot.
     shape.frameImageName = imageName
     shape.color = color
+    shape.threshold = alphaThreshold
     shape.canvas.width = image.width
     shape.canvas.height = image.height
     shape.context.fillStyle = color
@@ -1244,11 +1448,41 @@ export const setImageShapeIfNeeded = (
   context.fillRect(0, 0, image.width, image.height)
   context.globalCompositeOperation = 'destination-in'
   context.drawImage(image, 0, 0, image.width, image.height)
+  if (edgeBoost > 0) {
+    // Burnt/wet edges: semi-transparent rim pixels are reinforced so the
+    // stamp edge reads darker than its centre.
+    try {
+      const pixels = context.getImageData(0, 0, image.width, image.height)
+      for (let i = 3; i < pixels.data.length; i += 4) {
+        const a = pixels.data[i]
+        if (a > 0 && a < 255) {
+          pixels.data[i] = Math.min(255, Math.round(a * (1 + edgeBoost * (1 - a / 255))))
+        }
+      }
+      context.putImageData(pixels, 0, 0)
+    } catch {
+      // Best-effort on exotic canvas backends.
+    }
+  }
+  if (alphaThreshold > 0) {
+    // Crisp stamps: pixels below the threshold vanish, the rest go solid.
+    try {
+      const pixels = context.getImageData(0, 0, image.width, image.height)
+      const cut = alphaThreshold * 255
+      for (let i = 3; i < pixels.data.length; i += 4) {
+        pixels.data[i] = pixels.data[i] < cut ? 0 : 255
+      }
+      context.putImageData(pixels, 0, 0)
+    } catch {
+      // Threshold is best-effort (e.g. exotic canvas backends).
+    }
+  }
 
   shape.canvas = canvas
   shape.context = context
   shape.frameImageName = imageName
   shape.color = color
+  shape.threshold = alphaThreshold
   shape.cache.set(key, canvas)
   while (shape.cache.size > MAX_TINTED_STAMP_VARIANTS) {
     const oldest = shape.cache.keys().next().value as string | undefined
@@ -1259,7 +1493,14 @@ export const setImageShapeIfNeeded = (
 
 const beginStepBatch = (destinationContext: ExtendedCanvasContext, tool: StrokeToolParams) => {
   if (tool.frameImageName && tool.frameImageFile) {
-    setImageShapeIfNeeded(destinationContext, tool.frameImageFile, tool.frameImageName, tool.color)
+    setImageShapeIfNeeded(
+      destinationContext,
+      tool.frameImageFile,
+      tool.frameImageName,
+      tool.color,
+      tool.stampAlphaThreshold || 0,
+      tool.stampEdgeBoost || 0
+    )
   }
 
   destinationContext.clearRect(

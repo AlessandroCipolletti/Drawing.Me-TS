@@ -118,4 +118,65 @@ describe('tinted stamp cache', () => {
       vi.unstubAllGlobals()
     }
   })
+
+  it('draws at the exact interpolated size, not at the pre-scale bucket size', () => {
+    vi.stubGlobal('OffscreenCanvas', FakeCanvas)
+    FakeCanvas.instances = []
+    try {
+      const widths: number[] = []
+      const shapeCanvas = new FakeCanvas(300, 300)
+      const ctx: any = {
+        globalAlpha: 1,
+        globalCompositeOperation: 'source-over',
+        lastDrawCoordX: -1,
+        lastDrawCoordY: -1,
+        toolImageShape: {
+          frameImageName: '',
+          color: '',
+          canvas: shapeCanvas,
+          context: shapeCanvas.getContext('2d'),
+          cache: new Map(),
+          scaledCache: new Map(),
+        },
+        drawImage: (_img: unknown, _dx: number, _dy: number, w: number) => widths.push(w),
+        translate: () => {},
+        rotate: () => {},
+      }
+      const tool: any = {
+        name: 'brush',
+        frameType: TOOL_FRAME_IMAGE,
+        frameImageName: 'brush-14',
+        frameImageFile: { width: 512, height: 512 },
+        color: '#336699',
+        minPxDistanceBetweenFrames: 1.5,
+        sizeToFramesRatio: 1 / 85,
+      }
+      const sample: any = {
+        type: 'start',
+        x: 10,
+        y: 10,
+        midX: 10,
+        midY: 10,
+        size: 40,
+        alpha: 0.5,
+        rotation: 0,
+        oldSize: 40,
+        oldAlpha: 0.5,
+        oldRotation: 0,
+        oldMidX: 10,
+        oldMidY: 10,
+        oldX: 10,
+        oldY: 10,
+        stepLength: 0,
+        aspectRatio: 1,
+      }
+      const sizes = [40.3, 41.7, 43.9, 47.2]
+      sizes.forEach((size, i) => {
+        drawStrokeSample(ctx, { ...sample, x: 10 + i * 30, size, oldSize: size }, tool, true)
+      })
+      expect(widths).toEqual(sizes)
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
 })

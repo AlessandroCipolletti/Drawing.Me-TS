@@ -182,6 +182,17 @@ export const getSuggestedColors = (colorHex: string): string[] => {
   return colors
 }
 
+export const mixHexColors = (a: string, b: string, t: number): string => {
+  const ca = colorStringToRgb(a)
+  const cb = colorStringToRgb(b)
+  const k = Math.max(0, Math.min(1, t))
+  return rgbToHex(
+    Math.round(ca.r + (cb.r - ca.r) * k),
+    Math.round(ca.g + (cb.g - ca.g) * k),
+    Math.round(ca.b + (cb.b - ca.b) * k)
+  )
+}
+
 export const applyDeterministicColorJitter = (
   color: string | undefined,
   hueJitterDeg: number,

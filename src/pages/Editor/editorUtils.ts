@@ -270,6 +270,7 @@ const commitTouchEventStep = (
   lastStep.rotation = stepData.rotation
   lastStep.aspectRatio = stepData.aspectRatio
   lastStep.strokeDistance = stepData.strokeDistance
+  lastStep.strokeRotationOffset = stepData.strokeRotationOffset
   lastStep.speedFactor = touchData.speedFactor
   if (touchEvent.timeStamp) {
     lastStep.timeStamp = touchEvent.timeStamp
@@ -304,6 +305,7 @@ export const updateLastStepData = (state: EditorState, stepData: StrokeSample) =
   state.lastStep.rotation = stepData.rotation
   state.lastStep.aspectRatio = stepData.aspectRatio ?? 1
   state.lastStep.strokeDistance = stepData.strokeDistance
+  state.lastStep.strokeRotationOffset = stepData.strokeRotationOffset
   if (state.currentTouch) {
     state.lastStep.speedFactor = state.currentTouch.speedFactor
     state.lastStep.timeStamp = state.currentTouch.timeStamp
@@ -553,9 +555,26 @@ export const shouldAdaptStrokeLine = (tool: {
   size: number
   maxSizeThatNeedsToAdaptLine: number
   globalCompositeOperation?: string
-}) =>
-  tool.size < tool.maxSizeThatNeedsToAdaptLine &&
-  (!tool.globalCompositeOperation || tool.globalCompositeOperation === 'source-over')
+  stampCount?: number
+  stampScatter?: number
+  jitterPosition?: number
+  wobbleAmount?: number
+}) => {
+  // Tools whose stamps land far from the actual input path (multi-stamp
+  // scatter, strong position jitter, wobble) gain nothing from re-rendering
+  // the recent stroke segment: the recalculation only makes already-drawn
+  // stamps vanish and reappear elsewhere. They paint straight to the layer.
+  const hasRandomPlacement =
+    (tool.stampScatter || 0) > 0 ||
+    (tool.stampCount || 1) > 1 ||
+    (tool.jitterPosition || 0) >= 0.1 ||
+    (tool.wobbleAmount || 0) > 0
+  return (
+    !hasRandomPlacement &&
+    tool.size < tool.maxSizeThatNeedsToAdaptLine &&
+    (!tool.globalCompositeOperation || tool.globalCompositeOperation === 'source-over')
+  )
+}
 
 export const shouldThisStepMoveAdaptLine = (state: EditorState, now = Date.now()): boolean => {
   let result = false

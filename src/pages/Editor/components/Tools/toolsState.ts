@@ -29,6 +29,16 @@ import brush23Url from 'static/img/tools/brush-23.png'
 import brush24Url from 'static/img/tools/brush-24.png'
 import brush25Url from 'static/img/tools/brush-25.png'
 import brush26Url from 'static/img/tools/brush-26.png'
+import brush27Url from 'static/img/tools/brush-27.png'
+import brush28Url from 'static/img/tools/brush-28.png'
+import brush29Url from 'static/img/tools/brush-29.png'
+import brush30Url from 'static/img/tools/brush-30.png'
+import brush31Url from 'static/img/tools/brush-31.png'
+import brush32Url from 'static/img/tools/brush-32.png'
+import brush33Url from 'static/img/tools/brush-33.png'
+import brush34Url from 'static/img/tools/brush-34.png'
+import brush35Url from 'static/img/tools/brush-35.png'
+import brush36Url from 'static/img/tools/brush-36.png'
 import highlighterHUrl from 'static/img/tools/highlighter-h.png'
 import highlighterLUrl from 'static/img/tools/highlighter-l.png'
 import highlighterRUrl from 'static/img/tools/highlighter-r.png'
@@ -150,6 +160,16 @@ export const toolsImgs: Record<string, string> = {
   'brush-24': brush24Url,
   'brush-25': brush25Url,
   'brush-26': brush26Url,
+  'brush-27': brush27Url,
+  'brush-28': brush28Url,
+  'brush-29': brush29Url,
+  'brush-30': brush30Url,
+  'brush-31': brush31Url,
+  'brush-32': brush32Url,
+  'brush-33': brush33Url,
+  'brush-34': brush34Url,
+  'brush-35': brush35Url,
+  'brush-36': brush36Url,
   'highlighter-h': highlighterHUrl,
   'highlighter-l': highlighterLUrl,
   'highlighter-r': highlighterRUrl,

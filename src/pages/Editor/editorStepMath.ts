@@ -30,6 +30,7 @@ export interface StepToolParams {
   endTaperAlphaCurve?: number
   degradeAlphaBySize?: boolean
   opaqueFramesAtMaxAlpha?: boolean
+  stampStrokeRandomRotation?: number
   handleStylusRotation?: boolean
   handleStylusTwist?: boolean
   handlePathRotation?: boolean
@@ -70,6 +71,7 @@ export interface StepLastState {
   speedFactor?: number
   timeStamp?: number
   strokeDistance?: number
+  strokeRotationOffset?: number
 }
 
 export function getAltitudeFactorFromAngle(angle: number, maxFactor: number): number {
@@ -222,6 +224,10 @@ export const getStepRotation = (
     }
   }
 
+  if (lastStep.strokeRotationOffset) {
+    rotation += lastStep.strokeRotationOffset
+  }
+
   const lastRotation = lastStep.rotation || 0
   let deltaRotation = (rotation - lastRotation) % (Math.PI * 2)
   if (deltaRotation > Math.PI) {
@@ -339,6 +345,18 @@ const getStepEndLineData = (
   ]
 }
 
+/** Deterministic per-stroke random rotation offset (mulberry-style hash of the start point). */
+export const getStrokeRandomRotationOffset = (x: number, y: number, amount: number): number => {
+  if (!amount) return 0
+  let seed = ((Math.round(x * 100) * 73856093) ^ (Math.round(y * 100) * 19349663)) >>> 0
+  if (seed === 0) seed = 0x9e3779b9
+  seed = (seed + 0x6d2b79f5) >>> 0
+  let t = Math.imul(seed ^ (seed >>> 15), 1 | seed)
+  t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
+  const unit = ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  return round((unit - 0.5) * 2 * amount, 4)
+}
+
 export const getStepData = (
   toolProps: StepToolParams,
   touchData: StepTouchData,
@@ -366,6 +384,18 @@ export const getStepData = (
     alpha = 1
   }
 
+  const strokeRotationOffset =
+    type === 'start'
+      ? getStrokeRandomRotationOffset(
+          touchData.x,
+          touchData.y,
+          toolProps.stampStrokeRandomRotation || 0
+        )
+      : lastStep.strokeRotationOffset || 0
+  if (type === 'start' && strokeRotationOffset) {
+    rotation = round(rotation + strokeRotationOffset, 4)
+  }
+
   return {
     type,
     x: touchData.x,
@@ -387,5 +417,7 @@ export const getStepData = (
     oldAspectRatio: (lastStep.aspectRatio ?? aspectRatio) as number,
     strokeDistance:
       type === 'start' ? 0 : round((lastStep.strokeDistance ?? 0) + (touchData.stepLength || 0), 3),
+    force: round(Math.max(0, Math.min(1, touchData.force || 0)), 4),
+    strokeRotationOffset,
   }
 }

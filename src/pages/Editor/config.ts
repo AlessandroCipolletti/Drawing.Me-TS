@@ -95,6 +95,46 @@ export interface ToolConfigProps {
   colorVariationMode: ColorVariationMode
   /** Px of stroke needed to go from the lightest to the darkest tint in 'cycle' mode. */
   colorCycleLengthPx: number
+  /** Optional second colour stamps mix toward ('' = none). */
+  secondaryColor: string
+  /** Maximum mix toward the secondary colour per stamp (0..1, default 0). */
+  colorSecondaryMix: number
+  /** Stamps drawn at each placement (1..8, Procreate Shape Count). */
+  stampCount: number
+  /** Randomizes the effective count between 1 and stampCount (0..1). */
+  stampCountJitter: number
+  /** Random offset radius, as a size factor, for multi-stamps (0..2). */
+  stampScatter: number
+  stampFlipX: boolean
+  stampFlipY: boolean
+  /** Alternates the horizontal flip stamp after stamp along the stroke. */
+  stampFlipAlternate: boolean
+  /** Snaps stamp rotation to multiples of this angle in radians (0 = off). */
+  stampRotationSnap: number
+  /** Alpha below this threshold is cut, above is kept solid (0 = off, crisp stamps). */
+  stampAlphaThreshold: number
+  /** Sinusoidal size modulation along the stroke (0..0.9). */
+  sizeCycleAmount: number
+  /** Sinusoidal alpha modulation along the stroke (0..0.9). */
+  alphaCycleAmount: number
+  /** Px period of the size/alpha stroke cycles. */
+  strokeCycleLengthPx: number
+  /** Sinusoidal side-to-side offset, as a size factor (0..1). */
+  wobbleAmount: number
+  /** Px period of the wobble. */
+  wobbleLengthPx: number
+  /** Hue shift driven by stylus pressure across the stroke (0..180, Color Pressure). */
+  colorPressureHue: number
+  /** Saturation shift driven by stylus pressure (0..1). */
+  colorPressureSat: number
+  /** Lightness shift driven by stylus pressure (0..1). */
+  colorPressureLight: number
+  /** Random rotation offset chosen once per stroke (radians, Shape Randomized). */
+  stampStrokeRandomRotation: number
+  /** Randomizes the distance between stamps (0..1, Stroke Path Spacing Jitter). */
+  spacingJitter: number
+  /** Boosts semi-transparent rim alpha in the tinted frame (0..2, burnt/wet edges). */
+  stampEdgeBoost: number
   degradeAlphaBySize: boolean
   /**
    * When true and the selected opacity is at its maximum (100%), every frame of
@@ -198,6 +238,27 @@ export const toolDefaultProps: ToolConfigProps = {
   colorJitterLight: 0,
   colorVariationMode: 'random',
   colorCycleLengthPx: 240,
+  secondaryColor: '',
+  colorSecondaryMix: 0,
+  stampCount: 1,
+  stampCountJitter: 0,
+  stampScatter: 0,
+  stampFlipX: false,
+  stampFlipY: false,
+  stampFlipAlternate: false,
+  stampRotationSnap: 0,
+  stampAlphaThreshold: 0,
+  sizeCycleAmount: 0,
+  alphaCycleAmount: 0,
+  strokeCycleLengthPx: 160,
+  wobbleAmount: 0,
+  wobbleLengthPx: 120,
+  colorPressureHue: 0,
+  colorPressureSat: 0,
+  colorPressureLight: 0,
+  stampStrokeRandomRotation: 0,
+  spacingJitter: 0,
+  stampEdgeBoost: 0,
 
   degradeAlphaBySize: false,
   opaqueFramesAtMaxAlpha: false,

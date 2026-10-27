@@ -224,6 +224,7 @@ interface EditorStepSnapshot {
   speedFactor?: number
   timeStamp?: number
   strokeDistance?: number
+  strokeRotationOffset?: number
 }
 
 export interface EditorState {
