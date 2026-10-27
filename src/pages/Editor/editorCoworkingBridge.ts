@@ -11,6 +11,7 @@ import {
   StrokeToolParams,
 } from 'utils/canvasUtils'
 import { drawMultipleCoworkingSteps } from './editorUtils'
+import { smudgeTouchTypeToInputKind } from './smudgeKernel'
 import { CoworkingStepsPayload, EditorState } from './editorTypes'
 
 const stepDataKeys: Array<keyof StrokeSample> = [
@@ -39,34 +40,59 @@ const toStepNumber = (value: string | number | null | undefined, fallback = Numb
 
 export const addTouchStepDataKeys = (
   stepDataArray: Array<string | number | null | undefined>
-): StrokeSample => ({
-  type: stepDataArray[0] as StrokeSample['type'],
-  x: toStepNumber(stepDataArray[1]),
-  y: toStepNumber(stepDataArray[2]),
-  midX: toStepNumber(stepDataArray[3]),
-  midY: toStepNumber(stepDataArray[4]),
-  size: toStepNumber(stepDataArray[5]),
-  alpha: toStepNumber(stepDataArray[6]),
-  rotation: toStepNumber(stepDataArray[7]),
-  oldSize: toStepNumber(stepDataArray[8]),
-  oldAlpha: toStepNumber(stepDataArray[9]),
-  oldRotation: toStepNumber(stepDataArray[10]),
-  oldMidX: toStepNumber(stepDataArray[11]),
-  oldMidY: toStepNumber(stepDataArray[12]),
-  oldX: toStepNumber(stepDataArray[13]),
-  oldY: toStepNumber(stepDataArray[14]),
-  stepLength: toStepNumber(stepDataArray[15]),
-  aspectRatio: toStepNumber(stepDataArray[16], 1),
-  oldAspectRatio: toStepNumber(stepDataArray[17], 1),
-})
+): StrokeSample => {
+  const step: StrokeSample = {
+    type: stepDataArray[0] as StrokeSample['type'],
+    x: toStepNumber(stepDataArray[1]),
+    y: toStepNumber(stepDataArray[2]),
+    midX: toStepNumber(stepDataArray[3]),
+    midY: toStepNumber(stepDataArray[4]),
+    size: toStepNumber(stepDataArray[5]),
+    alpha: toStepNumber(stepDataArray[6]),
+    rotation: toStepNumber(stepDataArray[7]),
+    oldSize: toStepNumber(stepDataArray[8]),
+    oldAlpha: toStepNumber(stepDataArray[9]),
+    oldRotation: toStepNumber(stepDataArray[10]),
+    oldMidX: toStepNumber(stepDataArray[11]),
+    oldMidY: toStepNumber(stepDataArray[12]),
+    oldX: toStepNumber(stepDataArray[13]),
+    oldY: toStepNumber(stepDataArray[14]),
+    stepLength: toStepNumber(stepDataArray[15]),
+    aspectRatio: toStepNumber(stepDataArray[16], 1),
+    oldAspectRatio: toStepNumber(stepDataArray[17], 1),
+  }
+  const wireInputKind = stepDataArray[18]
+  if (typeof wireInputKind === 'number' && !Number.isNaN(wireInputKind)) {
+    step.inputKind = wireInputKind
+  }
+  return step
+}
 
 export const removeTouchStepDataKeys = (
   stepData: Partial<StrokeSample>
-): Array<string | number | undefined> =>
-  stepDataKeys.map((key) => {
+): Array<string | number | undefined> => {
+  const wire = stepDataKeys.map((key) => {
     const e = stepData[key]
     return typeof e === 'number' ? round(e, 4) : e
   })
+  if (typeof stepData.inputKind === 'number') {
+    wire.push(stepData.inputKind)
+  }
+  return wire
+}
+
+const withSmudgeCoworkingFields = (
+  state: EditorState,
+  stepData: Partial<StrokeSample>
+): Partial<StrokeSample> => {
+  if (state.currentToolProps.name !== 'smudge') {
+    return stepData
+  }
+  return {
+    ...stepData,
+    inputKind: smudgeTouchTypeToInputKind(state.currentTouch.type),
+  }
+}
 
 const globalCompositeOperationValues: GlobalCompositeOperation[] = [
   'source-over',
@@ -177,12 +203,18 @@ export const sendCoworkingStep = (
       customProps: Tools.getCurrentToolCustomProps() as Record<string, unknown>,
     })
     if (stepData) {
-      Coworking.addStep(removeTouchStepDataKeys(stepData) as unknown as StrokeSample)
+      Coworking.addStep(
+        removeTouchStepDataKeys(
+          withSmudgeCoworkingFields(state, stepData)
+        ) as unknown as StrokeSample
+      )
     }
     Coworking.sendSteps(Layers.getCurrentSelectedLayerId(), toolData)
     state.stepsSinceLastCoworkingUpdate = 0
   } else {
-    Coworking.addStep(removeTouchStepDataKeys(stepData) as unknown as StrokeSample)
+    Coworking.addStep(
+      removeTouchStepDataKeys(withSmudgeCoworkingFields(state, stepData)) as unknown as StrokeSample
+    )
     state.stepsSinceLastCoworkingUpdate += 1
   }
 }

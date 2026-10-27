@@ -188,6 +188,10 @@
   mask-image: url('../../../../static/icons/svg/tool-eraser.svg');
   -webkit-mask-image: url('../../../../static/icons/svg/tool-eraser.svg');
 }
+.editor-tools__tool-smudge::after {
+  mask-image: url('../../../../static/icons/svg/tool-smudge.svg');
+  -webkit-mask-image: url('../../../../static/icons/svg/tool-smudge.svg');
+}
 .editor-tools__tool-undo::after {
   mask-image: url('../../../../static/icons/svg/undo.svg');
   -webkit-mask-image: url('../../../../static/icons/svg/undo.svg');

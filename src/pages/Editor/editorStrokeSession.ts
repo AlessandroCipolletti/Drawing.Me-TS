@@ -45,6 +45,14 @@ import {
 } from './editorQuickShape'
 import { EditorRefs } from './EditorView'
 import { CurrentToolProps, EditorState, EditorTouchState, PointerTouchEvent } from './editorTypes'
+import {
+  createSmudgeStrokeSession,
+  getSmudgeCursorClassSuffix,
+  getSmudgeCursorSize,
+  resetSmudgeStrokeSession,
+  smudgeStrokeStep,
+  smudgeTouchTypeToInputKind,
+} from './smudgeKernel'
 
 let cursorRafId = 0
 let pendingCursorSize = 0
@@ -103,6 +111,8 @@ export interface StrokeSessionDeps {
 
 export const createEditorStrokeSession = (deps: StrokeSessionDeps) => {
   const { state, initialCurrentTouch, refs, coordsAreInsideLayer, setToolColor } = deps
+  const smudgeSession = createSmudgeStrokeSession()
+  const isSmudgeTool = () => state.currentToolProps.name === 'smudge'
   let nearRulerLocked = false
   let lineCanvasHiddenForMask = false
 
@@ -321,13 +331,22 @@ export const createEditorStrokeSession = (deps: StrokeSessionDeps) => {
 
   const updateCursorPosition = (size: number, x: number, y: number) => {
     if (state.currentToolProps.cursor && refs.toolCursor) {
-      pendingCursorSize = size
+      pendingCursorSize = isSmudgeTool() ? getSmudgeCursorSize(size, state.currentTouch.type) : size
       pendingCursorX = x
       pendingCursorY = y
       if (!cursorRafId) {
         cursorRafId = requestAnimationFrame(() => {
           cursorRafId = 0
           if (state.currentToolProps.cursor && refs.toolCursor && state.currentTouch.isDown) {
+            const smudgeSuffix = getSmudgeCursorClassSuffix(state.currentTouch.type)
+            refs.toolCursor.classList.toggle(
+              'editor__tool-cursor--smudge-finger',
+              isSmudgeTool() && smudgeSuffix === 'finger'
+            )
+            refs.toolCursor.classList.toggle(
+              'editor__tool-cursor--smudge-pen',
+              isSmudgeTool() && smudgeSuffix === 'pen'
+            )
             refs.toolCursor.style.cssText = `
               width: ${pendingCursorSize / Params.pxScale}px;
               height: ${pendingCursorSize / Params.pxScale}px;
@@ -340,6 +359,19 @@ export const createEditorStrokeSession = (deps: StrokeSessionDeps) => {
       }
     }
   }
+
+  const drawSmudgePhase = (
+    context: ExtendedCanvasContext,
+    stepData: StrokeSample,
+    phase: 'start' | 'move' | 'end'
+  ) =>
+    smudgeStrokeStep(
+      context,
+      smudgeSession,
+      { ...stepData, type: phase },
+      phase,
+      smudgeTouchTypeToInputKind(state.currentTouch.type)
+    )
 
   const useBucket = async (
     context: ExtendedCanvasContext,
@@ -547,6 +579,7 @@ export const createEditorStrokeSession = (deps: StrokeSessionDeps) => {
 
     if (
       state.currentToolGCO !== 'destination-out' &&
+      !isSmudgeTool() &&
       (state.currentToolProps.randomColor || !state.currentToolProps.color)
     ) {
       setToolColor(ColorPicker.getRandomColor(), true)
@@ -562,12 +595,14 @@ export const createEditorStrokeSession = (deps: StrokeSessionDeps) => {
       useBucket(context, stepData.x, stepData.y, state.currentToolProps.color || '')
     } else {
       state.currentTouch.isDown = true
-      const thisStepHasDoneSomething = drawStepStart(context, stepData, state.currentToolProps)
+      const thisStepHasDoneSomething = isSmudgeTool()
+        ? drawSmudgePhase(context, stepData, 'start')
+        : drawStepStart(context, stepData, state.currentToolProps)
       state.currentTouch.drewSomething =
         state.currentTouch.drewSomething ||
         (thisStepHasDoneSomething && coordsAreInsideLayer(stepData.x, stepData.y))
-      if (thisStepHasDoneSomething && Coworking.isOpen()) {
-        sendCoworkingStep(state, stepData)
+      if (Coworking.isOpen() && (thisStepHasDoneSomething || isSmudgeTool())) {
+        sendCoworkingStep(state, { ...stepData, type: 'start' })
       }
       updateLastStepData(state, stepData)
       if (!state.currentTouch.isNearRuler && isQuickShapeSupportedTool(state.currentToolProps)) {
@@ -594,14 +629,16 @@ export const createEditorStrokeSession = (deps: StrokeSessionDeps) => {
     const stepData = getStepData(state.currentToolProps, state.currentTouch, state.lastStep)
     updateCursorPosition(stepData.size, state.currentTouch.x, state.currentTouch.y)
 
-    const thisStepHasDoneSomething = drawStepMove(context, stepData, state.currentToolProps)
+    const thisStepHasDoneSomething = isSmudgeTool()
+      ? drawSmudgePhase(context, stepData, 'move')
+      : drawStepMove(context, stepData, state.currentToolProps)
     state.currentTouch.drewSomething =
       state.currentTouch.drewSomething ||
       (thisStepHasDoneSomething && coordsAreInsideLayer(stepData.x, stepData.y))
     if (sendDataForCoworking && thisStepHasDoneSomething && Coworking.isOpen()) {
       sendCoworkingStep(
         state,
-        stepData,
+        { ...stepData, type: 'move' },
         state.currentTouch.drewSomething &&
           state.stepsSinceLastCoworkingUpdate >= state.currentToolProps.stepsToUpdateCoworking - 1
       )
@@ -646,10 +683,20 @@ export const createEditorStrokeSession = (deps: StrokeSessionDeps) => {
     if (hasMovedFromLastStep || hasUnfinishedMidSegment) {
       const fullStep = getStepData(state.currentToolProps, state.currentTouch, state.lastStep)
       stepData = fullStep
-      const thisStepHasDoneSomething = drawStepEnd(context, fullStep, state.currentToolProps)
+      const thisStepHasDoneSomething = isSmudgeTool()
+        ? drawSmudgePhase(context, fullStep, 'end')
+        : drawStepEnd(context, fullStep, state.currentToolProps)
       state.currentTouch.drewSomething =
         state.currentTouch.drewSomething ||
         (thisStepHasDoneSomething && coordsAreInsideLayer(fullStep.x, fullStep.y))
+    }
+
+    if (isSmudgeTool()) {
+      resetSmudgeStrokeSession(smudgeSession)
+      refs.toolCursor?.classList.remove(
+        'editor__tool-cursor--smudge-finger',
+        'editor__tool-cursor--smudge-pen'
+      )
     }
 
     if (Coworking.isOpen()) {

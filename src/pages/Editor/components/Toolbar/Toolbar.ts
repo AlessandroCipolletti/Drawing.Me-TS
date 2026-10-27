@@ -84,6 +84,7 @@ const refs: ToolbarRefs = {
   sliderCursor: null,
   sizeButton: null,
   alphaButton: null,
+  alphaIcon: null,
   sizeLabel: null,
   alphaLabel: null,
   toolPreview: null,
@@ -269,8 +270,19 @@ const toggleSizeAndAlpha = (enabled: boolean) => {
   }
 }
 
+const applyAlphaControlPresentation = (toolName: string) => {
+  const isSmudge = toolName === 'smudge'
+  refs.alphaButton?.classList.toggle('editor-toolbar__alpha--strength', isSmudge)
+  refs.alphaButton?.setAttribute('aria-label', isSmudge ? 'Strength' : 'Opacity')
+  if (refs.alphaIcon) {
+    refs.alphaIcon.classList.toggle('svg-icon-opacity', !isSmudge)
+    refs.alphaIcon.classList.toggle('svg-icon-strength', isSmudge)
+  }
+}
+
 export const setTool = (toolProps: CurrentToolProps) => {
   toggleSizeAndAlpha(Boolean(toolProps.hasSizeAndAlpha))
+  applyAlphaControlPresentation(toolProps.name)
   state.sizeValue = toolProps.size
   state.sizePerc = getNumberInBetween(
     1,

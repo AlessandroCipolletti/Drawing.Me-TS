@@ -85,6 +85,18 @@ describe('Editor pointer dispatch & coalesced 120Hz stroke safety net', () => {
       resolveTouchStartAction({
         isResizing: false,
         resizeModeActive: false,
+        currentDeviceHasStylus: true,
+        touchType: TOUCH_TYPE_FINGER,
+        hasZoom: true,
+        toolName: 'smudge',
+        currentLayerIsActive: true,
+      })
+    ).toBe('step')
+
+    expect(
+      resolveTouchStartAction({
+        isResizing: false,
+        resizeModeActive: false,
         currentDeviceHasStylus: false,
         touchType: TOUCH_TYPE_FINGER,
         hasZoom: false,

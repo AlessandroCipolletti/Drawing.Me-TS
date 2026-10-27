@@ -34,6 +34,13 @@ import {
   StepToolParams,
   StepTouchData,
 } from './editorStepMath'
+import {
+  createSmudgeStrokeSession,
+  resetSmudgeStrokeSession,
+  smudgeStrokeStep,
+  SMUDGE_INPUT_PEN,
+  SmudgeInputKind,
+} from './smudgeKernel'
 
 export { getStepData }
 
@@ -104,6 +111,22 @@ export const drawMultipleCoworkingSteps = async (
 
   if (currentCoworkingToolProps.name === 'bucket') {
     await fns.bucket(layerId, steps[0].x, steps[0].y, currentCoworkingToolProps.color)
+  } else if (currentCoworkingToolProps.name === 'smudge') {
+    const session = createSmudgeStrokeSession()
+    for (const step of steps) {
+      const phase = step.type
+      if (phase !== 'start' && phase !== 'move' && phase !== 'end') continue
+      smudgeStrokeStep(
+        destinationContext,
+        session,
+        step,
+        phase,
+        typeof step.inputKind === 'number' ? (step.inputKind as SmudgeInputKind) : SMUDGE_INPUT_PEN
+      )
+    }
+    resetSmudgeStrokeSession(session)
+    destinationContext.globalAlpha = 1
+    destinationContext.globalCompositeOperation = 'source-over'
   } else {
     for (const step of steps) {
       drawStrokeSample(destinationContext, step, currentCoworkingToolProps, true)

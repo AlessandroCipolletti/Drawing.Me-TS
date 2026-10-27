@@ -41,6 +41,7 @@ export const config = {
     'bucket',
     'magicWand',
     'eraser',
+    'smudge',
     'ruler',
     'undo',
     'redo',

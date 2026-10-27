@@ -136,6 +136,7 @@ const toolsFunctions: Record<string, (selected?: boolean) => unknown> = {
   highlighter: (selected) => (selected ? toggleVersions('highlighter') : selectTool('highlighter')),
   brush: (selected) => (selected ? toggleVersions('brush') : selectTool('brush')),
   eraser: (selected) => (selected ? toggleVersions('eraser') : selectTool('eraser')),
+  smudge: () => selectTool('smudge'),
   bucket: () => selectTool('bucket'),
   magicWand: () => selectTool('magicWand'),
   pipette: () => selectTool('pipette'),

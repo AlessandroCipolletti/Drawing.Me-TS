@@ -524,6 +524,10 @@ iframe {
   mask-image: url('../static/icons/svg/opacity.svg');
   -webkit-mask-image: url('../static/icons/svg/opacity.svg');
 }
+.svg-icon-strength {
+  mask-image: url('../static/icons/svg/strength.svg');
+  -webkit-mask-image: url('../static/icons/svg/strength.svg');
+}
 .svg-icon-back-save {
   mask-image: url('../static/icons/svg/back-save.svg');
   -webkit-mask-image: url('../static/icons/svg/back-save.svg');

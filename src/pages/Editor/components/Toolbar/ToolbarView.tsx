@@ -15,6 +15,7 @@ export interface ToolbarRefs {
   sliderCursor: HTMLElement | null
   sizeButton: HTMLElement | null
   alphaButton: HTMLElement | null
+  alphaIcon: HTMLElement | null
   sizeLabel: HTMLElement | null
   alphaLabel: HTMLElement | null
   toolPreview: HTMLElement | null
@@ -92,7 +93,12 @@ export const ToolbarView = ({ refs }: { refs: ToolbarRefs }) => (
             refs.alphaButton = el
           }}
         >
-          <div class="editor-toolbar__button svg-icon-opacity svg-icon-dark" />
+          <div
+            class="editor-toolbar__button svg-icon-opacity svg-icon-dark"
+            ref={(el) => {
+              refs.alphaIcon = el
+            }}
+          />
           <span
             ref={(el) => {
               refs.alphaLabel = el

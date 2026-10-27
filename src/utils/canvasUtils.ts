@@ -55,6 +55,8 @@ export interface StrokeSample {
   stepLength: number
   aspectRatio?: number
   oldAspectRatio?: number
+  /** Smudge coworking: 0 finger, 1 pen/mouse */
+  inputKind?: number
 }
 
 export interface StrokeToolParams {

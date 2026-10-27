@@ -56,7 +56,12 @@ export const resolveTouchStartAction = (params: {
 }): TouchDispatchAction => {
   if (params.isResizing) return 'none'
   if (isDesktopCanvasPan(params)) return 'panCanvas'
-  if (params.currentDeviceHasStylus && params.touchType !== TOUCH_TYPE_STYLUS && params.hasZoom) {
+  if (
+    params.currentDeviceHasStylus &&
+    params.touchType !== TOUCH_TYPE_STYLUS &&
+    params.hasZoom &&
+    params.toolName !== 'smudge'
+  ) {
     return 'dragZoom'
   }
   if (params.resizeModeActive) return 'dragLayer'
@@ -88,7 +93,12 @@ export const resolveTouchMoveAction = (params: {
 }): TouchDispatchAction => {
   if (params.isResizing) return 'none'
   if (isDesktopCanvasPan(params) && params.isZooming) return 'panCanvas'
-  if (params.isZooming && params.currentDeviceHasStylus && params.touchType !== TOUCH_TYPE_STYLUS) {
+  if (
+    params.isZooming &&
+    params.currentDeviceHasStylus &&
+    params.touchType !== TOUCH_TYPE_STYLUS &&
+    params.toolName !== 'smudge'
+  ) {
     return 'dragZoom'
   }
   if (params.resizeModeActive) return 'dragLayer'

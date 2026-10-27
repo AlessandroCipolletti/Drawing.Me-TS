@@ -114,6 +114,19 @@
   z-index: 1000;
 }
 
+.editor__tool-cursor--smudge-finger {
+  border-width: 2.5px;
+  border-color: rgba(15, 23, 42, 0.45);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.75),
+    0 0 18px rgba(148, 163, 184, 0.35);
+}
+
+.editor__tool-cursor--smudge-pen {
+  border-width: 1.5px;
+  border-color: rgba(15, 23, 42, 0.82);
+}
+
 .editor__pipette-cursor {
   position: absolute;
   width: 14rem;

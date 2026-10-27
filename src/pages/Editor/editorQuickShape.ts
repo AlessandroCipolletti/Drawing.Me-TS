@@ -94,6 +94,7 @@ export const isQuickShapeSupportedTool = (tool?: {
   if (tool.globalCompositeOperation === 'destination-out') return false
   if (
     tool.name === 'eraser' ||
+    tool.name === 'smudge' ||
     tool.name === 'bucket' ||
     tool.name === 'pipette' ||
     tool.name === 'magicWand'
