@@ -5,6 +5,8 @@ import type {
   HsbParams,
   ToneCurveParams,
   TemperatureParams,
+  TintParams,
+  VibranceParams,
   SharpnessParams,
 } from './layerAdjustmentTypes'
 import { clampParams, SHARPNESS_RANGE } from './layerAdjustmentTypes'
@@ -202,6 +204,41 @@ const applyTemperatureToImageData = (imageData: ImageData, params: TemperaturePa
   }
 }
 
+const applyTintToImageData = (imageData: ImageData, params: TintParams): void => {
+  const p = clampParams('tint', params) as TintParams
+  if (p.amount === 0) return
+  const shift = p.amount * 1.2
+  const data = imageData.data
+  for (let i = 0; i < data.length; i += 4) {
+    if (data[i + 3] === 0) continue
+    data[i] = Math.max(0, Math.min(255, Math.round(data[i] + shift)))
+    data[i + 1] = Math.max(0, Math.min(255, Math.round(data[i + 1] - shift)))
+    data[i + 2] = Math.max(0, Math.min(255, Math.round(data[i + 2] + shift)))
+  }
+}
+
+const applyVibranceToImageData = (imageData: ImageData, params: VibranceParams): void => {
+  const p = clampParams('vibrance', params) as VibranceParams
+  if (p.amount === 0) return
+  const data = imageData.data
+  for (let i = 0; i < data.length; i += 4) {
+    if (data[i + 3] === 0) continue
+    const [h, satStart, l] = rgbaToHsl(data[i], data[i + 1], data[i + 2])
+    let s = satStart
+    const sat = s / 100
+    if (p.amount > 0) {
+      s += p.amount * (1 - sat) * sat * 2
+    } else {
+      s *= 1 + (p.amount / 100) * sat
+    }
+    s = Math.max(0, Math.min(100, s))
+    const [r, g, b] = hslToRgba(h, s, l)
+    data[i] = r
+    data[i + 1] = g
+    data[i + 2] = b
+  }
+}
+
 const applySharpnessToImageData = (
   imageData: ImageData,
   params: SharpnessParams,
@@ -261,6 +298,10 @@ export const applyAdjustmentFilter = (
   } else if (filter === 'toneCurve') applyToneCurveToImageData(imageData, params as ToneCurveParams)
   else if (filter === 'temperature') {
     applyTemperatureToImageData(imageData, params as TemperatureParams)
+  } else if (filter === 'tint') {
+    applyTintToImageData(imageData, params as TintParams)
+  } else if (filter === 'vibrance') {
+    applyVibranceToImageData(imageData, params as VibranceParams)
   } else if (filter === 'sharpness') {
     applySharpnessToImageData(imageData, params as SharpnessParams, pixelScale)
   } else applyBlurToImageData(imageData, params as BlurParams, pixelScale)

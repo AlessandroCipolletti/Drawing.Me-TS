@@ -199,10 +199,18 @@ export const EditorView = ({ refs }: { refs: EditorRefs }) => (
         <div
           class="editor-lasso__action"
           ref={(el) => {
-            refs.adjustFilterSaturation = el
+            refs.adjustFilterTint = el
           }}
         >
-          <span class="editor-lasso__action-label">Saturation</span>
+          <span class="editor-lasso__action-label">Tint</span>
+        </div>
+        <div
+          class="editor-lasso__action"
+          ref={(el) => {
+            refs.adjustFilterVibrance = el
+          }}
+        >
+          <span class="editor-lasso__action-label">Vibrance</span>
         </div>
         <div
           class="editor-lasso__action"
@@ -223,10 +231,10 @@ export const EditorView = ({ refs }: { refs: EditorRefs }) => (
         <div
           class="editor-lasso__action"
           ref={(el) => {
-            refs.adjustFilterTemperature = el
+            refs.adjustFilterSaturation = el
           }}
         >
-          <span class="editor-lasso__action-label">Temperature</span>
+          <span class="editor-lasso__action-label">Saturation</span>
         </div>
         <div
           class="editor-lasso__action"
@@ -243,6 +251,14 @@ export const EditorView = ({ refs }: { refs: EditorRefs }) => (
           }}
         >
           <span class="editor-lasso__action-label">Sharpness</span>
+        </div>
+        <div
+          class="editor-lasso__action"
+          ref={(el) => {
+            refs.adjustFilterTemperature = el
+          }}
+        >
+          <span class="editor-lasso__action-label">Temperature</span>
         </div>
       </div>
       <div
@@ -437,7 +453,7 @@ export const EditorView = ({ refs }: { refs: EditorRefs }) => (
         </div>
       </div>
       <div
-        class="editor-lasso__panel displayNone"
+        class="editor-lasso__panel editor-lasso__filters displayNone"
         ref={(el) => {
           refs.lassoBarFilters = el
         }}
@@ -449,26 +465,34 @@ export const EditorView = ({ refs }: { refs: EditorRefs }) => (
         >
           <div class="editor-lasso__action-icon svg-icon-back svg-icon-dark" />
         </div>
-        <div class="editor-lasso__action" data-selection-filter="hue">
-          <span class="editor-lasso__action-label">Hue</span>
-        </div>
-        <div class="editor-lasso__action" data-selection-filter="saturation">
-          <span class="editor-lasso__action-label">Saturation</span>
-        </div>
-        <div class="editor-lasso__action" data-selection-filter="brightness">
-          <span class="editor-lasso__action-label">Brightness</span>
-        </div>
-        <div class="editor-lasso__action" data-selection-filter="toneCurve">
-          <span class="editor-lasso__action-label">Contrast</span>
-        </div>
-        <div class="editor-lasso__action" data-selection-filter="temperature">
-          <span class="editor-lasso__action-label">Temperature</span>
-        </div>
-        <div class="editor-lasso__action" data-selection-filter="blur">
-          <span class="editor-lasso__action-label">Blur</span>
-        </div>
-        <div class="editor-lasso__action" data-selection-filter="sharpness">
-          <span class="editor-lasso__action-label">Sharpness</span>
+        <div class="editor-adjust__picker">
+          <div class="editor-lasso__action" data-selection-filter="hue">
+            <span class="editor-lasso__action-label">Hue</span>
+          </div>
+          <div class="editor-lasso__action" data-selection-filter="tint">
+            <span class="editor-lasso__action-label">Tint</span>
+          </div>
+          <div class="editor-lasso__action" data-selection-filter="vibrance">
+            <span class="editor-lasso__action-label">Vibrance</span>
+          </div>
+          <div class="editor-lasso__action" data-selection-filter="brightness">
+            <span class="editor-lasso__action-label">Brightness</span>
+          </div>
+          <div class="editor-lasso__action" data-selection-filter="toneCurve">
+            <span class="editor-lasso__action-label">Contrast</span>
+          </div>
+          <div class="editor-lasso__action" data-selection-filter="saturation">
+            <span class="editor-lasso__action-label">Saturation</span>
+          </div>
+          <div class="editor-lasso__action" data-selection-filter="blur">
+            <span class="editor-lasso__action-label">Blur</span>
+          </div>
+          <div class="editor-lasso__action" data-selection-filter="sharpness">
+            <span class="editor-lasso__action-label">Sharpness</span>
+          </div>
+          <div class="editor-lasso__action" data-selection-filter="temperature">
+            <span class="editor-lasso__action-label">Temperature</span>
+          </div>
         </div>
       </div>
     </div>

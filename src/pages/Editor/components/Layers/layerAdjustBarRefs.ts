@@ -6,6 +6,8 @@ export type AdjustBarRefs = {
   adjustFilterSaturation: HTMLElement | null
   adjustFilterBrightness: HTMLElement | null
   adjustFilterTemperature: HTMLElement | null
+  adjustFilterTint: HTMLElement | null
+  adjustFilterVibrance: HTMLElement | null
   adjustFilterCurve: HTMLElement | null
   adjustFilterBlur: HTMLElement | null
   adjustFilterSharpness: HTMLElement | null
@@ -31,6 +33,8 @@ export const adjustBarRefs: AdjustBarRefs = {
   adjustFilterSaturation: null,
   adjustFilterBrightness: null,
   adjustFilterTemperature: null,
+  adjustFilterTint: null,
+  adjustFilterVibrance: null,
   adjustFilterCurve: null,
   adjustFilterBlur: null,
   adjustFilterSharpness: null,

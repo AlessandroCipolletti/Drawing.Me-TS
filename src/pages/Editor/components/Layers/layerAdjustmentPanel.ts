@@ -8,6 +8,8 @@ import type {
   BlurParams,
   HsbParams,
   TemperatureParams,
+  TintParams,
+  VibranceParams,
   SharpnessParams,
   ToneCurveParams,
 } from './layerAdjustmentTypes'
@@ -16,6 +18,8 @@ import {
   BRIGHTNESS_RANGE,
   SHARPNESS_RANGE,
   TEMPERATURE_RANGE,
+  TINT_RANGE,
+  VIBRANCE_RANGE,
   clampParams,
   defaultParamsForFilter,
   getAdjustmentPipeline,
@@ -45,6 +49,8 @@ const FILTER_LABELS: Record<AdjustmentFilterKind, string> = {
   saturation: 'Saturation',
   brightness: 'Brightness',
   temperature: 'Temperature',
+  tint: 'Tint',
+  vibrance: 'Vibrance',
   toneCurve: 'Contrast',
   blur: 'Blur',
   sharpness: 'Sharpness',
@@ -102,6 +108,12 @@ const paramToSlider = (filter: AdjustmentFilterKind, key: string, raw: number): 
   if (filter === 'temperature') {
     return round(((raw + TEMPERATURE_RANGE) / (TEMPERATURE_RANGE * 2)) * 100, 0)
   }
+  if (filter === 'tint') {
+    return round(((raw + TINT_RANGE) / (TINT_RANGE * 2)) * 100, 0)
+  }
+  if (filter === 'vibrance') {
+    return round(((raw + VIBRANCE_RANGE) / (VIBRANCE_RANGE * 2)) * 100, 0)
+  }
   if (filter === 'sharpness') {
     return round(((raw + SHARPNESS_RANGE) / (SHARPNESS_RANGE * 2)) * 100, 0)
   }
@@ -122,6 +134,12 @@ const sliderToParam = (filter: AdjustmentFilterKind, key: string, slider: number
   }
   if (filter === 'temperature') {
     return round((t / 100) * TEMPERATURE_RANGE * 2 - TEMPERATURE_RANGE, 0)
+  }
+  if (filter === 'tint') {
+    return round((t / 100) * TINT_RANGE * 2 - TINT_RANGE, 0)
+  }
+  if (filter === 'vibrance') {
+    return round((t / 100) * VIBRANCE_RANGE * 2 - VIBRANCE_RANGE, 0)
   }
   if (filter === 'sharpness') {
     return round((t / 100) * SHARPNESS_RANGE * 2 - SHARPNESS_RANGE, 0)
@@ -183,6 +201,11 @@ const syncPickerHighlight = () => {
     'selected',
     manualFilterActive(pipeline, 'temperature')
   )
+  adjustBarRefs.adjustFilterTint?.classList.toggle('selected', manualFilterActive(pipeline, 'tint'))
+  adjustBarRefs.adjustFilterVibrance?.classList.toggle(
+    'selected',
+    manualFilterActive(pipeline, 'vibrance')
+  )
   adjustBarRefs.adjustFilterCurve?.classList.toggle(
     'selected',
     manualFilterActive(pipeline, 'toneCurve')
@@ -196,6 +219,8 @@ const syncPickerHighlight = () => {
   markSelectionFilter('saturation', manualFilterActive(pipeline, 'saturation'))
   markSelectionFilter('brightness', manualFilterActive(pipeline, 'brightness'))
   markSelectionFilter('temperature', manualFilterActive(pipeline, 'temperature'))
+  markSelectionFilter('tint', manualFilterActive(pipeline, 'tint'))
+  markSelectionFilter('vibrance', manualFilterActive(pipeline, 'vibrance'))
   markSelectionFilter('toneCurve', manualFilterActive(pipeline, 'toneCurve'))
   markSelectionFilter('blur', manualFilterActive(pipeline, 'blur'))
   markSelectionFilter('sharpness', manualFilterActive(pipeline, 'sharpness'))
@@ -244,6 +269,14 @@ export const syncAdjustBarFromLayer = () => {
     const p = params as TemperatureParams
     setSliderCell(1, paramToSlider('temperature', 'amount', p.amount), true, label)
     setSliderCell(2, 0, false)
+  } else if (filter === 'tint') {
+    const p = params as TintParams
+    setSliderCell(1, paramToSlider('tint', 'amount', p.amount), true, label)
+    setSliderCell(2, 0, false)
+  } else if (filter === 'vibrance') {
+    const p = params as VibranceParams
+    setSliderCell(1, paramToSlider('vibrance', 'amount', p.amount), true, label)
+    setSliderCell(2, 0, false)
   } else if (filter === 'sharpness') {
     const p = params as SharpnessParams
     setSliderCell(1, paramToSlider('sharpness', 'amount', p.amount), true, label)
@@ -290,6 +323,14 @@ const updateParamFromSlider = (row: 1 | 2, sliderVal: number, inProgress: boolea
     next = clampParams('temperature', {
       amount: sliderToParam('temperature', 'amount', sliderVal),
     }) as TemperatureParams
+  } else if (filter === 'tint') {
+    next = clampParams('tint', {
+      amount: sliderToParam('tint', 'amount', sliderVal),
+    }) as TintParams
+  } else if (filter === 'vibrance') {
+    next = clampParams('vibrance', {
+      amount: sliderToParam('vibrance', 'amount', sliderVal),
+    }) as VibranceParams
   } else if (filter === 'sharpness') {
     next = clampParams('sharpness', {
       amount: sliderToParam('sharpness', 'amount', sliderVal),
@@ -463,6 +504,8 @@ const onSelectionFilterPointer = (e: Event) => {
     kind === 'saturation' ||
     kind === 'brightness' ||
     kind === 'temperature' ||
+    kind === 'tint' ||
+    kind === 'vibrance' ||
     kind === 'toneCurve' ||
     kind === 'blur' ||
     kind === 'sharpness'
@@ -513,6 +556,14 @@ export const initLayerAdjustmentBar = () => {
   adjustBarRefs.adjustFilterTemperature?.addEventListener(
     Params.eventStart,
     tap(() => onFilterType('temperature'))
+  )
+  adjustBarRefs.adjustFilterTint?.addEventListener(
+    Params.eventStart,
+    tap(() => onFilterType('tint'))
+  )
+  adjustBarRefs.adjustFilterVibrance?.addEventListener(
+    Params.eventStart,
+    tap(() => onFilterType('vibrance'))
   )
   adjustBarRefs.adjustFilterCurve?.addEventListener(
     Params.eventStart,

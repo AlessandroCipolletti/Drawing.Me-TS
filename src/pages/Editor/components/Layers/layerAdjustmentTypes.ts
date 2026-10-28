@@ -1,7 +1,16 @@
 import type { LassoPoint } from './layerLasso'
 
 export type AdjustmentFilterKind =
-  'hsb' | 'hue' | 'saturation' | 'brightness' | 'temperature' | 'toneCurve' | 'blur' | 'sharpness'
+  | 'hsb'
+  | 'hue'
+  | 'saturation'
+  | 'vibrance'
+  | 'brightness'
+  | 'temperature'
+  | 'tint'
+  | 'toneCurve'
+  | 'blur'
+  | 'sharpness'
 
 export interface HsbParams {
   hue: number
@@ -17,6 +26,14 @@ export interface TemperatureParams {
   amount: number
 }
 
+export interface TintParams {
+  amount: number
+}
+
+export interface VibranceParams {
+  amount: number
+}
+
 export interface SharpnessParams {
   amount: number
 }
@@ -26,7 +43,13 @@ export interface BlurParams {
 }
 
 export type AdjustmentParams =
-  HsbParams | ToneCurveParams | TemperatureParams | SharpnessParams | BlurParams
+  | HsbParams
+  | ToneCurveParams
+  | TemperatureParams
+  | TintParams
+  | VibranceParams
+  | SharpnessParams
+  | BlurParams
 
 interface AdjustmentSelectionSpec {
   points: LassoPoint[]
@@ -46,6 +69,8 @@ export const ADJUSTMENT_PROXY_MAX_EDGE = 1024
 const DEFAULT_HSB: HsbParams = { hue: 0, saturation: 0, brightness: 0 }
 const DEFAULT_TONE: ToneCurveParams = { amount: 0 }
 const DEFAULT_TEMPERATURE: TemperatureParams = { amount: 0 }
+const DEFAULT_TINT: TintParams = { amount: 0 }
+const DEFAULT_VIBRANCE: VibranceParams = { amount: 0 }
 const DEFAULT_SHARPNESS: SharpnessParams = { amount: 0 }
 const DEFAULT_BLUR: BlurParams = { radius: 0 }
 
@@ -55,6 +80,8 @@ export const defaultParamsForFilter = (filter: AdjustmentFilterKind): Adjustment
   }
   if (filter === 'toneCurve') return { ...DEFAULT_TONE }
   if (filter === 'temperature') return { ...DEFAULT_TEMPERATURE }
+  if (filter === 'tint') return { ...DEFAULT_TINT }
+  if (filter === 'vibrance') return { ...DEFAULT_VIBRANCE }
   if (filter === 'sharpness') return { ...DEFAULT_SHARPNESS }
   return { ...DEFAULT_BLUR }
 }
@@ -72,6 +99,8 @@ const clampTone = (p: ToneCurveParams): ToneCurveParams => ({
 export const BLUR_RADIUS_MAX = 32
 export const BRIGHTNESS_RANGE = 30
 export const TEMPERATURE_RANGE = 40
+export const TINT_RANGE = 40
+export const VIBRANCE_RANGE = 100
 export const SHARPNESS_RANGE = 40
 
 const clampBlur = (p: BlurParams): BlurParams => ({
@@ -97,6 +126,18 @@ export const clampParams = (
     const p = params as TemperatureParams
     return {
       amount: Math.max(-TEMPERATURE_RANGE, Math.min(TEMPERATURE_RANGE, Math.round(p.amount))),
+    }
+  }
+  if (filter === 'tint') {
+    const p = params as TintParams
+    return {
+      amount: Math.max(-TINT_RANGE, Math.min(TINT_RANGE, Math.round(p.amount))),
+    }
+  }
+  if (filter === 'vibrance') {
+    const p = params as VibranceParams
+    return {
+      amount: Math.max(-VIBRANCE_RANGE, Math.min(VIBRANCE_RANGE, Math.round(p.amount))),
     }
   }
   if (filter === 'sharpness') {

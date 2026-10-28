@@ -448,6 +448,8 @@ const bindEditorInput = () => {
     adjustFilterSaturation: refs.adjustFilterSaturation,
     adjustFilterBrightness: refs.adjustFilterBrightness,
     adjustFilterTemperature: refs.adjustFilterTemperature,
+    adjustFilterTint: refs.adjustFilterTint,
+    adjustFilterVibrance: refs.adjustFilterVibrance,
     adjustFilterCurve: refs.adjustFilterCurve,
     adjustFilterBlur: refs.adjustFilterBlur,
     adjustFilterSharpness: refs.adjustFilterSharpness,

@@ -24,6 +24,23 @@ describe('layerAdjustmentFilters', () => {
     expect([...img.data.slice(0, 4)]).toEqual([100, 150, 200, 255])
   })
 
+  it('shifts gray toward magenta when tint is positive', () => {
+    const img = solidImage(80, 80, 80)
+    applyAdjustmentFilter(img, 'tint', { amount: 40 })
+    expect(img.data[0]).toBeGreaterThan(80)
+    expect(img.data[1]).toBeLessThan(80)
+    expect(img.data[2]).toBeGreaterThan(80)
+  })
+
+  it('leaves gray unchanged and pushes a muted color when vibrance is positive', () => {
+    const gray = solidImage(80, 80, 80)
+    applyAdjustmentFilter(gray, 'vibrance', { amount: 100 })
+    expect([...gray.data.slice(0, 4)]).toEqual([80, 80, 80, 255])
+    const muted = solidImage(180, 140, 140)
+    applyAdjustmentFilter(muted, 'vibrance', { amount: 100 })
+    expect(muted.data[0] - muted.data[1]).toBeGreaterThan(180 - 140)
+  })
+
   it('shifts gray warmer when temperature is positive', () => {
     const img = solidImage(80, 80, 80)
     applyAdjustmentFilter(img, 'temperature', { amount: 40 })
