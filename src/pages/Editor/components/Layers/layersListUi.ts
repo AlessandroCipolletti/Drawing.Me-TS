@@ -1,4 +1,5 @@
 import * as Coworking from 'modules/Coworking'
+import Params from 'main/Params'
 import { editorFacade } from 'pages/Editor/editorFacade'
 import { preventDefault } from 'utils/domUtils'
 import { round, convertAngleDegToRad } from 'utils/mathUtils'
@@ -24,9 +25,13 @@ import {
   refs,
   isYourLayerYours,
   layerCanBeResized,
+  layerCanUseAdjust,
   layerCanUseLasso,
+  findAdjustmentForTarget,
   updateMagnetismCoords,
 } from './layersState'
+import { syncAdjustBarFromLayer } from './layerAdjustmentPanel'
+import { onLayerParamsClosed } from './layerAdjustPanelVisibility'
 import { layersBridge, registerLayersBridge } from './layersBridge'
 import { editorCalls } from 'pages/Editor/editorCalls'
 import {
@@ -58,7 +63,6 @@ import {
   MagicWandUpdatePayload,
   requestMagicWandSessionTolerance,
 } from './layerLasso'
-import Params from 'main/Params'
 
 const paramsAreClosed = () => state.paramsTimeout === false
 
@@ -66,8 +70,50 @@ const toggleParams = () => {
   if (refs.paramsContainer?.classList.contains('params-container-visible')) {
     closeParams()
   } else {
-    openParams()
+    openParamsDocked()
   }
+}
+
+const PARAMS_SCREEN_MARGIN = 8
+let paramsPlaceGeneration = 0
+
+const clearParamsPointerAnchor = () => {
+  paramsPlaceGeneration += 1
+  const el = refs.paramsContainer
+  if (!el) return
+  el.classList.remove('editor-layers__params-container--at-pointer')
+  el.style.position = ''
+  el.style.left = ''
+  el.style.top = ''
+  el.style.right = ''
+  el.style.bottom = ''
+  el.style.transform = ''
+  el.style.zIndex = ''
+  el.style.opacity = ''
+  el.style.pointerEvents = ''
+}
+
+const placeParamsAtPointer = (clientX: number, clientY: number) => {
+  const el = refs.paramsContainer
+  if (!el) return
+  paramsPlaceGeneration += 1
+  el.classList.add('editor-layers__params-container--at-pointer')
+  el.style.position = 'fixed'
+  el.style.right = 'auto'
+  el.style.bottom = 'auto'
+  el.style.transform = 'none'
+  el.style.zIndex = '4000'
+  el.style.opacity = '1'
+  el.style.pointerEvents = 'auto'
+  el.style.left = '0px'
+  el.style.top = '0px'
+  const origin = el.getBoundingClientRect()
+  const maxLeft = window.innerWidth - origin.width - PARAMS_SCREEN_MARGIN
+  const maxTop = window.innerHeight - origin.height - PARAMS_SCREEN_MARGIN
+  const left = Math.max(PARAMS_SCREEN_MARGIN, Math.min(clientX - origin.width / 2, maxLeft))
+  const top = Math.max(PARAMS_SCREEN_MARGIN, Math.min(clientY - origin.height / 2, maxTop))
+  el.style.left = `${left - origin.left}px`
+  el.style.top = `${top - origin.top}px`
 }
 
 const openParams = async () => {
@@ -78,13 +124,41 @@ const openParams = async () => {
   refs.paramsContainer?.classList.add('params-container-visible')
 }
 
+const paramsAnchoredAtPointer = () =>
+  Boolean(refs.paramsContainer?.classList.contains('editor-layers__params-container--at-pointer'))
+
+const openParamsDocked = () => {
+  clearParamsPointerAnchor()
+  void openParams()
+}
+
 export const closeParams = async () => {
   if (state.paramsTimeout !== false) {
-    refs.paramsContainer?.classList.remove('params-container-visible')
+    const generation = paramsPlaceGeneration
+    const el = refs.paramsContainer
+    const anchoredAtPointer = Boolean(
+      el?.classList.contains('editor-layers__params-container--at-pointer')
+    )
+    if (anchoredAtPointer && el) {
+      el.style.transition = 'none'
+      el.classList.remove('params-container-visible')
+      clearParamsPointerAnchor()
+      void el.offsetWidth
+      el.style.transition = ''
+    } else {
+      el?.classList.remove('params-container-visible')
+    }
     clearTimeout(state.paramsTimeout)
     state.paramsTimeout = false
+    onLayerParamsClosed()
     await delay(parseInt(timing.OPTIONS_SHOW_TRANSITION, 10))
+    if (!anchoredAtPointer && generation === paramsPlaceGeneration) clearParamsPointerAnchor()
   }
+}
+
+export const closePointerAnchoredParams = () => {
+  if (!paramsAnchoredAtPointer()) return
+  void closeParams()
 }
 
 const updateLayerListBlendBadges = () => {
@@ -134,7 +208,7 @@ const updateLayerListMaskAffordances = () => {
     lowerRow?.classList.add('editor-layers__layer--mask-lower')
     const upperLabel = upperRow?.querySelector('.editor-layers__layer-mask-label')
     if (upperLabel) {
-      upperLabel.textContent = 'Clip'
+      upperLabel.textContent = layer.layerKind === 'adjustment' ? 'Adjust' : 'Clip'
       upperLabel.classList.remove('displayNone')
     }
     const lowerLabel = lowerRow?.querySelector('.editor-layers__layer-mask-label')
@@ -155,11 +229,12 @@ const updateLayerListMaskAffordances = () => {
 const updateEditorCanvas = () => {
   if (state.currentSelectedLayerId && state.layers[state.currentSelectedLayerId]) {
     const domCanvas = getLayerDomCanvas(state.layers[state.currentSelectedLayerId])
+    const selectedLayer = state.layers[state.currentSelectedLayerId]
     editorFacade.updateEditorLayer(
       parseInt(domCanvas.style.zIndex, 10),
-      state.layers[state.currentSelectedLayerId].opacity,
+      selectedLayer.opacity,
       state.gcoMode ? 'source-atop' : 'source-over',
-      state.layers[state.currentSelectedLayerId].active
+      selectedLayer.active && selectedLayer.layerKind !== 'adjustment'
     )
   }
 }
@@ -263,17 +338,38 @@ const updateParamsByLayer = (layerId: string | false = state.currentSelectedLaye
     const canUseLasso = layerCanUseLasso(layerId)
     const canBeDeleted = yourLayers.length > 1
     const opacity = round(layer.opacity * 100, 0)
+    const canMergeAdjustment =
+      layer.layerKind === 'adjustment' &&
+      Boolean(layer.maskBelowLayerId && state.layers[layer.maskBelowLayerId])
     const canMergeDown =
-      !empty &&
-      !layer.maskBelowLayerId &&
-      !findUpperLayerMaskedBy(layer.id) &&
-      yourLayers.length > 1 &&
-      layer.order > 0 &&
-      Object.values(state.layers).find((l) => l.order === layer.order - 1)?.owner ===
-        Coworking.getUserId()
+      canMergeAdjustment ||
+      (!empty &&
+        !layer.maskBelowLayerId &&
+        !findUpperLayerMaskedBy(layer.id) &&
+        yourLayers.length > 1 &&
+        layer.order > 0 &&
+        Object.values(state.layers).find((l) => l.order === layer.order - 1)?.owner ===
+          Coworking.getUserId())
+    const canAdjust =
+      layerCanUseAdjust(layerId) &&
+      !state.resizeMode &&
+      !state.lassoMode &&
+      !isLayerOccupiedByCoworker(layerId)
+    const hasLinkedAdjust = Boolean(findAdjustmentForTarget(layerId))
+    const canUseFx =
+      (canAdjust || layer.layerKind === 'adjustment' || hasLinkedAdjust) &&
+      !state.resizeMode &&
+      !state.lassoMode &&
+      !isLayerOccupiedByCoworker(layerId)
+    refs.adjustParamsButton?.classList.toggle('disabled', !canUseFx)
+    refs.adjustParamsButton?.classList.toggle('selected', state.adjustPanelOpen)
+    if (state.adjustPanelOpen && state.adjustBarMode === 'edit') syncAdjustBarFromLayer()
     const canMaskDown = canToggleMaskDown(layerId)
     const maskActive = Boolean(layer.maskBelowLayerId)
-    const canDuplicate = !empty && Object.values(state.layers).length < config.maxLayersNumber
+    const canDuplicate =
+      !empty &&
+      layer.layerKind !== 'adjustment' &&
+      Object.values(state.layers).length < config.maxLayersNumber
     const canTransferLayer =
       Coworking.isOpen() && yourLayers.length > 1 && layer.active && !isLayerInMaskPair(layerId)
 
@@ -1267,8 +1363,9 @@ export const updateLayerOpacity = (() => {
     if (!changed) {
       startValue = state.layers[state.currentSelectedLayerId].opacity * 100
     }
-    openParams()
+    if (!(paramsAnchoredAtPointer() && !inProgress)) openParams()
     _updateLayerOpacity(state.currentSelectedLayerId, opacity, inProgress)
+    if (!inProgress && paramsAnchoredAtPointer()) closePointerAnchoredParams()
     if (!inProgress && opacity !== startValue) {
       layersBridge.addLayerHistoryOpacityStep(state.currentSelectedLayerId, opacity, startValue)
       if (Coworking.isOpen()) {
@@ -1488,9 +1585,38 @@ const onLayerTouchDown = (layerId: string) => {
       toggleParams()
     } else {
       layersBridge.selectLayer(layerId)
-      openParams()
+      openParamsDocked()
     }
   }
+}
+
+const openLayerOptionsAtPointer = async (layerId: string, clientX: number, clientY: number) => {
+  if (!isYourLayerYours(layerId) || isLayerOccupiedByCoworker(layerId)) return
+  if (layerId !== state.currentSelectedLayerId) {
+    await layersBridge.selectLayer(layerId)
+  } else {
+    updateParamsByLayer(layerId)
+  }
+  await openParams()
+  placeParamsAtPointer(clientX, clientY)
+}
+
+export const openSelectedLayerOptionsAtPointer = (clientX: number, clientY: number) => {
+  const layerId = state.currentSelectedLayerId
+  if (!layerId) return
+  void openLayerOptionsAtPointer(layerId, clientX, clientY)
+}
+
+export const onLayerContextMenu = async (e: Event) => {
+  if (!Params.isDesktop) return
+  const mouse = e as MouseEvent
+  if (e.type === 'pointerdown' && mouse.button !== 2) return
+  mouse.preventDefault()
+  const row = findListTargetLayerParent(mouse.target)
+  if (!row) return
+  const id = row.getAttribute('data-id')
+  if (!id) return
+  await openLayerOptionsAtPointer(id, mouse.clientX, mouse.clientY)
 }
 
 export const onListClick = (e: Event) => {

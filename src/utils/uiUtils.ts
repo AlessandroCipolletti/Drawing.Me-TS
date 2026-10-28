@@ -197,6 +197,7 @@ export interface ListScrollClickPressOptions {
     touchStartX: number
     touchStartY: number
   }) => boolean
+  onSecondaryPointerDown?: (e: Event) => void
 }
 
 export const addListScrollClickAndPressHandlers = (
@@ -263,6 +264,7 @@ export const addListScrollClickAndPressHandlers = (
     e.stopPropagation()
     if ((typeof e.button === 'number' && e.button > 0) || (e.touches && e.touches.length > 1)) {
       e.preventDefault()
+      if (e.button === 2) options?.onSecondaryPointerDown?.(e)
       return
     }
     isLongPressed = false

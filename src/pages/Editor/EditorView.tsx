@@ -27,6 +27,16 @@ const setWarpBulletRef = (refs: EditorRefs, index: number, el: HTMLElement | nul
   refs.resizeWarpBullets[index] = el
 }
 
+const FloatingBarDragHandle = ({ barId }: { barId: string }) => (
+  <div
+    class="editor-floating-bar__drag-handle"
+    data-floating-bar-id={barId}
+    aria-label="Move toolbar"
+  >
+    <div class="editor-floating-bar__drag-grip" />
+  </div>
+)
+
 export const EditorView = ({ refs }: { refs: EditorRefs }) => (
   <div
     class="editor__container displayNone"
@@ -166,80 +176,300 @@ export const EditorView = ({ refs }: { refs: EditorRefs }) => (
       />
     </div>
     <div
+      class="editor-lasso__bar editor-adjust__bar params-container displayNone"
+      ref={(el) => {
+        refs.adjustBar = el
+      }}
+    >
+      <FloatingBarDragHandle barId="adjust" />
+      <div
+        class="editor-adjust__picker"
+        ref={(el) => {
+          refs.adjustBarPicker = el
+        }}
+      >
+        <div
+          class="editor-lasso__action"
+          ref={(el) => {
+            refs.adjustFilterHue = el
+          }}
+        >
+          <span class="editor-lasso__action-label">Hue</span>
+        </div>
+        <div
+          class="editor-lasso__action"
+          ref={(el) => {
+            refs.adjustFilterSaturation = el
+          }}
+        >
+          <span class="editor-lasso__action-label">Saturation</span>
+        </div>
+        <div
+          class="editor-lasso__action"
+          ref={(el) => {
+            refs.adjustFilterBrightness = el
+          }}
+        >
+          <span class="editor-lasso__action-label">Brightness</span>
+        </div>
+        <div
+          class="editor-lasso__action"
+          ref={(el) => {
+            refs.adjustFilterCurve = el
+          }}
+        >
+          <span class="editor-lasso__action-label">Contrast</span>
+        </div>
+        <div
+          class="editor-lasso__action"
+          ref={(el) => {
+            refs.adjustFilterTemperature = el
+          }}
+        >
+          <span class="editor-lasso__action-label">Temperature</span>
+        </div>
+        <div
+          class="editor-lasso__action"
+          ref={(el) => {
+            refs.adjustFilterBlur = el
+          }}
+        >
+          <span class="editor-lasso__action-label">Blur</span>
+        </div>
+        <div
+          class="editor-lasso__action"
+          ref={(el) => {
+            refs.adjustFilterSharpness = el
+          }}
+        >
+          <span class="editor-lasso__action-label">Sharpness</span>
+        </div>
+      </div>
+      <div
+        class="editor-adjust__edit displayNone"
+        ref={(el) => {
+          refs.adjustBarEdit = el
+        }}
+      >
+        <div
+          class="editor-lasso__action editor-lasso__action--icon-only"
+          ref={(el) => {
+            refs.adjustBarBack = el
+          }}
+          aria-label="Back to filters"
+        >
+          <div class="editor-lasso__action-icon svg-icon-back svg-icon-dark" />
+        </div>
+        <span
+          class="editor-adjust__filter-name"
+          ref={(el) => {
+            refs.adjustBarFilterName = el
+          }}
+        />
+        <div
+          class="editor-adjust__slider-cell"
+          ref={(el) => {
+            refs.adjustSlider1Cell = el
+          }}
+        >
+          <span
+            class="editor-adjust__slider-label"
+            ref={(el) => {
+              refs.adjustSlider1Label = el
+            }}
+          />
+          <div
+            class="horizontal-slider editor-adjust__slider"
+            ref={(el) => {
+              refs.adjustSlider1 = el
+            }}
+          >
+            <div
+              class="editor-adjust__slider-handle"
+              ref={(el) => {
+                refs.adjustSlider1Cursor = el
+              }}
+            >
+              <span />
+            </div>
+          </div>
+        </div>
+        <div
+          class="editor-adjust__slider-cell displayNone"
+          ref={(el) => {
+            refs.adjustSlider2Cell = el
+          }}
+        >
+          <span
+            class="editor-adjust__slider-label"
+            ref={(el) => {
+              refs.adjustSlider2Label = el
+            }}
+          />
+          <div
+            class="horizontal-slider editor-adjust__slider"
+            ref={(el) => {
+              refs.adjustSlider2 = el
+            }}
+          >
+            <div
+              class="editor-adjust__slider-handle"
+              ref={(el) => {
+                refs.adjustSlider2Cursor = el
+              }}
+            >
+              <span />
+            </div>
+          </div>
+        </div>
+        <div
+          class="editor-lasso__action editor-lasso__action--icon-only"
+          ref={(el) => {
+            refs.adjustBarReset = el
+          }}
+          aria-label="Turn off filter"
+        >
+          <div class="editor-lasso__action-icon svg-icon-refresh svg-icon-dark" />
+        </div>
+      </div>
+      <div class="editor-lasso__divider" />
+      <div
+        class="editor-lasso__action editor-lasso__action--icon-only"
+        ref={(el) => {
+          refs.adjustBarClose = el
+        }}
+      >
+        <div class="editor-lasso__action-icon svg-icon-close svg-icon-dark" />
+      </div>
+    </div>
+    <div
       class="editor-lasso__bar params-container displayNone"
       ref={(el) => {
         refs.lassoBar = el
       }}
     >
+      <FloatingBarDragHandle barId="lasso" />
       <div
-        class="editor-lasso__action"
-        data-lasso-action="invert"
+        class="editor-lasso__panel"
         ref={(el) => {
-          refs.lassoInvertButton = el
+          refs.lassoBarActions = el
         }}
       >
-        <span class="editor-lasso__action-label">Invert</span>
+        <div
+          class="editor-lasso__action"
+          data-lasso-action="invert"
+          ref={(el) => {
+            refs.lassoInvertButton = el
+          }}
+        >
+          <span class="editor-lasso__action-label">Invert</span>
+        </div>
+        <div class="editor-lasso__divider" />
+        <div
+          class="editor-lasso__action"
+          data-lasso-action="move"
+          ref={(el) => {
+            refs.lassoMoveButton = el
+          }}
+        >
+          <div class="editor-lasso__action-icon svg-icon-move svg-icon-dark" />
+          <span class="editor-lasso__action-label">Move</span>
+        </div>
+        <div
+          class="editor-lasso__action"
+          data-lasso-action="transform"
+          ref={(el) => {
+            refs.lassoTransformButton = el
+          }}
+        >
+          <div class="editor-lasso__action-icon svg-icon-expand svg-icon-dark" />
+          <span class="editor-lasso__action-label">Resize</span>
+        </div>
+        <div
+          class="editor-lasso__action"
+          data-lasso-action="copy"
+          ref={(el) => {
+            refs.lassoCopyButton = el
+          }}
+        >
+          <div class="editor-lasso__action-icon svg-icon-copy-layer svg-icon-dark" />
+          <span class="editor-lasso__action-label">Copy</span>
+        </div>
+        <div
+          class="editor-lasso__action"
+          data-lasso-action="cut"
+          ref={(el) => {
+            refs.lassoCutButton = el
+          }}
+        >
+          <div class="editor-lasso__action-icon svg-icon-cut-layer svg-icon-dark" />
+          <span class="editor-lasso__action-label">Cut</span>
+        </div>
+        <div
+          class="editor-lasso__action editor-lasso__action--danger"
+          data-lasso-action="clear"
+          ref={(el) => {
+            refs.lassoClearButton = el
+          }}
+        >
+          <div class="editor-lasso__action-icon svg-icon-delete svg-icon-dark" />
+          <span class="editor-lasso__action-label">Clear</span>
+        </div>
+        <div
+          class="editor-lasso__action"
+          data-lasso-action="filters"
+          ref={(el) => {
+            refs.lassoFiltersButton = el
+          }}
+        >
+          <div class="editor-lasso__action-icon svg-icon-filters svg-icon-dark" />
+          <span class="editor-lasso__action-label">Filters</span>
+        </div>
+        <div class="editor-lasso__divider" />
+        <div
+          class="editor-lasso__action editor-lasso__action--icon-only"
+          data-lasso-action="cancel"
+          ref={(el) => {
+            refs.lassoCancelButton = el
+          }}
+        >
+          <div class="editor-lasso__action-icon svg-icon-close svg-icon-dark" />
+        </div>
       </div>
-      <div class="editor-lasso__divider" />
       <div
-        class="editor-lasso__action"
-        data-lasso-action="move"
+        class="editor-lasso__panel displayNone"
         ref={(el) => {
-          refs.lassoMoveButton = el
+          refs.lassoBarFilters = el
         }}
       >
-        <div class="editor-lasso__action-icon svg-icon-move svg-icon-dark" />
-        <span class="editor-lasso__action-label">Move</span>
-      </div>
-      <div
-        class="editor-lasso__action"
-        data-lasso-action="transform"
-        ref={(el) => {
-          refs.lassoTransformButton = el
-        }}
-      >
-        <div class="editor-lasso__action-icon svg-icon-expand svg-icon-dark" />
-        <span class="editor-lasso__action-label">Resize</span>
-      </div>
-      <div
-        class="editor-lasso__action"
-        data-lasso-action="copy"
-        ref={(el) => {
-          refs.lassoCopyButton = el
-        }}
-      >
-        <div class="editor-lasso__action-icon svg-icon-copy-layer svg-icon-dark" />
-        <span class="editor-lasso__action-label">Copy</span>
-      </div>
-      <div
-        class="editor-lasso__action"
-        data-lasso-action="cut"
-        ref={(el) => {
-          refs.lassoCutButton = el
-        }}
-      >
-        <div class="editor-lasso__action-icon svg-icon-cut-layer svg-icon-dark" />
-        <span class="editor-lasso__action-label">Cut</span>
-      </div>
-      <div
-        class="editor-lasso__action editor-lasso__action--danger"
-        data-lasso-action="clear"
-        ref={(el) => {
-          refs.lassoClearButton = el
-        }}
-      >
-        <div class="editor-lasso__action-icon svg-icon-delete svg-icon-dark" />
-        <span class="editor-lasso__action-label">Clear</span>
-      </div>
-      <div class="editor-lasso__divider" />
-      <div
-        class="editor-lasso__action editor-lasso__action--icon-only"
-        data-lasso-action="cancel"
-        ref={(el) => {
-          refs.lassoCancelButton = el
-        }}
-      >
-        <div class="editor-lasso__action-icon svg-icon-close svg-icon-dark" />
+        <div
+          class="editor-lasso__action editor-lasso__action--icon-only"
+          data-selection-filter="back"
+          aria-label="Back to selection"
+        >
+          <div class="editor-lasso__action-icon svg-icon-back svg-icon-dark" />
+        </div>
+        <div class="editor-lasso__action" data-selection-filter="hue">
+          <span class="editor-lasso__action-label">Hue</span>
+        </div>
+        <div class="editor-lasso__action" data-selection-filter="saturation">
+          <span class="editor-lasso__action-label">Saturation</span>
+        </div>
+        <div class="editor-lasso__action" data-selection-filter="brightness">
+          <span class="editor-lasso__action-label">Brightness</span>
+        </div>
+        <div class="editor-lasso__action" data-selection-filter="toneCurve">
+          <span class="editor-lasso__action-label">Contrast</span>
+        </div>
+        <div class="editor-lasso__action" data-selection-filter="temperature">
+          <span class="editor-lasso__action-label">Temperature</span>
+        </div>
+        <div class="editor-lasso__action" data-selection-filter="blur">
+          <span class="editor-lasso__action-label">Blur</span>
+        </div>
+        <div class="editor-lasso__action" data-selection-filter="sharpness">
+          <span class="editor-lasso__action-label">Sharpness</span>
+        </div>
       </div>
     </div>
     <canvas
@@ -260,6 +490,7 @@ export const EditorView = ({ refs }: { refs: EditorRefs }) => (
         refs.resizeTransformBar = el
       }}
     >
+      <FloatingBarDragHandle barId="resize" />
       {TRANSFORM_KINDS.map((kind: TransformKind) => (
         <div
           class="editor-lasso__action"
@@ -292,6 +523,7 @@ export const EditorView = ({ refs }: { refs: EditorRefs }) => (
         refs.quickShapeBar = el
       }}
     >
+      <FloatingBarDragHandle barId="quickShape" />
       {QUICK_SHAPE_VARIANT_ITEMS.map((item) => (
         <div
           class="editor-quickshape__action displayNone"

@@ -5,6 +5,10 @@ import {
   type ExtendedCanvasContext,
 } from 'utils/canvasUtils'
 import { layersBridge } from './layersBridge'
+import {
+  invalidateAdjustmentsForTargetLayer,
+  syncAdjustmentLayerDisplay,
+} from './layerDisplayHooks'
 import { LayerCanvasElement, LayerRecord, state } from './layersState'
 
 type LayerMaskRole = 'none' | 'upper' | 'lower'
@@ -160,7 +164,7 @@ export const compositeSourceToDisplay = (upperId: string) => {
   const displayCanvas = upper.displayCanvas!
   const maskCanvas = getMaskCanvasForUpper(upperId)
   copySourceToDisplayPlain(upper)
-  if (maskCanvas) {
+  if (maskCanvas && upper.layerKind !== 'adjustment') {
     applyDestinationInMask(displayCanvas.context, maskCanvas)
   }
 }
@@ -207,6 +211,10 @@ const paintPendingLassoFloat = (layerId: string) => {
 export const syncLayerDisplay = (layerId: string) => {
   const layer = state.layers[layerId]
   if (!layer) return
+  if (layer.layerKind === 'adjustment' && layer.adjustmentSpec) {
+    syncAdjustmentLayerDisplay(layerId)
+    return
+  }
   if (state.lassoFloatDirty && state.lassoSelection && state.currentSelectedLayerId === layerId) {
     paintPendingLassoFloat(layerId)
     return
@@ -222,7 +230,11 @@ export const syncLayerDisplay = (layerId: string) => {
 export const refreshMaskDependents = (changedLayerId: string) => {
   const upper = findUpperLayerMaskedBy(changedLayerId)
   if (!upper) return
-  compositeSourceToDisplay(upper.id)
+  if (upper.layerKind === 'adjustment') {
+    invalidateAdjustmentsForTargetLayer(changedLayerId)
+  } else {
+    compositeSourceToDisplay(upper.id)
+  }
   layersBridge.updateLayerPreview(upper.id)
 }
 

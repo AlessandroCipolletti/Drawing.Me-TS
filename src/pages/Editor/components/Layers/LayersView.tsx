@@ -15,6 +15,7 @@ export interface LayersRefs {
   flipHorizontalButton: HTMLElement | null
   sendLayerButton: HTMLElement | null
   deleteLayerButton: HTMLElement | null
+  adjustParamsButton: HTMLElement | null
   blendModeChip: HTMLElement | null
   opacitySlider: HTMLElement | null
   opacityCursor: HTMLElement | null
@@ -137,6 +138,16 @@ export const LayersView = ({ maxLength, refs }: { maxLength: number; refs: Layer
         }}
       >
         <div class="editor-layers__params-icon svg-icon-merge-down svg-icon-dark" />
+      </div>
+      <div
+        class="editor-layers__params-fx"
+        ref={(el) => {
+          refs.adjustParamsButton = el
+        }}
+        aria-label="Layer filters"
+        role="button"
+      >
+        <div class="editor-layers__params-icon svg-icon-filters svg-icon-dark" />
       </div>
       <div
         class="editor-layers__params-mask-down"

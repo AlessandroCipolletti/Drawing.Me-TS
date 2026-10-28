@@ -45,6 +45,12 @@ export interface LayersBridge {
     oldMaskBelowLayerId: string | null
   ) => Promise<void>
   addLayerHistoryCutToNewStep: (sourceLayerId: string, newLayerId: string) => Promise<void>
+  addLayerHistoryAdjustmentStep: (payload: {
+    targetLayerId: string
+    before: { layerId: string; order: number; spec: unknown } | null
+    after: { layerId: string; order: number; spec: unknown } | null
+    prevSelectedId: string | false
+  }) => Promise<void>
   commitLayerCanvasStepOnly: (layerId: string) => Promise<void>
   applyLayerMaskLink: (
     layerId: string,
@@ -72,7 +78,8 @@ export interface LayersBridge {
   _deleteLayer: (
     layerId: string,
     nextSelectedId?: string | 0,
-    withAnimation?: boolean
+    withAnimation?: boolean,
+    options?: { keepAdjustPanel?: boolean }
   ) => Promise<void>
   clearLayer: (layerId: string) => void
   disableLayer: (layerId?: string | false) => void

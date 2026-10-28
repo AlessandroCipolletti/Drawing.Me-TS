@@ -17,6 +17,11 @@ import {
 } from './editorUtils'
 import { EditorRefs } from './EditorView'
 import {
+  applyFloatingBarScreenPosition,
+  clearFloatingBarManualPosition,
+  tryApplyFloatingBarManualPosition,
+} from './floatingFeatureBarLayout'
+import {
   CurrentToolProps,
   EditorCanvasState,
   EditorState,
@@ -203,6 +208,7 @@ const startLassoMarchingAnts = (state: EditorState, refs: EditorRefs) => {
 
 export const updateLassoBarPosition = (state: EditorState, refs: EditorRefs) => {
   if (!refs.lassoBar || !state.lassoMode?.active || !state.lassoMode.hasSelection) return
+  if (tryApplyFloatingBarManualPosition('lasso', refs.lassoBar)) return
   const canCreateNewLayer = Layers.canCreateLayerFromLasso()
   const hasPixels = Boolean(state.lassoMode.hasPixels)
   if (!hasPixels && state.lassoMode.isMoveMode) {
@@ -271,8 +277,7 @@ export const updateLassoBarPosition = (state: EditorState, refs: EditorRefs) => 
   }
   targetTop = getNumberInBetween(minTop, maxTop, targetTop, 0)
 
-  refs.lassoBar.style.left = `${round(targetLeft, 0)}px`
-  refs.lassoBar.style.top = `${round(targetTop, 0)}px`
+  applyFloatingBarScreenPosition(refs.lassoBar, targetLeft, targetTop)
 }
 
 export const beginLassoSelectionMoveDrag = (refs: EditorRefs) => {
@@ -311,6 +316,7 @@ export const endLassoSelectionMoveDrag = (state: EditorState, refs: EditorRefs) 
 }
 
 export const clearLassoSelectionOverlay = (state: EditorState, refs: EditorRefs) => {
+  Layers.dismissSelectionFilters()
   stopLassoMarchingAnts()
   lassoMoveDragSnapshot = null
   invalidateLassoOverlayRenderCache()
@@ -335,6 +341,7 @@ export const clearLassoSelectionOverlay = (state: EditorState, refs: EditorRefs)
   refs.lassoMoveButton?.classList.remove('selected')
   refs.lassoBar?.classList.remove('editor-lasso__bar--drawing')
   refs.lassoBar?.classList.add('displayNone')
+  clearFloatingBarManualPosition('lasso')
 }
 
 export const setLassoModeIsWand = (state: EditorState, isWand: boolean) => {
@@ -406,6 +413,7 @@ export const showLassoSelectionOverlay = (
 
 export const updateQuickShapeBarPosition = (state: EditorState, refs: EditorRefs) => {
   if (!refs.quickShapeBar || !state.quickShapeMode?.active) return
+  if (tryApplyFloatingBarManualPosition('quickShape', refs.quickShapeBar)) return
 
   if (Params.isPhone) {
     refs.quickShapeBar.style.left = '50%'
@@ -458,8 +466,7 @@ export const updateQuickShapeBarPosition = (state: EditorState, refs: EditorRefs
   }
   targetTop = getNumberInBetween(minTop, maxTop, targetTop, 0)
 
-  refs.quickShapeBar.style.left = `${round(targetLeft, 0)}px`
-  refs.quickShapeBar.style.top = `${round(targetTop, 0)}px`
+  applyFloatingBarScreenPosition(refs.quickShapeBar, targetLeft, targetTop)
 }
 
 export const showQuickShapeBar = (
@@ -517,6 +524,7 @@ export const hideQuickShapeBar = (state: EditorState, refs: EditorRefs) => {
   }
   refs.quickShapeBar?.classList.add('displayNone')
   refs.quickShapeBar?.classList.remove('editor-quickshape__bar--pulse')
+  clearFloatingBarManualPosition('quickShape')
 }
 
 const updateDragBoxHandlersPosition = (refs: EditorRefs) => {
@@ -822,6 +830,7 @@ const drawWarpMeshOverlay = (state: EditorState, refs: EditorRefs) => {
 
 export const updateResizeBarPosition = (state: EditorState, refs: EditorRefs) => {
   if (!refs.resizeTransformBar || !state.resizeMode.active) return
+  if (tryApplyFloatingBarManualPosition('resize', refs.resizeTransformBar)) return
   for (const [kind, btn] of Object.entries(refs.resizeTransformKindButtons || {})) {
     btn?.classList.toggle('selected', state.resizeMode.transformKind === kind)
   }
@@ -875,8 +884,7 @@ export const updateResizeBarPosition = (state: EditorState, refs: EditorRefs) =>
   let targetTop = screenMinY - barH - 14
   if (targetTop < minTop) targetTop = screenMaxY + 14
   targetTop = getNumberInBetween(minTop, maxTop, targetTop, 0)
-  refs.resizeTransformBar.style.left = `${round(targetLeft, 0)}px`
-  refs.resizeTransformBar.style.top = `${round(targetTop, 0)}px`
+  applyFloatingBarScreenPosition(refs.resizeTransformBar, targetLeft, targetTop)
 }
 
 const syncResizeTransformToolbar = (state: EditorState, refs: EditorRefs) => {
@@ -969,6 +977,7 @@ export const hideDragBox = (state: EditorState, refs: EditorRefs) => {
       refs.resizeTransformBar,
     ].filter(Boolean) as HTMLElement[]
   )
+  clearFloatingBarManualPosition('resize')
 }
 
 export const animateDragBoxHandlersPositionToOrigin = (

@@ -616,6 +616,10 @@ iframe {
   mask-image: url('../static/icons/svg/layer-mask-down.svg');
   -webkit-mask-image: url('../static/icons/svg/layer-mask-down.svg');
 }
+.svg-icon-filters {
+  mask-image: url('../static/icons/svg/filters.svg');
+  -webkit-mask-image: url('../static/icons/svg/filters.svg');
+}
 .svg-icon-undo {
   mask-image: url('../static/icons/svg/undo.svg');
   -webkit-mask-image: url('../static/icons/svg/undo.svg');

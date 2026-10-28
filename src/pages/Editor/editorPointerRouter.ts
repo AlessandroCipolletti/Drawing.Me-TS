@@ -30,7 +30,6 @@ import { updatePipette, closePipetteCursor } from './editorLifecycle'
 import { EditorRefs } from './EditorView'
 import { EditorConfig, EditorState, PointerTouchEvent, ResizeModeState } from './editorTypes'
 import { runCoalescedStepTouchMove, updateCurrentTouchType } from './editorStrokeSession'
-
 export type TouchDispatchAction =
   'none' | 'panCanvas' | 'dragLayer' | 'dragZoom' | 'lasso' | 'lassoMove' | 'pipette' | 'step'
 

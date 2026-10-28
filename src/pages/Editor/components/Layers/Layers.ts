@@ -59,6 +59,7 @@ import {
   prepareMagicWandStroke,
   syncMagicWandTool,
   closeParams,
+  closePointerAnchoredParams,
   closeResizeModeIfNeeded,
   commitLassoMoveSelectionInPlace,
   completeLassoSelection,
@@ -77,6 +78,8 @@ import {
   setLayersSidebarExpanded,
   isLayersSidebarExpanded,
   onContainerTouchStart,
+  onLayerContextMenu,
+  openSelectedLayerOptionsAtPointer,
   onListClick,
   onListLongPress,
   refreshActiveLassoSelection,
@@ -92,6 +95,15 @@ import {
   updateLayerOpacity,
   updateMagicWandSelectionTolerance,
 } from './layersListUi'
+import { adjustParamsButtonTouchStart, initLayerAdjustmentBar } from './layerAdjustmentPanel'
+import {
+  registerInvalidateAdjustmentsForTarget,
+  registerSyncAdjustmentLayerDisplay,
+} from './layerDisplayHooks'
+import {
+  invalidateAdjustmentsForTarget,
+  renderAndCompositeAdjustment,
+} from './layerAdjustmentRender'
 import {
   addNewLayerFromCoworker,
   clearLayerFromCoworker,
@@ -108,6 +120,9 @@ import {
   receiveLayerMaskFromCoworker,
   receiveFlipLayerFromCoworker,
   receiveLayerFromCoworker,
+  receiveAdjustmentLayerCreateFromCoworker,
+  receiveAdjustmentLayerUpdateFromCoworker,
+  receiveAdjustmentLayerBakeFromCoworker,
   receiveResizeLayerFromCoworker,
   renameLayerFromCoworker,
   selectCoworkerLayer,
@@ -190,10 +205,27 @@ const initDom = async (moduleContainer: HTMLElement, sidebarExpanded = false) =>
 
   refs.layerListElement?.remove()
   refs.paramsContainer?.addEventListener(Params.eventStart, preventDefault)
+  refs.paramsContainer?.addEventListener(Params.eventEnd, (e) => {
+    if ('button' in e && (e as PointerEvent).button !== 0) return
+    const target = e.target
+    if (
+      target instanceof Node &&
+      (refs.opacitySlider?.contains(target) || refs.opacityCursor?.contains(target))
+    ) {
+      return
+    }
+    closePointerAnchoredParams()
+  })
   refs.gcoButton.addEventListener(Params.eventStart, gcoModeTouchStart)
   refs.blendModeChip?.addEventListener(Params.eventStart, blendModeChipTouchStart)
   refs.resizeButton?.addEventListener(Params.eventStart, resizeButtonTouchStart)
   refs.lassoButton?.addEventListener(Params.eventStart, lassoButtonTouchStart)
+  refs.adjustParamsButton?.addEventListener(Params.eventStart, adjustParamsButtonTouchStart)
+  initLayerAdjustmentBar()
+  registerSyncAdjustmentLayerDisplay((layerId) => {
+    void renderAndCompositeAdjustment(layerId, 'full')
+  })
+  registerInvalidateAdjustmentsForTarget(invalidateAdjustmentsForTarget)
   refs.layersContainer?.addEventListener(Params.eventStart, onContainerTouchStart)
   refs.addNewLayerButton?.addEventListener(Params.eventStart, addNewLayer)
   refs.flipVerticalButton?.addEventListener(Params.eventStart, flipVertically)
@@ -206,7 +238,14 @@ const initDom = async (moduleContainer: HTMLElement, sidebarExpanded = false) =>
   refs.deleteLayerButton?.addEventListener(Params.eventStart, deleteLayer)
   refs.sendLayerButton?.addEventListener(Params.eventStart, sendCurrentLayerToCoworker)
   if (refs.layersList) {
-    addListScrollClickAndPressHandlers(refs.layersList, onListClick, onListLongPress)
+    addListScrollClickAndPressHandlers(refs.layersList, onListClick, onListLongPress, 20, {
+      onSecondaryPointerDown: (e) => {
+        void onLayerContextMenu(e)
+      },
+    })
+    if (Params.isDesktop) {
+      refs.layersList.addEventListener('contextmenu', onLayerContextMenu, true)
+    }
   }
   if (refs.opacityCursor && refs.opacitySlider) {
     addVerticalDragSliderHandler(
@@ -234,7 +273,8 @@ const initDom = async (moduleContainer: HTMLElement, sidebarExpanded = false) =>
   }
 }
 
-export { isLayersSidebarExpanded }
+export { isLayersSidebarExpanded, openSelectedLayerOptionsAtPointer }
+export { dismissSelectionFilters } from './layerAdjustmentPanel'
 
 export const init = async (
   moduleContainer: HTMLElement,
@@ -314,4 +354,7 @@ registerEditorCoworkingPort({
   receiveResizeLayerFromCoworker,
   clearLayerFromCoworker,
   receiveLayerFromCoworker,
+  receiveAdjustmentLayerCreateFromCoworker,
+  receiveAdjustmentLayerUpdateFromCoworker,
+  receiveAdjustmentLayerBakeFromCoworker,
 })

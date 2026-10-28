@@ -17,6 +17,9 @@ import {
   getMagnetismCoordBottomForLayer,
 } from './layersUtils'
 import type { LayerBlendMode } from './layerBlendMode'
+import type { AdjustmentFilterKind, AdjustmentSpec } from './layerAdjustmentTypes'
+
+type LayerKind = 'pixel' | 'adjustment'
 
 export const MAX_LAYER_NAME_LENGTH = 12
 export const PREVIEW_SIZE = 300
@@ -79,6 +82,8 @@ export interface LayerRecord {
   bitmap?: ImageBitmap
   maskBelowLayerId: string | null
   displayCanvas: LayerCanvasElement | null
+  layerKind?: LayerKind
+  adjustmentSpec?: AdjustmentSpec
 }
 
 export interface LayersMagnetismCoords {
@@ -96,6 +101,10 @@ export interface LayersState {
   currentSelectedLayerId: string | false
   canvasPanMode: boolean
   resizeMode: boolean
+  adjustPanelOpen: boolean
+  adjustBarMode: false | 'picker' | 'edit'
+  /** After leaving edit, next tap on this manual filter on the picker turns it off. */
+  adjustManualArmOff: AdjustmentFilterKind | false
   lassoMode: boolean
   lassoArmed: boolean
   wandMode: boolean
@@ -135,6 +144,9 @@ const initialState: LayersState = {
   currentSelectedLayerId: false,
   canvasPanMode: false,
   resizeMode: false,
+  adjustPanelOpen: false,
+  adjustBarMode: false,
+  adjustManualArmOff: false,
   lassoMode: false,
   lassoArmed: false,
   wandMode: false,
@@ -214,6 +226,7 @@ export const refs: LayersRefs = {
   gcoButton: null,
   resizeButton: null,
   lassoButton: null,
+  adjustParamsButton: null,
   visibilityLayerButton: null,
   imageForResize: null,
   resizeBaseSnapshot: null,
@@ -242,6 +255,9 @@ export interface GlobalLayerHistoryAction {
   partnerLayerId?: string
   blendModeNew?: LayerBlendMode
   blendModeOld?: LayerBlendMode
+  adjustTargetLayerId?: string
+  adjustBeforeJson?: string | null
+  adjustAfterJson?: string | null
 }
 
 export let UsersLayersHistory: Record<string, History<GlobalLayerHistoryAction>> = {}
@@ -305,6 +321,19 @@ export const layerCanBeResized = (layerId: string): boolean =>
 
 export const layerCanUseLasso = (layerId: string): boolean =>
   Boolean(state.layers[layerId]?.active && state.layers[layerId].opacity > 0)
+
+export const findAdjustmentForTarget = (targetLayerId: string): LayerRecord | undefined =>
+  Object.values(state.layers).find(
+    (l) => l.layerKind === 'adjustment' && l.maskBelowLayerId === targetLayerId
+  )
+
+export const layerCanUseAdjust = (layerId: string): boolean => {
+  const layer = state.layers[layerId]
+  if (!layer || layer.layerKind === 'adjustment') return false
+  if (!Number.isFinite(layer.minX)) return false
+  if (findAdjustmentForTarget(layerId)) return false
+  return Boolean(layer.active && layer.opacity > 0)
+}
 
 export const getCurrentSelectedLayerId = (): string => state.currentSelectedLayerId || ''
 
@@ -392,6 +421,7 @@ export const createNewLayerData = (owner: string | false = false): LayerRecord =
   owner: owner || Coworking.getUserId(),
   maskBelowLayerId: null,
   displayCanvas: null,
+  layerKind: 'pixel',
 })
 
 export const setLayerCoordsAfterDragResize = (

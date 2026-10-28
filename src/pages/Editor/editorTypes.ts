@@ -49,6 +49,9 @@ export interface EditorRefs {
   dragBulletRT: HTMLElement | null
   lassoCanvas: HTMLCanvasElement | null
   lassoBar: HTMLElement | null
+  lassoBarActions: HTMLElement | null
+  lassoBarFilters: HTMLElement | null
+  lassoFiltersButton: HTMLElement | null
   lassoInvertButton: HTMLElement | null
   lassoMoveButton: HTMLElement | null
   lassoTransformButton: HTMLElement | null
@@ -70,6 +73,28 @@ export interface EditorRefs {
   guidesOriginBullet: HTMLElement | null
   guidesRotationAnchor: HTMLElement | null
   guidesRotationBullet: HTMLElement | null
+  adjustBar: HTMLElement | null
+  adjustBarPicker: HTMLElement | null
+  adjustBarEdit: HTMLElement | null
+  adjustFilterHue: HTMLElement | null
+  adjustFilterSaturation: HTMLElement | null
+  adjustFilterBrightness: HTMLElement | null
+  adjustFilterTemperature: HTMLElement | null
+  adjustFilterCurve: HTMLElement | null
+  adjustFilterBlur: HTMLElement | null
+  adjustFilterSharpness: HTMLElement | null
+  adjustBarClose: HTMLElement | null
+  adjustBarBack: HTMLElement | null
+  adjustBarReset: HTMLElement | null
+  adjustBarFilterName: HTMLElement | null
+  adjustSlider1Cell: HTMLElement | null
+  adjustSlider1: HTMLElement | null
+  adjustSlider1Cursor: HTMLElement | null
+  adjustSlider1Label: HTMLElement | null
+  adjustSlider2Cell: HTMLElement | null
+  adjustSlider2: HTMLElement | null
+  adjustSlider2Cursor: HTMLElement | null
+  adjustSlider2Label: HTMLElement | null
 }
 
 export const createInitialEditorRefs = (): EditorRefs => ({
@@ -104,6 +129,9 @@ export const createInitialEditorRefs = (): EditorRefs => ({
   dragBulletRT: null,
   lassoCanvas: null,
   lassoBar: null,
+  lassoBarActions: null,
+  lassoBarFilters: null,
+  lassoFiltersButton: null,
   lassoInvertButton: null,
   lassoMoveButton: null,
   lassoTransformButton: null,
@@ -125,6 +153,28 @@ export const createInitialEditorRefs = (): EditorRefs => ({
   guidesOriginBullet: null,
   guidesRotationAnchor: null,
   guidesRotationBullet: null,
+  adjustBar: null,
+  adjustBarPicker: null,
+  adjustBarEdit: null,
+  adjustFilterHue: null,
+  adjustFilterSaturation: null,
+  adjustFilterBrightness: null,
+  adjustFilterTemperature: null,
+  adjustFilterCurve: null,
+  adjustFilterBlur: null,
+  adjustFilterSharpness: null,
+  adjustBarClose: null,
+  adjustBarBack: null,
+  adjustBarReset: null,
+  adjustBarFilterName: null,
+  adjustSlider1Cell: null,
+  adjustSlider1: null,
+  adjustSlider1Cursor: null,
+  adjustSlider1Label: null,
+  adjustSlider2Cell: null,
+  adjustSlider2: null,
+  adjustSlider2Cursor: null,
+  adjustSlider2Label: null,
 })
 
 export interface EditorTouchState {

@@ -12,6 +12,7 @@ import {
   refs,
   clearLayerHistoryStepBitmap,
   createNewLayerCanvas,
+  createNewLayerData,
   filterYoursLayers,
   findFirstLayerForUser,
   isYourLayerYours,
@@ -28,6 +29,10 @@ import {
   syncLayerDisplay,
 } from './layerMask'
 import { clearPolygonFromCanvas, extractLassoSelection, LassoPoint } from './layerLasso'
+import type { AdjustmentSpec } from './layerAdjustmentTypes'
+
+import { renderAndCompositeAdjustment } from './layerAdjustmentRender'
+import { bakeAdjustmentIntoTarget } from './layersActions'
 
 const releaseCurrentLayerIfBlocked = () => {
   const current = state.currentSelectedLayerId
@@ -95,6 +100,7 @@ export const addNewLayerFromCoworker = async (layer: LayerRecord) => {
   layer.canvas = createNewLayerCanvas()
   layer.blendMode = normalizeBlendMode(layer.blendMode)
   layer.maskBelowLayerId = layer.maskBelowLayerId ?? null
+  layer.layerKind = layer.layerKind ?? 'pixel'
   layer.displayCanvas = null
   layer.history = new History<LayerHistoryStep>(
     config.stepHistoryMaxLength,
@@ -427,6 +433,56 @@ export const layerDragChangeFromCoworker = (
   if (layer.order === targetOrder) return
   layersBridge.addLayerHistoryOrderStep(layerId, targetOrder, layer.order)
   layersBridge.updateLayerOrger(layerId, targetOrder)
+}
+
+export const receiveAdjustmentLayerCreateFromCoworker = async (
+  layerId: string,
+  targetLayerId: string,
+  insertOrder: number,
+  adjustmentSpec: AdjustmentSpec
+) => {
+  const target = state.layers[targetLayerId]
+  if (!target) return
+  const newLayer = createNewLayerData(Coworking.getCoworkerUserId())
+  newLayer.id = layerId
+  newLayer.name = 'Adjust'
+  newLayer.order = insertOrder
+  newLayer.layerKind = 'adjustment'
+  newLayer.maskBelowLayerId = targetLayerId
+  newLayer.adjustmentSpec = adjustmentSpec
+  newLayer.canvas = createNewLayerCanvas()
+  newLayer.minX = target.minX
+  newLayer.minY = target.minY
+  newLayer.maxX = target.maxX
+  newLayer.maxY = target.maxY
+  Object.keys(state.layers).forEach((id) => {
+    if (state.layers[id].order >= insertOrder) state.layers[id].order++
+  })
+  state.layers[layerId] = newLayer
+  await layersBridge.createNewLayerDom(layerId, true)
+  layersBridge.reorderLayersList()
+  await renderAndCompositeAdjustment(layerId, 'full')
+  layersBridge.addLayerHistoryNewStep(layerId)
+}
+
+export const receiveAdjustmentLayerUpdateFromCoworker = async (
+  layerId: string,
+  adjustmentSpec: AdjustmentSpec
+) => {
+  const layer = state.layers[layerId]
+  if (!layer) return
+  layer.adjustmentSpec = adjustmentSpec
+  await renderAndCompositeAdjustment(layerId, 'full')
+  layersBridge.updateLayerPreview(layerId)
+}
+
+export const receiveAdjustmentLayerBakeFromCoworker = async (
+  adjustmentLayerId: string,
+  targetLayerId: string
+) => {
+  if (!state.layers[adjustmentLayerId]) return
+  await bakeAdjustmentIntoTarget(adjustmentLayerId)
+  await layersBridge._deleteLayer(adjustmentLayerId, targetLayerId)
 }
 
 registerLayersBridge({

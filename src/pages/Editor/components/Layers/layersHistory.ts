@@ -18,7 +18,9 @@ import {
   HISTORY_STEP_LAYER_RENAME,
   HISTORY_STEP_LAYER_MASK,
   HISTORY_STEP_LAYER_CUT_TO_NEW,
+  HISTORY_STEP_LAYER_ADJUSTMENT,
 } from './constants'
+import { applyEffectiveAdjustment } from './layerAdjustmentCommit'
 import {
   UsersLayersHistory,
   config,
@@ -238,6 +240,9 @@ export const addLayerHistoryContentChangedStep = async (
       syncLayerDisplay(layerId)
     }
     refreshMaskDependents(layerId)
+    void import('./layerAdjustmentRender').then(({ invalidateAdjustmentsForTarget }) =>
+      invalidateAdjustmentsForTarget(layerId)
+    )
     layersBridge.updateLayerPreview(layerId)
     if (isYourLayerYours(layerId)) {
       const wasInResizeMode = state.resizeMode
@@ -531,6 +536,27 @@ const addLayerHistoryMaskStep = async (
   )
 }
 
+const addLayerHistoryAdjustmentStep = async (payload: {
+  targetLayerId: string
+  before: { layerId: string; order: number; spec: unknown } | null
+  after: { layerId: string; order: number; spec: unknown } | null
+  prevSelectedId: string | false
+}) => {
+  const layer = state.layers[payload.targetLayerId]
+  if (!layer) return
+  addGlobalLayersHistoryAction(
+    {
+      type: HISTORY_STEP_LAYER_ADJUSTMENT,
+      layerId: payload.targetLayerId,
+      adjustTargetLayerId: payload.targetLayerId,
+      adjustBeforeJson: payload.before ? JSON.stringify(payload.before) : null,
+      adjustAfterJson: payload.after ? JSON.stringify(payload.after) : null,
+      prevSelectedId: payload.prevSelectedId || undefined,
+    },
+    layer.owner
+  )
+}
+
 const addLayerHistoryMergeStep = async (
   layerOneId: string,
   layerTwoId: string,
@@ -666,6 +692,14 @@ export const doUndoForUser = async (userId: string) => {
             false
           )
           layersBridge.updateLayerListMaskAffordances()
+        } else if (action.type === HISTORY_STEP_LAYER_ADJUSTMENT && action.adjustTargetLayerId) {
+          const before = action.adjustBeforeJson
+            ? (JSON.parse(action.adjustBeforeJson) as Parameters<
+                typeof applyEffectiveAdjustment
+              >[1])
+            : null
+          await applyEffectiveAdjustment(action.adjustTargetLayerId, before)
+          selectedLayerId = action.prevSelectedId || action.adjustTargetLayerId
         }
 
         selectedLayerId = resolveOwnedSelectableLayer(selectedLayerId)
@@ -765,6 +799,12 @@ export const doRedoForUser = async (userId: string) => {
           false
         )
         layersBridge.updateLayerListMaskAffordances()
+      } else if (action.type === HISTORY_STEP_LAYER_ADJUSTMENT && action.adjustTargetLayerId) {
+        const after = action.adjustAfterJson
+          ? (JSON.parse(action.adjustAfterJson) as Parameters<typeof applyEffectiveAdjustment>[1])
+          : null
+        await applyEffectiveAdjustment(action.adjustTargetLayerId, after)
+        selectedLayerId = action.prevSelectedId || action.adjustTargetLayerId
       }
 
       selectedLayerId = resolveOwnedSelectableLayer(selectedLayerId)
@@ -800,6 +840,7 @@ registerLayersBridge({
   addLayerHistoryOrderStep,
   addLayerHistoryMaskStep,
   addLayerHistoryCutToNewStep,
+  addLayerHistoryAdjustmentStep,
   commitLayerCanvasStepOnly,
   updateUndoRedoButtons,
   cleanGlobalLayersHistoryForLayer,

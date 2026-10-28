@@ -209,6 +209,66 @@ div.editor__magnetised-line-r {
   height: calc(max(var(--100vh), var(--100vw)) * 3);
 }
 
+.params-container.editor-lasso__bar.editor-adjust__bar {
+  transform: translate3d(-50%, 0, 0);
+}
+.editor-adjust__picker {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.36rem;
+}
+.editor-adjust__edit {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.55rem;
+}
+.editor-adjust__filter-name {
+  font-family: 'Poppins-Medium', sans-serif;
+  font-size: 1.08rem;
+  line-height: 1;
+  color: var(--text-primary);
+  white-space: nowrap;
+  padding: 0 0.35rem 0 0.35rem;
+  pointer-events: none;
+  flex: 0 0 auto;
+  margin-right: 0.35rem;
+}
+.editor-adjust__slider-cell {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 2.2rem;
+  flex: 0 0 auto;
+}
+.editor-adjust__slider-label {
+  font-family: 'Poppins-Medium', sans-serif;
+  font-size: 1.05rem;
+  line-height: 1.1;
+  color: var(--text-primary);
+  white-space: nowrap;
+  pointer-events: none;
+  flex: 0 0 auto;
+}
+.editor-adjust__slider.horizontal-slider {
+  width: 14rem;
+  flex: 0 0 14rem;
+  height: calc(1.55rem / var(--viewport-scale));
+  margin-right: 1.35rem;
+}
+.editor-adjust__slider.horizontal-slider .editor-adjust__slider-handle {
+  width: 2.35rem;
+  height: 2.35rem;
+}
+.editor-adjust__slider.horizontal-slider .editor-adjust__slider-handle span {
+  display: none;
+}
+.drawith__PHONE .editor-adjust__slider.horizontal-slider {
+  width: 12rem;
+  flex-basis: 12rem;
+}
+
 /* LASSO FLOATING ACTION BAR */
 .params-container.editor-lasso__bar {
   position: absolute;
@@ -234,6 +294,9 @@ div.editor__magnetised-line-r {
   overflow: visible;
   pointer-events: auto;
   transition: opacity 120ms ease;
+}
+.editor-lasso__panel {
+  display: contents;
 }
 .params-container.editor-lasso__bar.editor-lasso__bar--drawing {
   opacity: 0.22;
@@ -323,6 +386,37 @@ div.editor__magnetised-line-r {
   background-color: rgba(15, 23, 42, 0.14);
   margin: 0 0.08rem;
   flex-shrink: 0;
+}
+.editor-floating-bar__drag-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.55rem;
+  height: 3.5rem;
+  margin: 0 0.06rem 0 0.02rem;
+  flex-shrink: 0;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  border-radius: 0.65rem;
+}
+.editor-floating-bar__drag-handle--active {
+  cursor: grabbing;
+  background-color: rgba(15, 23, 42, 0.06);
+}
+.editor-floating-bar__drag-grip {
+  width: 0.28rem;
+  height: 1.35rem;
+  border-radius: 999px;
+  background-color: rgba(15, 23, 42, 0.22);
+  box-shadow:
+    0.42rem 0 0 rgba(15, 23, 42, 0.22),
+    -0.42rem 0 0 rgba(15, 23, 42, 0.22);
+  pointer-events: none;
+}
+.drawith__PHONE .editor-floating-bar__drag-handle {
+  height: 3.35rem;
 }
 .drawith__PHONE .params-container.editor-lasso__bar {
   top: calc(var(--header-height) + 0.55rem) !important;

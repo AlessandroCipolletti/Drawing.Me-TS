@@ -1,0 +1,18 @@
+---
+description: UX rules for new editor UI — floating toolbars, touch targets, no cramped controls
+alwaysApply: true
+---
+
+# Editor UI / UX
+
+When adding or changing editor UI:
+
+1. **Reuse existing patterns** — Mode-specific controls belong on **floating capsule toolbars** (lasso, adjust/filters, resize, quick shape): large tap targets (~3.5rem), **drag grip** on the left, divider, close (X). Bars are draggable anywhere on the canvas; side rails (layer params, mirror row options) stay fixed. Do not cram filters or sliders into the vertical layer params column.
+
+2. **Layer params toolbar** — Icon-only actions (same tile size as visibility, duplicate, etc.). Text labels and multi-control panels do not belong there.
+
+3. **Sliders** — Use horizontal sliders only where the bar is **wide enough** (floating toolbar or dedicated params row with real width). Never stack multiple horizontal sliders in a thin side panel.
+
+4. **Multi-step flows** — Picker step (choose mode/filter) then edit step (name + 1–2 sliders + close). Same mental model as lasso: open bar → act → close.
+
+5. **Before shipping UI** — Ask: would a user discover this without explanation? If controls need a hint like “scrub the canvas”, redesign.

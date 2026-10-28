@@ -9,6 +9,17 @@ import { PaletteColor } from './components/ColorPicker/ColorPicker'
 import * as Toolbar from './components/Toolbar'
 import { syncGuidesToolbarChrome } from './components/Toolbar/Toolbar'
 import * as Layers from './components/Layers'
+import { registerAdjustBarRefs } from './components/Layers/layerAdjustBarRefs'
+import {
+  registerAdjustBarReposition,
+  updateAdjustBarPosition,
+} from './components/Layers/layerAdjustBarPosition'
+import {
+  enterSelectionFilters,
+  initLayerAdjustmentBar,
+  registerSelectionFilterPanels,
+} from './components/Layers/layerAdjustmentPanel'
+import { initFloatingFeatureBarDrag } from './floatingFeatureBarDrag'
 import * as Tools from './components/Tools'
 import * as Ruler from './components/Ruler'
 import { registerEditorFacade } from './editorFacade'
@@ -205,6 +216,15 @@ const scheduleRestoreGuidesOverlayOpacity = () => {
   if (guidesFadeRestoreTimer) clearTimeout(guidesFadeRestoreTimer)
   guidesFadeRestoreTimer = setTimeout(restoreGuidesOverlayOpacity, 400)
 }
+const syncAdjustBarPosition = () => {
+  updateAdjustBarPosition({
+    canvasOrigin: refs.canvasOrigin,
+    scale: state.canvas.scale,
+    rotation: state.canvas.rotation,
+    offset: state.canvas.offset,
+  })
+}
+
 const updateFloatingOptionBars = () => {
   if (state.lassoMode?.active) {
     updateLassoBarPosition(state, refs)
@@ -215,6 +235,7 @@ const updateFloatingOptionBars = () => {
   if (state.resizeMode?.active) {
     updateResizeBarPosition(state, refs)
   }
+  syncAdjustBarPosition()
 }
 const onGestureStart = (x: number, y: number) => handleGestureStart(state, refs, x, y)
 const onGestureChange = (x: number, y: number, scale: number, rotation: number) =>
@@ -377,7 +398,24 @@ const bindEditorInput = () => {
     preventDefault(e)
     Layers.confirmResizeModeFromToolbar()
   })
-  pointerCleanup = handlePointerEvents(refs.touchLayer!, {
+  const openLayerOptionsFromSecondaryClick = (e: Event) => {
+    if (!Params.isDesktop) return
+    const mouse = e as MouseEvent
+    if (e.type !== 'contextmenu' && mouse.button !== 2) return
+    mouse.preventDefault()
+    mouse.stopPropagation()
+    Layers.openSelectedLayerOptionsAtPointer(mouse.clientX, mouse.clientY)
+  }
+  const blockEditorContextMenu = (e: Event) => {
+    if (!Params.isDesktop) return
+    const target = e.target
+    if (!(target instanceof Node) || !refs.container?.contains(target)) return
+    e.preventDefault()
+  }
+  document.addEventListener('contextmenu', blockEditorContextMenu, true)
+  refs.touchLayer?.addEventListener('pointerdown', openLayerOptionsFromSecondaryClick, true)
+  refs.touchLayer?.addEventListener('contextmenu', openLayerOptionsFromSecondaryClick, true)
+  const cleanPointer = handlePointerEvents(refs.touchLayer!, {
     onSingleTouchStart: pointerHandlers.onTouchStart,
     onSingleTouchMove: pointerHandlers.onTouchMove,
     onSingleTouchEnd: pointerHandlers.onTouchEnd,
@@ -395,6 +433,43 @@ const bindEditorInput = () => {
     onFourFingersSingleTap: toggleFullscreen,
     isWheelBlocked: () => state.desktopPointerDown,
   })
+  pointerCleanup = () => {
+    document.removeEventListener('contextmenu', blockEditorContextMenu, true)
+    refs.touchLayer?.removeEventListener('pointerdown', openLayerOptionsFromSecondaryClick, true)
+    refs.touchLayer?.removeEventListener('contextmenu', openLayerOptionsFromSecondaryClick, true)
+    cleanPointer()
+  }
+  refs.adjustBar?.addEventListener(Params.eventStart, preventDefault)
+  registerAdjustBarRefs({
+    adjustBar: refs.adjustBar,
+    adjustBarPicker: refs.adjustBarPicker,
+    adjustBarEdit: refs.adjustBarEdit,
+    adjustFilterHue: refs.adjustFilterHue,
+    adjustFilterSaturation: refs.adjustFilterSaturation,
+    adjustFilterBrightness: refs.adjustFilterBrightness,
+    adjustFilterTemperature: refs.adjustFilterTemperature,
+    adjustFilterCurve: refs.adjustFilterCurve,
+    adjustFilterBlur: refs.adjustFilterBlur,
+    adjustFilterSharpness: refs.adjustFilterSharpness,
+    adjustBarClose: refs.adjustBarClose,
+    adjustBarBack: refs.adjustBarBack,
+    adjustBarReset: refs.adjustBarReset,
+    adjustBarFilterName: refs.adjustBarFilterName,
+    adjustSlider1Cell: refs.adjustSlider1Cell,
+    adjustSlider1: refs.adjustSlider1,
+    adjustSlider1Cursor: refs.adjustSlider1Cursor,
+    adjustSlider1Label: refs.adjustSlider1Label,
+    adjustSlider2Cell: refs.adjustSlider2Cell,
+    adjustSlider2: refs.adjustSlider2,
+    adjustSlider2Cursor: refs.adjustSlider2Cursor,
+    adjustSlider2Label: refs.adjustSlider2Label,
+  })
+  registerSelectionFilterPanels(refs.lassoBarActions, refs.lassoBarFilters, () =>
+    updateLassoBarPosition(state, refs)
+  )
+  initLayerAdjustmentBar()
+  registerAdjustBarReposition(syncAdjustBarPosition)
+  initFloatingFeatureBarDrag(() => state.canvas.offset)
   refs.lassoBar?.addEventListener(Params.eventStart, preventDefault)
   refs.lassoInvertButton?.addEventListener(Params.eventStart, (e) => {
     preventDefault(e)
@@ -423,6 +498,10 @@ const bindEditorInput = () => {
   refs.lassoClearButton?.addEventListener(Params.eventStart, (e) => {
     preventDefault(e)
     void Layers.clearLassoSelection()
+  })
+  refs.lassoFiltersButton?.addEventListener(Params.eventStart, (e) => {
+    preventDefault(e)
+    enterSelectionFilters()
   })
   refs.lassoCancelButton?.addEventListener(Params.eventStart, (e) => {
     preventDefault(e)

@@ -41,6 +41,12 @@ import {
   refreshMaskDependents,
   syncLayerDisplay,
 } from './layerMask'
+import type { AdjustmentFilterKind, AdjustmentSpec } from './layerAdjustmentTypes'
+import { defaultParamsForFilter } from './layerAdjustmentTypes'
+import { renderAndCompositeAdjustment } from './layerAdjustmentRender'
+import { closeAdjustPanel } from './layerAdjustPanelVisibility'
+import { duplicateCanvas } from 'utils/imageUtils'
+import { findAdjustmentForTarget, layerCanUseAdjust } from './layersState'
 
 const claimLayerForLocalUser = (layerId: string) => {
   const layer = state.layers[layerId]
@@ -101,10 +107,22 @@ const selectLayer = async (layerId: string) => {
 const _deleteLayer = async (
   layerId: string,
   nextSelectedId: string | 0 = 0,
-  withAnimation = true
+  withAnimation = true,
+  options?: { keepAdjustPanel?: boolean }
 ) => {
   const layer = state.layers[layerId]
   if (!layer) return
+  const adjustmentOnTarget = findAdjustmentForTarget(layerId)
+  if (adjustmentOnTarget) {
+    await _deleteLayer(adjustmentOnTarget.id, 0, withAnimation, options)
+  }
+  if (layer.layerKind === 'adjustment' && layer.maskBelowLayerId) {
+    const target = state.layers[layer.maskBelowLayerId]
+    if (target) getLayerDomCanvas(target).style.visibility = ''
+  }
+  if (layer.layerKind === 'adjustment' && state.adjustPanelOpen && !options?.keepAdjustPanel) {
+    closeAdjustPanel({ skipCommit: true })
+  }
   if (layerId === state.currentSelectedLayerId && state.resizeMode) {
     layersBridge.updateResizeMode(false, false)
     editorFacade.hideDragBox()
@@ -124,12 +142,18 @@ const _deleteLayer = async (
   }
   state.lassoTransformPoints = null
   state.lassoTransformOptions = null
-  if (nextSelectedId) {
-    await selectLayer(nextSelectedId)
+  const selectAfter =
+    nextSelectedId && nextSelectedId !== layerId
+      ? nextSelectedId
+      : layer.layerKind === 'adjustment'
+        ? layer.maskBelowLayerId || 0
+        : 0
+  if (selectAfter && state.layers[selectAfter]) {
+    await selectLayer(selectAfter)
   } else if (layerId === state.currentSelectedLayerId) {
     state.currentSelectedLayerId = false
   }
-  layersBridge.closeParams()
+  if (!options?.keepAdjustPanel) layersBridge.closeParams()
   const listEl = refs.layersList?.querySelector(`div[data-id="${layerId}"]`) as HTMLElement | null
   breakMaskLinksInvolvingLayer(layerId)
   const domCanvas = getLayerDomCanvas(layer)
@@ -151,6 +175,9 @@ const _deleteLayer = async (
   delete state.layers[layerId]
   layersBridge.updateUndoRedoButtons()
   layersBridge.reorderLayersList()
+  if (state.currentSelectedLayerId && state.layers[state.currentSelectedLayerId]) {
+    layersBridge.updateParamsByLayer(state.currentSelectedLayerId)
+  }
 }
 
 export const deleteLayer = async (
@@ -245,9 +272,11 @@ export const duplicateSelectedLayer = async (e?: Event) => {
     return
   }
   layersBridge.openParams()
+  const selected = state.layers[state.currentSelectedLayerId]
   if (
     refs.duplicateLayerButton?.classList.contains('disabled') ||
-    !Number.isFinite(state.layers[state.currentSelectedLayerId].maxX) ||
+    !Number.isFinite(selected.maxX) ||
+    selected.layerKind === 'adjustment' ||
     Object.keys(state.layers).length >= config.maxLayersNumber
   ) {
     return
@@ -323,6 +352,80 @@ const mergeLayers = async (
   layersBridge.reorderLayersList()
 }
 
+export const bakeAdjustmentIntoTarget = async (adjustmentLayerId: string) => {
+  const adjustment = state.layers[adjustmentLayerId]
+  const targetId = adjustment?.maskBelowLayerId
+  const target = targetId ? state.layers[targetId] : undefined
+  if (!adjustment?.adjustmentSpec || !target?.canvas) return
+
+  await renderAndCompositeAdjustment(adjustmentLayerId, 'full')
+  const snap = duplicateCanvas(target.canvas)
+  fillCanvasWithImage(target.canvas.context, adjustment.canvas, 0, 0)
+  target.canvas.context.globalCompositeOperation = 'destination-in'
+  target.canvas.context.drawImage(snap, 0, 0)
+  target.canvas.context.globalCompositeOperation = 'source-over'
+  snap.width = snap.height = 0
+
+  await layersBridge.updateLayerRealCoords(targetId!)
+  await layersBridge.addLayerHistoryContentChangedStep(targetId!)
+  layersBridge.updateLayerPreview(targetId!)
+  syncLayerDisplay(targetId!)
+}
+
+export const createAdjustmentLayerForTarget = async (
+  targetLayerId: string,
+  filter: AdjustmentFilterKind = 'hsb'
+) => {
+  const target = state.layers[targetLayerId]
+  if (!target || !layerCanUseAdjust(targetLayerId)) return null
+  if (Object.keys(state.layers).length >= config.maxLayersNumber) return null
+
+  await layersBridge.saveResizeModeIfNeeded()
+
+  const newId = uuidv4()
+  const insertOrder = getInsertOrderAboveLayer(targetLayerId)
+  const newLayer = createNewLayerData()
+  newLayer.id = newId
+  newLayer.name = 'Adjust'
+  newLayer.order = insertOrder
+  newLayer.layerKind = 'adjustment'
+  newLayer.maskBelowLayerId = targetLayerId
+  newLayer.blendMode = 'normal'
+  newLayer.minX = target.minX
+  newLayer.minY = target.minY
+  newLayer.maxX = target.maxX
+  newLayer.maxY = target.maxY
+
+  const selection = state.lassoSelection
+  const adjustmentSpec: AdjustmentSpec = {
+    version: 1,
+    filter,
+    params: defaultParamsForFilter(filter),
+    pipeline: [],
+    selection:
+      selection && selection.points.length >= 3
+        ? {
+            points: selection.points.map((p) => [...p] as [number, number]),
+            rings: selection.rings?.map((ring) => ring.map((p) => [...p] as [number, number])),
+            inverted: selection.inverted,
+          }
+        : null,
+  }
+  newLayer.adjustmentSpec = adjustmentSpec
+  newLayer.canvas = createNewLayerCanvas()
+
+  Object.keys(state.layers).forEach((id) => {
+    if (state.layers[id].order >= insertOrder) state.layers[id].order++
+  })
+  state.layers[newId] = newLayer
+  await layersBridge.createNewLayerDom(newId, true)
+  layersBridge.reorderLayersList()
+  await selectLayer(newId)
+  await renderAndCompositeAdjustment(newId, 'full')
+  layersBridge.updateLayerPreview(newId)
+  return newId
+}
+
 export const mergeDownSelectedLayer = async (e?: Event) => {
   if (e) preventDefault(e)
   if (layersBridge.paramsAreClosed() || !state.currentSelectedLayerId) {
@@ -332,6 +435,27 @@ export const mergeDownSelectedLayer = async (e?: Event) => {
 
   const selectedLayer = state.layers[state.currentSelectedLayerId]
   const empty = !Number.isFinite(selectedLayer.minX)
+
+  if (
+    selectedLayer.layerKind === 'adjustment' &&
+    selectedLayer.maskBelowLayerId &&
+    state.layers[selectedLayer.maskBelowLayerId]
+  ) {
+    if (refs.mergeDownLayerButton?.classList.contains('disabled')) return
+    layersBridge.closeParams()
+    closeAdjustPanel()
+    const targetId = selectedLayer.maskBelowLayerId
+    await bakeAdjustmentIntoTarget(selectedLayer.id)
+    await layersBridge._deleteLayer(selectedLayer.id, targetId)
+    await selectLayer(targetId)
+    if (Coworking.isOpen()) {
+      Coworking.sendAdjustmentLayerBake(selectedLayer.id, targetId)
+    }
+    layersBridge.updateUndoRedoButtons()
+    layersBridge.openParams()
+    return
+  }
+
   const canMergeDown =
     !empty &&
     !selectedLayer.maskBelowLayerId &&

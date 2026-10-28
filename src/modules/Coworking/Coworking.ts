@@ -212,6 +212,29 @@ const peerMessageHandlers: Record<string, (data: any) => void> = {
         data.rings
       )
     ),
+  [editorEvents.adjustmentLayerCreate]: (data) =>
+    withEditor(() =>
+      editorCoworkingPort.receiveAdjustmentLayerCreateFromCoworker(
+        data.layerId,
+        data.targetLayerId,
+        data.insertOrder,
+        data.adjustmentSpec
+      )
+    ),
+  [editorEvents.adjustmentLayerUpdate]: (data) =>
+    withEditor(() =>
+      editorCoworkingPort.receiveAdjustmentLayerUpdateFromCoworker(
+        data.layerId,
+        data.adjustmentSpec
+      )
+    ),
+  [editorEvents.adjustmentLayerBake]: (data) =>
+    withEditor(() =>
+      editorCoworkingPort.receiveAdjustmentLayerBakeFromCoworker(
+        data.adjustmentLayerId,
+        data.targetLayerId
+      )
+    ),
   [editorEvents.clearLayer]: (data) =>
     withEditor(() => editorCoworkingPort.clearLayerFromCoworker(data.layerId)),
   [editorEvents.transferLayer]: (data) =>
@@ -248,6 +271,32 @@ export const sendMergeDownLayer = (layerOneId: string, layerTwoId: string, newLa
   peerClient?.sendMessage({
     event: editorEvents.mergeLayers,
     data: { layerOneId, layerTwoId, newLayerId },
+  })
+}
+
+export const sendAdjustmentLayerCreate = (
+  layerId: string,
+  targetLayerId: string,
+  insertOrder: number,
+  adjustmentSpec: unknown
+) => {
+  peerClient?.sendMessage({
+    event: editorEvents.adjustmentLayerCreate,
+    data: { layerId, targetLayerId, insertOrder, adjustmentSpec },
+  })
+}
+
+export const sendAdjustmentLayerUpdate = (layerId: string, adjustmentSpec: unknown) => {
+  peerClient?.sendMessage({
+    event: editorEvents.adjustmentLayerUpdate,
+    data: { layerId, adjustmentSpec },
+  })
+}
+
+export const sendAdjustmentLayerBake = (adjustmentLayerId: string, targetLayerId: string) => {
+  peerClient?.sendMessage({
+    event: editorEvents.adjustmentLayerBake,
+    data: { adjustmentLayerId, targetLayerId },
   })
 }
 

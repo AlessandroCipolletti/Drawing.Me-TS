@@ -64,6 +64,8 @@ export interface ExportableLayerCopy {
   resizeMode?: unknown
   gco?: unknown
   maskBelowLayerId?: string | null
+  layerKind?: string
+  adjustmentSpec?: unknown
 }
 
 const layerDeepCopy = (
@@ -91,9 +93,14 @@ const layerDeepCopy = (
     updateTimestamp: layer.updateTimestamp,
     owner: layer.owner,
     maskBelowLayerId: layer.maskBelowLayerId ?? null,
+    layerKind: layer.layerKind ?? 'pixel',
+    adjustmentSpec: layer.adjustmentSpec
+      ? JSON.parse(JSON.stringify(layer.adjustmentSpec))
+      : undefined,
   }
   if (deepCopyCanvas) {
-    copy.canvas = duplicateCanvas(layer.canvas, usingOffscreen) as unknown as LayerCanvasElement
+    const source = layer.layerKind === 'adjustment' ? getLayerDomCanvas(layer) : layer.canvas
+    copy.canvas = duplicateCanvas(source, usingOffscreen) as unknown as LayerCanvasElement
   }
   if (exportBitmap) {
     copy.bitmap = layer.history.getCurrent()?.bitmap
@@ -184,7 +191,12 @@ export const exportWholeCanvasData = async (
   const layers = Object.values(state.layers).sort((l1, l2) => (l1.order > l2.order ? 1 : -1))
   for (const layer of layers) {
     if (layer.active && tempContext) {
-      syncLayerDisplay(layer.id)
+      if (layer.layerKind === 'adjustment' && layer.adjustmentSpec) {
+        const { renderAndCompositeAdjustment } = await import('./layerAdjustmentRender')
+        await renderAndCompositeAdjustment(layer.id, 'full')
+      } else {
+        syncLayerDisplay(layer.id)
+      }
       compositeLayerOntoContext(
         tempContext,
         getLayerDomCanvas(layer),
@@ -235,6 +247,8 @@ const prepareLayerFromDb = async (rawLayer: LayerRecord & { base64: string }) =>
   )
   layer.maskBelowLayerId = rawLayer.maskBelowLayerId ?? null
   layer.blendMode = normalizeBlendMode(rawLayer.blendMode)
+  layer.layerKind = rawLayer.layerKind ?? 'pixel'
+  layer.adjustmentSpec = rawLayer.adjustmentSpec as LayerRecord['adjustmentSpec']
   layer.displayCanvas = null
   ensureLayerDisplayCanvas(layer)
   syncLayerDisplay(layer.id)

@@ -24,6 +24,9 @@ export const editorEvents = {
   clearLayer: 'EDITOR_CLEAR_LAYER',
   transferLayer: 'EDITOR_TRANSFER_LAYER',
   sceneGuides: 'EDITOR_SCENE_GUIDES',
+  adjustmentLayerCreate: 'EDITOR_ADJUSTMENT_LAYER_CREATE',
+  adjustmentLayerUpdate: 'EDITOR_ADJUSTMENT_LAYER_UPDATE',
+  adjustmentLayerBake: 'EDITOR_ADJUSTMENT_LAYER_BAKE',
 } as const
 
 export const SOCKET_CONNECTED_STATUS = 'drawith__SOCKET_CONNECTED'

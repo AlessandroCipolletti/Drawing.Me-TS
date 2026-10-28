@@ -1,4 +1,5 @@
 import type { CoworkingStepsPayload } from 'pages/Editor/editorTypes'
+import type { AdjustmentSpec } from 'pages/Editor/components/Layers/layerAdjustmentTypes'
 
 export interface CoworkerLayerPayload {
   id: string
@@ -85,6 +86,20 @@ export interface EditorCoworkingPort {
   ) => void
   clearLayerFromCoworker: (layerId: string) => void
   receiveLayerFromCoworker: (layerId: string) => void
+  receiveAdjustmentLayerCreateFromCoworker: (
+    layerId: string,
+    targetLayerId: string,
+    insertOrder: number,
+    adjustmentSpec: AdjustmentSpec
+  ) => Promise<void>
+  receiveAdjustmentLayerUpdateFromCoworker: (
+    layerId: string,
+    adjustmentSpec: AdjustmentSpec
+  ) => Promise<void>
+  receiveAdjustmentLayerBakeFromCoworker: (
+    adjustmentLayerId: string,
+    targetLayerId: string
+  ) => Promise<void>
   applySceneGuidesFromCoworker?: (guides: unknown) => void
 }
 
