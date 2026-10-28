@@ -95,6 +95,8 @@ export const isQuickShapeSupportedTool = (tool?: {
   if (
     tool.name === 'eraser' ||
     tool.name === 'smudge' ||
+    tool.name === 'saturation' ||
+    tool.name === 'sharpen' ||
     tool.name === 'bucket' ||
     tool.name === 'pipette' ||
     tool.name === 'magicWand'

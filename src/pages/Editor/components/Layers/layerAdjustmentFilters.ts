@@ -11,7 +11,7 @@ import type {
 } from './layerAdjustmentTypes'
 import { clampParams, SHARPNESS_RANGE } from './layerAdjustmentTypes'
 
-const rgbaToHsl = (r: number, g: number, b: number): [number, number, number] => {
+export const rgbaToHsl = (r: number, g: number, b: number): [number, number, number] => {
   r /= 255
   g /= 255
   b /= 255
@@ -45,7 +45,7 @@ const hueToRgb = (t1: number, t2: number, hue: number): number => {
   return t1
 }
 
-const hslToRgba = (h: number, s: number, l: number): [number, number, number] => {
+export const hslToRgba = (h: number, s: number, l: number): [number, number, number] => {
   s /= 100
   l /= 100
   let t2: number

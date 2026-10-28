@@ -53,6 +53,17 @@ import {
   smudgeStrokeStep,
   smudgeTouchTypeToInputKind,
 } from './smudgeKernel'
+import {
+  createEffectBrushStrokeSession,
+  effectBrushStrokeStep,
+  hasPendingEffectDab,
+  resetEffectBrushStrokeSession,
+} from './effectBrushKernel'
+import {
+  clampSignedIntensity,
+  isEffectBrushToolName,
+  type EffectBrushKind,
+} from './effectBrushFilters'
 import { drawStrokeWithGuides } from './guides/guidesStroke'
 
 let cursorRafId = 0
@@ -113,7 +124,14 @@ export interface StrokeSessionDeps {
 export const createEditorStrokeSession = (deps: StrokeSessionDeps) => {
   const { state, initialCurrentTouch, refs, coordsAreInsideLayer, setToolColor } = deps
   const smudgeSession = createSmudgeStrokeSession()
+  const effectSession = createEffectBrushStrokeSession()
   const isSmudgeTool = () => state.currentToolProps.name === 'smudge'
+  const isEffectTool = () => isEffectBrushToolName(state.currentToolProps.name)
+  const getEffectBaseIntensity = () => {
+    const raw =
+      state.currentToolProps.effectIntensity ?? state.currentToolProps.customProps?.effectIntensity
+    return typeof raw === 'number' && Number.isFinite(raw) ? clampSignedIntensity(raw) : 10
+  }
   let nearRulerLocked = false
   let lineCanvasHiddenForMask = false
 
@@ -361,6 +379,22 @@ export const createEditorStrokeSession = (deps: StrokeSessionDeps) => {
     }
   }
 
+  const drawEffectPhase = (
+    context: ExtendedCanvasContext,
+    stepData: StrokeSample,
+    phase: 'start' | 'move' | 'end',
+    budgetMs?: number
+  ) =>
+    effectBrushStrokeStep(
+      context,
+      effectSession,
+      { ...stepData, type: phase },
+      phase,
+      state.currentToolProps.name as EffectBrushKind,
+      getEffectBaseIntensity(),
+      budgetMs
+    )
+
   const drawSmudgePhase = (
     context: ExtendedCanvasContext,
     stepData: StrokeSample,
@@ -588,6 +622,7 @@ export const createEditorStrokeSession = (deps: StrokeSessionDeps) => {
     if (
       state.currentToolGCO !== 'destination-out' &&
       !isSmudgeTool() &&
+      !isEffectTool() &&
       (state.currentToolProps.randomColor || !state.currentToolProps.color)
     ) {
       setToolColor(ColorPicker.getRandomColor(), true)
@@ -605,11 +640,13 @@ export const createEditorStrokeSession = (deps: StrokeSessionDeps) => {
       state.currentTouch.isDown = true
       const thisStepHasDoneSomething = isSmudgeTool()
         ? drawSmudgePhase(context, stepData, 'start')
-        : drawStepStart(context, stepData, state.currentToolProps)
+        : isEffectTool()
+          ? drawEffectPhase(context, stepData, 'start')
+          : drawStepStart(context, stepData, state.currentToolProps)
       state.currentTouch.drewSomething =
         state.currentTouch.drewSomething ||
         (thisStepHasDoneSomething && coordsAreInsideLayer(stepData.x, stepData.y))
-      if (Coworking.isOpen() && (thisStepHasDoneSomething || isSmudgeTool())) {
+      if (Coworking.isOpen() && (thisStepHasDoneSomething || isSmudgeTool() || isEffectTool())) {
         sendCoworkingStep(state, { ...stepData, type: 'start' })
       }
       updateLastStepData(state, stepData)
@@ -639,7 +676,9 @@ export const createEditorStrokeSession = (deps: StrokeSessionDeps) => {
 
     const thisStepHasDoneSomething = isSmudgeTool()
       ? drawSmudgePhase(context, stepData, 'move')
-      : drawStepMove(context, stepData, state.currentToolProps)
+      : isEffectTool()
+        ? drawEffectPhase(context, stepData, 'move')
+        : drawStepMove(context, stepData, state.currentToolProps)
     state.currentTouch.drewSomething =
       state.currentTouch.drewSomething ||
       (thisStepHasDoneSomething && coordsAreInsideLayer(stepData.x, stepData.y))
@@ -688,15 +727,25 @@ export const createEditorStrokeSession = (deps: StrokeSessionDeps) => {
       typeof state.lastStep.midX === 'number' &&
       (state.lastStep.x !== state.lastStep.midX || state.lastStep.y !== state.lastStep.midY)
 
-    if (hasMovedFromLastStep || hasUnfinishedMidSegment) {
+    if (
+      hasMovedFromLastStep ||
+      hasUnfinishedMidSegment ||
+      (isEffectTool() && hasPendingEffectDab(effectSession))
+    ) {
       const fullStep = getStepData(state.currentToolProps, state.currentTouch, state.lastStep)
       stepData = fullStep
       const thisStepHasDoneSomething = isSmudgeTool()
         ? drawSmudgePhase(context, fullStep, 'end')
-        : drawStepEnd(context, fullStep, state.currentToolProps)
+        : isEffectTool()
+          ? drawEffectPhase(context, fullStep, 'end', Infinity)
+          : drawStepEnd(context, fullStep, state.currentToolProps)
       state.currentTouch.drewSomething =
         state.currentTouch.drewSomething ||
         (thisStepHasDoneSomething && coordsAreInsideLayer(fullStep.x, fullStep.y))
+    }
+
+    if (isEffectTool()) {
+      resetEffectBrushStrokeSession(effectSession)
     }
 
     if (isSmudgeTool()) {

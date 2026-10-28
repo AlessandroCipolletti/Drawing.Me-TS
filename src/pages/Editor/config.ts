@@ -167,6 +167,8 @@ export interface ToolConfigProps {
   stepsToAdaptLine: number
   stepsToUpdateCoworking: number
   hasSizeAndAlpha: boolean
+  /** Signed intensity (-100..100) for effect brushes, carried via customProps. */
+  effectIntensity?: number
   customProps: ToolCustomPropsMap
   versions: ToolVersionDefinition[]
 }

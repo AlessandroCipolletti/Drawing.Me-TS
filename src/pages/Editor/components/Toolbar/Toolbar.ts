@@ -30,7 +30,8 @@ import {
 } from './toolbarUtils'
 import { fadeOutElements } from 'utils/animationsUtils'
 import { getNewContextForCanvas } from 'utils/canvasUtils'
-import { renderBrushPreview } from 'pages/Editor/brushPreviewPipeline'
+import { renderBrushPreview, renderEffectBrushPreview } from 'pages/Editor/brushPreviewPipeline'
+import { clampSignedIntensity, isEffectBrushToolName } from 'pages/Editor/effectBrushFilters'
 import { timing, spacing } from 'main/Theme'
 import {
   mountGuidesPanel,
@@ -62,6 +63,7 @@ interface ToolbarState {
   alphaPerc: number
   alphaValue: number
   currentParamsProp: '' | 'size' | 'alpha' | 'guides'
+  effectIntensity: number
   currentToolProps: CurrentToolProps
   toolPreviewCanvasSize: number
   toolPreviewTouchEvents: PreviewTouchSample[] | false
@@ -74,6 +76,7 @@ const initialState: ToolbarState = {
   alphaPerc: 0,
   alphaValue: 0,
   currentParamsProp: '',
+  effectIntensity: 10,
   currentToolProps: {
     ...toolDefaultProps,
     color: '',
@@ -199,9 +202,28 @@ export const closeParams = () => {
   }
 }
 
+const isSignedIntensityTool = () => isEffectBrushToolName(state.currentToolProps?.name)
+
+const formatSignedIntensity = (value: number): string => {
+  const v = clampSignedIntensity(value)
+  return v > 0 ? `+${v}` : `${v}`
+}
+
 const updateToolPreview = () => {
   previewRafPending = false
   if (!refs.toolPreviewContext || !state.currentToolProps) return
+  state.toolPreviewTouchEvents =
+    state.toolPreviewTouchEvents ||
+    getToolPreviewTouchEvents(state.toolPreviewCanvasSize * Params.pxScale)
+  if (isSignedIntensityTool()) {
+    renderEffectBrushPreview(
+      refs.toolPreviewContext,
+      { ...state.currentToolProps, size: state.sizeValue },
+      state.toolPreviewTouchEvents,
+      state.effectIntensity
+    )
+    return
+  }
   const toolsProps: CurrentToolProps = {
     ...state.currentToolProps,
     alpha: state.alphaValue,
@@ -218,7 +240,25 @@ const updateToolPreview = () => {
   renderBrushPreview(refs.toolPreviewContext, toolsProps, state.toolPreviewTouchEvents)
 }
 
+const applyToolPreviewSize = () => {
+  if (!refs.toolPreviewPopup || !refs.toolPreviewCanvas) return
+  refs.toolPreviewPopup.style.width = `${state.toolPreviewCanvasSize}px`
+  refs.toolPreviewPopup.style.height = `${state.toolPreviewCanvasSize}px`
+  refs.toolPreviewCanvas.style.width = `${state.toolPreviewCanvasSize}px`
+  refs.toolPreviewCanvas.style.height = `${state.toolPreviewCanvasSize}px`
+  const width = state.toolPreviewCanvasSize * Params.pxScale
+  const height = state.toolPreviewCanvasSize * Params.pxScale
+  if (refs.toolPreviewCanvas.width !== width || refs.toolPreviewCanvas.height !== height) {
+    refs.toolPreviewCanvas.width = width
+    refs.toolPreviewCanvas.height = height
+    refs.toolPreviewContext = getNewContextForCanvas(refs.toolPreviewCanvas)
+  }
+}
+
 const openPreviewPopups = () => {
+  // Re-apply the shared preview geometry on every open (not only at init),
+  // so the popup always opens at the same size/position as for other tools.
+  applyToolPreviewSize()
   if (!previewRafPending) {
     previewRafPending = true
     requestAnimationFrame(updateToolPreview)
@@ -234,8 +274,25 @@ const closePreviewPopups = () => {
   }
 }
 
-const updateParams = (value: number) => {
+const updateParams = (
+  value: number,
+  prop: 'size' | 'alpha' | '' | 'guides' = state.currentParamsProp
+) => {
   if (refs.sliderCursor) refs.sliderCursor.style.left = `${value}%`
+  if (prop === 'alpha' && isSignedIntensityTool()) {
+    if (refs.slider) {
+      const from = Math.min(50, value)
+      const to = Math.max(50, value)
+      refs.slider.style.backgroundImage = `linear-gradient(90deg, var(--palette-gray-6) ${from}%, var(--palette-gray-1) ${from}%, var(--palette-gray-1) ${to}%, var(--palette-gray-6) ${to}%)`
+    }
+    if (refs.sliderLabel) {
+      const rawIntensity = (value - 50) * 2
+      refs.sliderLabel.innerHTML = formatSignedIntensity(
+        Math.abs(rawIntensity) <= 3 ? 0 : rawIntensity
+      )
+    }
+    return
+  }
   if (refs.slider) {
     refs.slider.style.backgroundImage = `linear-gradient(90deg, var(--palette-gray-1) ${value}%, var(--palette-gray-6) ${value}%)`
   }
@@ -265,7 +322,7 @@ const updateSize = (perc: number, inProgress: boolean) => {
   state.sizePerc = perc
   state.sizeValue = sizeValue
   if (refs.sizeLabel) refs.sizeLabel.innerHTML = `${perc}%`
-  updateParams(perc)
+  updateParams(perc, 'size')
 
   if (inProgress) {
     openPreviewPopups()
@@ -278,6 +335,24 @@ const updateSize = (perc: number, inProgress: boolean) => {
 }
 
 const updateAlpha = (perc: number, inProgress: boolean) => {
+  if (isSignedIntensityTool()) {
+    // Snap to the centre detent so returning to exactly 0 is easy.
+    const rawIntensity = (perc - 50) * 2
+    const intensity = clampSignedIntensity(Math.abs(rawIntensity) <= 3 ? 0 : rawIntensity)
+    state.effectIntensity = intensity
+    state.alphaPerc = perc
+    if (refs.alphaLabel) refs.alphaLabel.innerHTML = formatSignedIntensity(intensity)
+    updateParams(perc, 'alpha')
+    if (inProgress) {
+      openPreviewPopups()
+    } else {
+      closePreviewPopups()
+      editorCalls.setCurrentToolCustomProps({
+        effectIntensity: intensity,
+      })
+    }
+    return
+  }
   const alphaValue = logarithmicPercToValue(
     perc,
     state.currentToolProps.minAlpha,
@@ -287,7 +362,7 @@ const updateAlpha = (perc: number, inProgress: boolean) => {
   state.alphaPerc = perc
   state.alphaValue = alphaValue
   if (refs.alphaLabel) refs.alphaLabel.innerHTML = `${perc}%`
-  updateParams(perc)
+  updateParams(perc, 'alpha')
 
   if (inProgress) {
     openPreviewPopups()
@@ -321,7 +396,7 @@ const openBrushParam = (prop: 'size' | 'alpha', perc: number) => {
   if (state.currentParamsProp === prop) {
     toggleParams()
   } else {
-    updateParams(perc)
+    updateParams(perc, prop)
     openParams()
     state.currentParamsProp = prop
   }
@@ -374,11 +449,15 @@ const toggleSizeAndAlpha = (enabled: boolean) => {
 
 const applyAlphaControlPresentation = (toolName: string) => {
   const isSmudge = toolName === 'smudge'
-  refs.alphaButton?.classList.toggle('editor-toolbar__alpha--strength', isSmudge)
-  refs.alphaButton?.setAttribute('aria-label', isSmudge ? 'Strength' : 'Opacity')
+  const isEffect = isEffectBrushToolName(toolName)
+  refs.alphaButton?.classList.toggle('editor-toolbar__alpha--strength', isSmudge || isEffect)
+  refs.alphaButton?.setAttribute(
+    'aria-label',
+    isEffect ? 'Intensity' : isSmudge ? 'Strength' : 'Opacity'
+  )
   if (refs.alphaIcon) {
-    refs.alphaIcon.classList.toggle('svg-icon-opacity', !isSmudge)
-    refs.alphaIcon.classList.toggle('svg-icon-strength', isSmudge)
+    refs.alphaIcon.classList.toggle('svg-icon-opacity', !isSmudge && !isEffect)
+    refs.alphaIcon.classList.toggle('svg-icon-strength', isSmudge || isEffect)
   }
 }
 
@@ -392,13 +471,26 @@ export const setTool = (toolProps: CurrentToolProps) => {
     logarithmicValueToPerc(toolProps.size, toolProps.minSize, toolProps.maxSize, 0)
   )
   state.alphaValue = toolProps.alpha
-  state.alphaPerc = getNumberInBetween(
-    1,
-    100,
-    logarithmicValueToPerc(toolProps.alpha, toolProps.minAlpha, toolProps.maxAlpha, 0)
-  )
+  if (isEffectBrushToolName(toolProps.name)) {
+    const raw =
+      toolProps.effectIntensity ?? (toolProps.customProps?.effectIntensity as number | undefined)
+    state.effectIntensity = clampSignedIntensity(
+      typeof raw === 'number' && Number.isFinite(raw) ? raw : 10
+    )
+    state.alphaPerc = state.effectIntensity / 2 + 50
+  } else {
+    state.alphaPerc = getNumberInBetween(
+      1,
+      100,
+      logarithmicValueToPerc(toolProps.alpha, toolProps.minAlpha, toolProps.maxAlpha, 0)
+    )
+  }
   if (refs.sizeLabel) refs.sizeLabel.innerHTML = `${state.sizePerc}%`
-  if (refs.alphaLabel) refs.alphaLabel.innerHTML = `${state.alphaPerc}%`
+  if (refs.alphaLabel) {
+    refs.alphaLabel.innerHTML = isEffectBrushToolName(toolProps.name)
+      ? formatSignedIntensity(state.effectIntensity)
+      : `${state.alphaPerc}%`
+  }
   state.currentToolProps = { ...toolProps }
   closeParams()
 }

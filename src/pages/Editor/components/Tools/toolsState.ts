@@ -67,6 +67,8 @@ export const config = {
     'magicWand',
     'eraser',
     'smudge',
+    'saturation',
+    'sharpen',
     'ruler',
     'undo',
     'redo',

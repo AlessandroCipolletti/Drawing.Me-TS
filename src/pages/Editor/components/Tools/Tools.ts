@@ -148,6 +148,8 @@ const toolsFunctions: Record<string, (selected?: boolean) => unknown> = {
   brush: (selected) => (selected ? toggleVersions('brush') : selectTool('brush')),
   eraser: (selected) => (selected ? toggleVersions('eraser') : selectTool('eraser')),
   smudge: () => selectTool('smudge'),
+  saturation: () => selectTool('saturation'),
+  sharpen: () => selectTool('sharpen'),
   bucket: () => selectTool('bucket'),
   magicWand: () => selectTool('magicWand'),
   pipette: () => selectTool('pipette'),

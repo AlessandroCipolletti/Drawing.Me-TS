@@ -30,6 +30,11 @@ import { updatePipette, closePipetteCursor } from './editorLifecycle'
 import { EditorRefs } from './EditorView'
 import { EditorConfig, EditorState, PointerTouchEvent, ResizeModeState } from './editorTypes'
 import { runCoalescedStepTouchMove, updateCurrentTouchType } from './editorStrokeSession'
+import { isEffectBrushToolName } from './effectBrushFilters'
+
+/** Tools that paint with the finger even on a stylus device (no drag-zoom). */
+const isFingerPaintTool = (toolName?: string): boolean =>
+  toolName === 'smudge' || isEffectBrushToolName(toolName)
 export type TouchDispatchAction =
   'none' | 'panCanvas' | 'dragLayer' | 'dragZoom' | 'lasso' | 'lassoMove' | 'pipette' | 'step'
 
@@ -62,7 +67,7 @@ export const resolveTouchStartAction = (params: {
     params.currentDeviceHasStylus &&
     params.touchType !== TOUCH_TYPE_STYLUS &&
     params.hasZoom &&
-    params.toolName !== 'smudge'
+    !isFingerPaintTool(params.toolName)
   ) {
     return 'dragZoom'
   }
@@ -101,7 +106,7 @@ export const resolveTouchMoveAction = (params: {
     params.isZooming &&
     params.currentDeviceHasStylus &&
     params.touchType !== TOUCH_TYPE_STYLUS &&
-    params.toolName !== 'smudge'
+    !isFingerPaintTool(params.toolName)
   ) {
     return 'dragZoom'
   }
@@ -595,7 +600,14 @@ export const createEditorPointerHandlers = (deps: PointerRouterDeps) => {
 
   const paintQueuedMoves = () => {
     const batch = queuedMoves.splice(0, queuedMoves.length)
-    for (const touchEvent of batch) {
+    // Effect brushes interpolate their own dabs along a segment, so under
+    // load only the latest queued move matters — earlier ones are merged
+    // into that segment instead of being painted one by one.
+    const collapseToLast = isEffectBrushToolName(state.currentToolProps.name)
+    const lastStepIndex = collapseToLast ? batch.length - 1 : -1
+    for (let batchIndex = 0; batchIndex < batch.length; batchIndex++) {
+      const touchEvent = batch[batchIndex]
+      if (collapseToLast && batchIndex !== lastStepIndex) continue
       const action = resolveTouchMoveAction({
         colorDropActive: state.colorDrop.active,
         isResizing: state.resizeMode.isResizing,

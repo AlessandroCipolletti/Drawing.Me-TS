@@ -41,6 +41,16 @@ import {
   SMUDGE_INPUT_PEN,
   SmudgeInputKind,
 } from './smudgeKernel'
+import {
+  createEffectBrushStrokeSession,
+  effectBrushStrokeStep,
+  resetEffectBrushStrokeSession,
+} from './effectBrushKernel'
+import {
+  clampSignedIntensity,
+  isEffectBrushToolName,
+  type EffectBrushKind,
+} from './effectBrushFilters'
 
 export { getStepData }
 
@@ -115,7 +125,32 @@ export const drawMultipleCoworkingSteps = async (
     )
   }
 
-  if (currentCoworkingToolProps.name === 'bucket') {
+  if (isEffectBrushToolName(currentCoworkingToolProps.name)) {
+    const session = createEffectBrushStrokeSession()
+    const rawIntensity =
+      currentCoworkingToolProps.effectIntensity ??
+      currentCoworkingToolProps.customProps?.effectIntensity
+    const baseIntensity =
+      typeof rawIntensity === 'number' && Number.isFinite(rawIntensity)
+        ? clampSignedIntensity(rawIntensity)
+        : 10
+    for (const step of steps) {
+      const phase = step.type
+      if (phase !== 'start' && phase !== 'move' && phase !== 'end') continue
+      effectBrushStrokeStep(
+        destinationContext,
+        session,
+        step,
+        phase,
+        currentCoworkingToolProps.name as EffectBrushKind,
+        baseIntensity,
+        Infinity
+      )
+    }
+    resetEffectBrushStrokeSession(session)
+    destinationContext.globalAlpha = 1
+    destinationContext.globalCompositeOperation = 'source-over'
+  } else if (currentCoworkingToolProps.name === 'bucket') {
     await fns.bucket(layerId, steps[0].x, steps[0].y, currentCoworkingToolProps.color, steps[0])
   } else if (currentCoworkingToolProps.name === 'smudge') {
     const session = createSmudgeStrokeSession()

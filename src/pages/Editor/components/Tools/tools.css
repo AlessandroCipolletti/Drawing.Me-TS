@@ -192,6 +192,14 @@
   mask-image: url('../../../../static/icons/svg/tool-smudge.svg');
   -webkit-mask-image: url('../../../../static/icons/svg/tool-smudge.svg');
 }
+.editor-tools__tool-saturation::after {
+  mask-image: url('../../../../static/icons/svg/tool-saturation.svg');
+  -webkit-mask-image: url('../../../../static/icons/svg/tool-saturation.svg');
+}
+.editor-tools__tool-sharpen::after {
+  mask-image: url('../../../../static/icons/svg/tool-sharpen.svg');
+  -webkit-mask-image: url('../../../../static/icons/svg/tool-sharpen.svg');
+}
 .editor-tools__tool-undo::after {
   mask-image: url('../../../../static/icons/svg/undo.svg');
   -webkit-mask-image: url('../../../../static/icons/svg/undo.svg');
