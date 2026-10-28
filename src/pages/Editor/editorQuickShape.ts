@@ -98,6 +98,7 @@ export const isQuickShapeSupportedTool = (tool?: {
     tool.name === 'saturation' ||
     tool.name === 'sharpen' ||
     tool.name === 'bucket' ||
+    tool.name === 'gradient' ||
     tool.name === 'pipette' ||
     tool.name === 'magicWand'
   ) {

@@ -309,6 +309,10 @@ export const initCanvasDimension = (
     refs.guidesOverlay.width = canvasWidth
     refs.guidesOverlay.height = canvasHeight
   }
+  if (refs.gradientOverlay) {
+    refs.gradientOverlay.width = canvasWidth
+    refs.gradientOverlay.height = canvasHeight
+  }
 
   initCanvasUtils()
 

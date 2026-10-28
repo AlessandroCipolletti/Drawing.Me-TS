@@ -1087,6 +1087,14 @@ const toolsConfigInit = (): Record<string, ToolConfigProps> => ({
     },
     []
   ),
+  gradient: getCustomTool(
+    {
+      name: 'gradient',
+      hasSizeAndAlpha: false,
+      maxSizeThatNeedsToAdaptLine: 0,
+    },
+    []
+  ),
   magicWand: getCustomTool(
     {
       name: 'magicWand',

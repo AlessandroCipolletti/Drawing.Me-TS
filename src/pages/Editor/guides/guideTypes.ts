@@ -60,6 +60,7 @@ export const isGuidesActive = (state: SceneGuidesState): boolean => state.symmet
 
 const TOOLS_WITHOUT_SYMMETRY = new Set([
   'bucket',
+  'gradient',
   'magicWand',
   'pipette',
   'ruler',

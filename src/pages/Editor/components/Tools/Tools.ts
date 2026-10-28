@@ -151,6 +151,7 @@ const toolsFunctions: Record<string, (selected?: boolean) => unknown> = {
   saturation: () => selectTool('saturation'),
   sharpen: () => selectTool('sharpen'),
   bucket: () => selectTool('bucket'),
+  gradient: () => selectTool('gradient'),
   magicWand: () => selectTool('magicWand'),
   pipette: () => selectTool('pipette'),
   ruler: () => {
@@ -196,8 +197,9 @@ const clickButton = (tool: string) => {
 }
 
 export const selectLastUsedTool = (showToolChange = true) => {
-  if (state.lastUsedTool) {
-    selectTool(state.lastUsedTool, false, showToolChange)
+  const targetTool = state.lastUsedTool || (state.selectedTool === 'gradient' ? 'marker' : '')
+  if (targetTool) {
+    selectTool(targetTool, false, showToolChange)
   }
 }
 

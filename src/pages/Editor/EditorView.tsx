@@ -1,5 +1,6 @@
 import { h } from 'ui/jsx-runtime'
 import { EditorRefs, TransformKind } from './editorTypes'
+import { GRADIENT_KINDS, GradientKind } from './gradientFill'
 import { TRANSFORM_KIND_LABELS, TRANSFORM_KINDS } from './resizeTransformSession'
 
 export type { EditorRefs }
@@ -160,6 +161,12 @@ export const EditorView = ({ refs }: { refs: EditorRefs }) => (
         class="editor-guides__overlay displayNone"
         ref={(el) => {
           refs.guidesOverlay = el
+        }}
+      />
+      <canvas
+        class="editor-gradient__overlay displayNone"
+        ref={(el) => {
+          refs.gradientOverlay = el
         }}
       />
       <div
@@ -568,6 +575,77 @@ export const EditorView = ({ refs }: { refs: EditorRefs }) => (
         data-quickshape-action="cancel"
         ref={(el) => {
           refs.quickShapeCancelButton = el
+        }}
+      >
+        <div class="editor-lasso__action-icon svg-icon-close svg-icon-dark" />
+      </div>
+    </div>
+    <div
+      class="editor-gradient__bar params-container editor-lasso__bar displayNone"
+      ref={(el) => {
+        refs.gradientBar = el
+      }}
+    >
+      <FloatingBarDragHandle barId="gradient" />
+      {GRADIENT_KINDS.map((kind: GradientKind) => (
+        <div
+          class={`editor-lasso__action editor-lasso__action--icon-only${kind === 'linear' ? ' selected' : ''}`}
+          data-gradient-kind={kind}
+          aria-label={`${kind} gradient`}
+          ref={(el) => {
+            if (!refs.gradientTypeButtons) {
+              refs.gradientTypeButtons = {}
+            }
+            refs.gradientTypeButtons[kind] = el
+          }}
+        >
+          <div class={`editor-lasso__action-icon svg-icon-gradient-${kind} svg-icon-dark`} />
+        </div>
+      ))}
+      <div class="editor-lasso__divider" />
+      <div class="editor-gradient__swatches">
+        <div
+          class="editor-colorpicker__color editor-gradient__swatch"
+          data-gradient-swatch="1"
+          aria-label="First gradient colour"
+          ref={(el) => {
+            refs.gradientSwatch1 = el
+          }}
+        >
+          <input
+            type="color"
+            class="editor-gradient__color-input"
+            value="#000000"
+            ref={(el) => {
+              refs.gradientColorInput1 = el
+            }}
+          />
+        </div>
+        <div
+          class="editor-colorpicker__color editor-gradient__swatch"
+          data-gradient-swatch="2"
+          aria-label="Second gradient colour"
+          ref={(el) => {
+            refs.gradientSwatch2 = el
+          }}
+        >
+          <input
+            type="color"
+            class="editor-gradient__color-input"
+            value="#ffffff"
+            ref={(el) => {
+              refs.gradientColorInput2 = el
+            }}
+          />
+        </div>
+      </div>
+      <div class="editor-lasso__divider" />
+      <div
+        class="editor-lasso__action editor-lasso__action--icon-only"
+        data-gradient-action="close"
+        aria-label="Close gradient toolbar"
+        ref={(el) => {
+          refs.gradientCloseButton = el
         }}
       >
         <div class="editor-lasso__action-icon svg-icon-close svg-icon-dark" />

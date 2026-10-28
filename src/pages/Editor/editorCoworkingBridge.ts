@@ -12,6 +12,7 @@ import {
 } from 'utils/canvasUtils'
 import { drawMultipleCoworkingSteps } from './editorUtils'
 import { fillActiveLayerWithBucketAt } from './bucketFillPipeline'
+import { GradientFillSpec, isGradientKind, paintGradientFillOnContext } from './gradientFill'
 import { smudgeTouchTypeToInputKind } from './smudgeKernel'
 import { CoworkingStepsPayload, EditorState } from './editorTypes'
 import { expandStepsForCoworking } from './guides/guidesStroke'
@@ -199,6 +200,66 @@ export const sendCoworkingBucketFill = (
   Coworking.sendSteps(layerId, toolData)
 }
 
+const receiveGradientFromCoworker = async (
+  layerId: string,
+  step: StrokeSample,
+  tool: { color: string | false; customProps?: Record<string, unknown> }
+) => {
+  const context = Layers.getLayerContext(layerId)
+  if (!context) return
+  const custom = tool.customProps || {}
+  const spec: GradientFillSpec = {
+    kind: isGradientKind(custom.gradientKind) ? custom.gradientKind : 'linear',
+    x0: step.x,
+    y0: step.y,
+    x1: Number.isFinite(step.midX) ? step.midX : step.x,
+    y1: Number.isFinite(step.midY) ? step.midY : step.y,
+    color1: typeof tool.color === 'string' && tool.color ? tool.color : '#000000',
+    color2: typeof custom.color2 === 'string' && custom.color2 ? custom.color2 : '#ffffff',
+    opacity:
+      typeof custom.opacity === 'number' && Number.isFinite(custom.opacity)
+        ? custom.opacity
+        : Number.isFinite(step.alpha)
+          ? step.alpha
+          : 1,
+  }
+  paintGradientFillOnContext(context, spec)
+  await Layers.addLayerHistoryContentChangedStep(layerId)
+}
+
+export const sendCoworkingGradientFill = (
+  state: EditorState,
+  layerId: string,
+  spec: GradientFillSpec
+) => {
+  Coworking.clearSteps()
+  state.stepsSinceLastCoworkingUpdate = 0
+  const step: Partial<StrokeSample> = {
+    type: 'start',
+    x: spec.x0,
+    y: spec.y0,
+    midX: spec.x1,
+    midY: spec.y1,
+    alpha: spec.opacity,
+  }
+  Coworking.addStep(
+    removeTouchStepDataKeys(step as Partial<StrokeSample>) as unknown as StrokeSample
+  )
+  const toolData = removeToolDataKeys({
+    name: 'gradient',
+    version: state.currentToolProps.version,
+    color: spec.color1,
+    globalCompositeOperation: state.currentToolProps.globalCompositeOperation,
+    frameImageName: false,
+    customProps: {
+      gradientKind: spec.kind,
+      color2: spec.color2,
+      opacity: spec.opacity,
+    },
+  })
+  Coworking.sendSteps(layerId, toolData)
+}
+
 export const drawCoworkingStepsPayload = async (
   data: CoworkingStepsPayload,
   callbacks: {
@@ -217,6 +278,7 @@ export const drawCoworkingStepsPayload = async (
     {
       ...callbacks,
       bucket: receiveBucketFromCoworker,
+      gradient: receiveGradientFromCoworker,
     }
   )
   syncLayerDisplayDuringStroke(data.layerId)

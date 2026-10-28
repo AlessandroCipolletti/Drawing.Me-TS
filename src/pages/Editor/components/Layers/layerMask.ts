@@ -124,6 +124,14 @@ const getMaskCanvasForUpper = (upperId: string): LayerCanvasElement | null => {
   return maskLayer?.canvas ?? null
 }
 
+/** Alpha of the layer below, when this layer is clipped by it. Adjustment links are not clip masks. */
+export const getClipMaskCanvas = (layerId: string | false): HTMLCanvasElement | null => {
+  if (!layerId) return null
+  const layer = state.layers[layerId]
+  if (!layer?.maskBelowLayerId || layer.layerKind === 'adjustment') return null
+  return getMaskCanvasForUpper(layerId)
+}
+
 export const getLayerDomCanvas = (layer: LayerRecord): LayerCanvasElement =>
   layer.displayCanvas ?? layer.canvas
 

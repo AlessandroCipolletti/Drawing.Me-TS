@@ -92,7 +92,10 @@ import {
   handleTransformMeshChange,
   updateResizeBarPosition,
   updateTransformOverlay,
+  updateGradientBarPosition,
+  syncGradientBarUi,
 } from './editorCompositor'
+import { GRADIENT_KINDS, normalizeGradientHex, selectExclusiveGradientKind } from './gradientFill'
 import { addQuadCornerHandlers, addWarpMeshHandlers } from './resizeTransformHandlers'
 import { TRANSFORM_KINDS } from './resizeTransformSession'
 import { QuickShapeVariant } from './editorQuickShape'
@@ -197,6 +200,7 @@ const updateDragBoxHandlers = () => {
   if (state.resizeMode.active) {
     updateTransformOverlay(state, refs)
   }
+  activeStrokeSession?.redrawGradientGuideIfActive()
   updateGuidesOriginBulletPosition(refs)
   updateGuidesRotationBulletPosition(refs)
 }
@@ -235,9 +239,15 @@ const updateFloatingOptionBars = () => {
   if (state.resizeMode?.active) {
     updateResizeBarPosition(state, refs)
   }
+  if (state.gradientMode?.active) {
+    updateGradientBarPosition(state, refs)
+  }
   syncAdjustBarPosition()
 }
-const onGestureStart = (x: number, y: number) => handleGestureStart(state, refs, x, y)
+const onGestureStart = (x: number, y: number) => {
+  activeStrokeSession?.cancelGradientIfDragging()
+  handleGestureStart(state, refs, x, y)
+}
 const onGestureChange = (x: number, y: number, scale: number, rotation: number) =>
   handleGestureChange(state, refs, config, updateDragBoxHandlers, x, y, scale, rotation)
 const onGestureEnd = (_x: number, _y: number, scale: number, rotation: number) => {
@@ -521,6 +531,40 @@ const bindEditorInput = () => {
   refs.quickShapeCancelButton?.addEventListener(Params.eventStart, (e) => {
     preventDefault(e)
     strokeSession.dismissQuickShape()
+  })
+  refs.gradientBar?.addEventListener(Params.eventStart, (e) => {
+    const target = e.target as HTMLElement | null
+    if (target?.tagName?.toLowerCase() !== 'input') {
+      preventDefault(e)
+    }
+  })
+  for (const kind of GRADIENT_KINDS) {
+    refs.gradientTypeButtons?.[kind]?.addEventListener(Params.eventStart, (e) => {
+      preventDefault(e)
+      state.gradientMode.kind = selectExclusiveGradientKind(state.gradientMode.kind, kind)
+      syncGradientBarUi(state, refs)
+      strokeSession.repaintActiveGradientPreview()
+    })
+  }
+  const onGradientColorInput = (slot: 1 | 2, e: Event) => {
+    const input = e.target as HTMLInputElement | null
+    const hex = normalizeGradientHex(input?.value)
+    if (slot === 1) {
+      state.gradientMode.color1 = hex
+    } else {
+      state.gradientMode.color2 = hex
+    }
+    syncGradientBarUi(state, refs)
+    strokeSession.repaintActiveGradientPreview()
+  }
+  refs.gradientColorInput1?.addEventListener('input', (e) => onGradientColorInput(1, e))
+  refs.gradientColorInput1?.addEventListener('change', (e) => onGradientColorInput(1, e))
+  refs.gradientColorInput2?.addEventListener('input', (e) => onGradientColorInput(2, e))
+  refs.gradientColorInput2?.addEventListener('change', (e) => onGradientColorInput(2, e))
+  refs.gradientCloseButton?.addEventListener(Params.eventStart, (e) => {
+    preventDefault(e)
+    strokeSession.finishGradientEdit()
+    Tools.selectLastUsedTool(false)
   })
   return strokeSession
 }

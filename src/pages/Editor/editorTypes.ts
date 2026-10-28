@@ -1,6 +1,7 @@
 import { ToolConfigProps } from './config'
 import { ExtendedCanvasContext } from 'utils/canvasUtils'
 import type { QuadCorners, WarpMesh } from 'utils/imageWarp'
+import type { GradientHandleTarget, GradientKind } from './gradientFill'
 
 export type TransformKind = 'resize' | 'distort' | 'perspective' | 'warp'
 
@@ -97,6 +98,14 @@ export interface EditorRefs {
   adjustSlider2: HTMLElement | null
   adjustSlider2Cursor: HTMLElement | null
   adjustSlider2Label: HTMLElement | null
+  gradientOverlay: HTMLCanvasElement | null
+  gradientBar: HTMLElement | null
+  gradientTypeButtons: Partial<Record<GradientKind, HTMLElement>>
+  gradientSwatch1: HTMLElement | null
+  gradientSwatch2: HTMLElement | null
+  gradientColorInput1: HTMLInputElement | null
+  gradientColorInput2: HTMLInputElement | null
+  gradientCloseButton: HTMLElement | null
 }
 
 export const createInitialEditorRefs = (): EditorRefs => ({
@@ -179,6 +188,14 @@ export const createInitialEditorRefs = (): EditorRefs => ({
   adjustSlider2: null,
   adjustSlider2Cursor: null,
   adjustSlider2Label: null,
+  gradientOverlay: null,
+  gradientBar: null,
+  gradientTypeButtons: {},
+  gradientSwatch1: null,
+  gradientSwatch2: null,
+  gradientColorInput1: null,
+  gradientColorInput2: null,
+  gradientCloseButton: null,
 })
 
 export interface EditorTouchState {
@@ -292,6 +309,22 @@ interface QuickShapeModeState {
   maxY: number
 }
 
+interface GradientModeState {
+  active: boolean
+  kind: GradientKind
+  color1: string
+  color2: string
+  initializedColors: boolean
+  hasActiveEdit: boolean
+  isDragging: boolean
+  draggingHandle: GradientHandleTarget | null
+  layerId: string
+  x0: number
+  y0: number
+  x1: number
+  y1: number
+}
+
 interface PipetteState {
   bg: string
   isVisible: boolean
@@ -343,6 +376,7 @@ export interface EditorState {
   resizeMode: ResizeModeState
   lassoMode: LassoModeState
   quickShapeMode: QuickShapeModeState
+  gradientMode: GradientModeState
   pipette: PipetteState
   colorDrop: ColorDropState
   currentLayerGCO: GlobalCompositeOperation
@@ -567,6 +601,21 @@ export const createInitialEditorState = (
     minY: -1,
     maxX: -1,
     maxY: -1,
+  },
+  gradientMode: {
+    active: false,
+    kind: 'linear',
+    color1: '#000000',
+    color2: '#ffffff',
+    initializedColors: false,
+    hasActiveEdit: false,
+    isDragging: false,
+    draggingHandle: null,
+    layerId: '',
+    x0: 0,
+    y0: 0,
+    x1: 0,
+    y1: 0,
   },
   pipette: {
     bg: 'none',

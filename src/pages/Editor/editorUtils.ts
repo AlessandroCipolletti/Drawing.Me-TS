@@ -94,6 +94,7 @@ export const drawMultipleCoworkingSteps = async (
       color: string,
       step?: StrokeSample
     ) => Promise<void>
+    gradient?: (layerId: string, step: StrokeSample, tool: CoworkingToolDescriptor) => Promise<void>
   }
 ) => {
   const destinationContext = getLayerContext(layerId)
@@ -152,6 +153,10 @@ export const drawMultipleCoworkingSteps = async (
     destinationContext.globalCompositeOperation = 'source-over'
   } else if (currentCoworkingToolProps.name === 'bucket') {
     await fns.bucket(layerId, steps[0].x, steps[0].y, currentCoworkingToolProps.color, steps[0])
+  } else if (currentCoworkingToolProps.name === 'gradient') {
+    if (fns.gradient && steps[0]) {
+      await fns.gradient(layerId, steps[0], tool)
+    }
   } else if (currentCoworkingToolProps.name === 'smudge') {
     const session = createSmudgeStrokeSession()
     for (const step of steps) {

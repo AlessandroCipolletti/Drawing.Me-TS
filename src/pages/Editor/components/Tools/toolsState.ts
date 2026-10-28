@@ -64,6 +64,7 @@ export const config = {
     'spray',
     'customBrush',
     'bucket',
+    'gradient',
     'magicWand',
     'eraser',
     'smudge',

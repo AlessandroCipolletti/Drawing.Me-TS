@@ -28,6 +28,18 @@ import { getOneToolVersionCompleteProps } from 'pages/Editor/components/Tools/to
 import { addTouchStepDataKeys, removeTouchStepDataKeys } from 'pages/Editor/editorCoworkingBridge'
 import { CurrentToolProps } from 'pages/Editor/editorTypes'
 import { toolDefaultProps } from 'pages/Editor/config'
+import {
+  computeGradientFactorAtPoint,
+  hitTestGradientEndpoint,
+  isGradientDragValid,
+  paintGradientFillOnContext,
+  renderGradientGuideOverlay,
+  resolveDefaultGradientColors,
+  sampleGradientColorAtPoint,
+  selectExclusiveGradientKind,
+  syncGradientKindButtons,
+} from 'pages/Editor/gradientFill'
+import { toolSupportsSymmetry } from 'pages/Editor/guides/guideTypes'
 
 describe('Editor pointer dispatch & coalesced 120Hz stroke safety net', () => {
   it('routes touchStart deterministically across resize, stylus/finger zoom, pipette, and stroke', () => {
@@ -386,7 +398,9 @@ describe('Editor pointer dispatch & coalesced 120Hz stroke safety net', () => {
       isQuickShapeSupportedTool({ name: 'eraser', globalCompositeOperation: 'destination-out' })
     ).toBe(false)
     expect(isQuickShapeSupportedTool({ name: 'bucket' })).toBe(false)
+    expect(isQuickShapeSupportedTool({ name: 'gradient' })).toBe(false)
     expect(isQuickShapeSupportedTool({ name: 'magicWand' })).toBe(false)
+    expect(toolSupportsSymmetry('gradient')).toBe(false)
 
     // 1. Straight line with minor hand tremor: connects start to end directly, only offers line & freehand
     const linePts: Array<[number, number]> = []
@@ -768,5 +782,228 @@ describe('Editor pointer dispatch & coalesced 120Hz stroke safety net', () => {
     expect(tol255.minX).toBe(0)
     expect(tol255.maxX).toBe(15)
     expect(tol255.mask[6 * w + 6]).toBe(1)
+  })
+
+  it('routes gradient tool pointer actions, enforces exclusive types, rejects short drags, hit-tests endpoints, and maps linear/radial/angular colours', () => {
+    expect(
+      resolveTouchStartAction({
+        isResizing: false,
+        resizeModeActive: false,
+        currentDeviceHasStylus: false,
+        touchType: TOUCH_TYPE_FINGER,
+        hasZoom: false,
+        toolName: 'gradient',
+        currentLayerIsActive: true,
+      })
+    ).toBe('gradient')
+    expect(
+      resolveTouchMoveAction({
+        isResizing: false,
+        resizeModeActive: false,
+        isZooming: false,
+        currentDeviceHasStylus: false,
+        touchType: TOUCH_TYPE_FINGER,
+        toolName: 'gradient',
+        currentLayerIsActive: true,
+      })
+    ).toBe('gradient')
+    expect(
+      resolveTouchEndAction({
+        isResizing: false,
+        resizeModeActive: false,
+        currentDeviceHasStylus: false,
+        isZooming: false,
+        toolName: 'gradient',
+        currentLayerIsActive: true,
+      })
+    ).toBe('gradient')
+    expect(
+      resolveTouchStartAction({
+        isResizing: false,
+        resizeModeActive: false,
+        currentDeviceHasStylus: false,
+        touchType: TOUCH_TYPE_FINGER,
+        hasZoom: false,
+        toolName: 'gradient',
+        currentLayerIsActive: false,
+      })
+    ).toBe('none')
+
+    // Short drag rejection
+    expect(isGradientDragValid(100, 100, 102, 101)).toBe(false)
+    expect(isGradientDragValid(100, 100, 106, 100)).toBe(true)
+
+    // Endpoint hit-testing
+    expect(hitTestGradientEndpoint(103, 98, 100, 100, 300, 100, 24)).toBe('start')
+    expect(hitTestGradientEndpoint(295, 104, 100, 100, 300, 100, 24)).toBe('end')
+    expect(hitTestGradientEndpoint(200, 100, 100, 100, 300, 100, 24)).toBeNull()
+
+    // Exclusive type buttons & default colours
+    const makeBtnStub = () => {
+      const classes = new Set<string>()
+      return {
+        classList: {
+          toggle: (cls: string, force?: boolean) => {
+            const on = force ?? !classes.has(cls)
+            if (on) classes.add(cls)
+            else classes.delete(cls)
+            return on
+          },
+          contains: (cls: string) => classes.has(cls),
+        },
+      } as unknown as HTMLElement
+    }
+    const linearBtn = makeBtnStub()
+    const radialBtn = makeBtnStub()
+    const angularBtn = makeBtnStub()
+    const buttons = { linear: linearBtn, radial: radialBtn, angular: angularBtn }
+
+    let activeKind = selectExclusiveGradientKind('linear', 'radial')
+    syncGradientKindButtons(buttons, activeKind)
+    expect(activeKind).toBe('radial')
+    expect(linearBtn.classList.contains('selected')).toBe(false)
+    expect(radialBtn.classList.contains('selected')).toBe(true)
+    expect(angularBtn.classList.contains('selected')).toBe(false)
+
+    activeKind = selectExclusiveGradientKind(activeKind, 'angular')
+    syncGradientKindButtons(buttons, activeKind)
+    expect(radialBtn.classList.contains('selected')).toBe(false)
+    expect(angularBtn.classList.contains('selected')).toBe(true)
+
+    expect(resolveDefaultGradientColors('#ff0000')).toEqual({
+      color1: '#ff0000',
+      color2: '#ffffff',
+    })
+    expect(resolveDefaultGradientColors('#ffffff')).toEqual({
+      color1: '#ffffff',
+      color2: '#000000',
+    })
+
+    // Linear mapping: before start -> colour 1, midpoint -> blend, after end -> colour 2
+    const linearSpec = {
+      kind: 'linear' as const,
+      x0: 100,
+      y0: 100,
+      x1: 200,
+      y1: 100,
+      color1: '#ff0000',
+      color2: '#0000ff',
+    }
+    expect(computeGradientFactorAtPoint('linear', 100, 100, 200, 100, 40, 100)).toBe(0)
+    expect(computeGradientFactorAtPoint('linear', 100, 100, 200, 100, 150, 100)).toBeCloseTo(0.5, 5)
+    expect(computeGradientFactorAtPoint('linear', 100, 100, 200, 100, 260, 100)).toBe(1)
+    expect(sampleGradientColorAtPoint(linearSpec, 40, 180)).toEqual([255, 0, 0])
+    expect(sampleGradientColorAtPoint(linearSpec, 150, 180)).toEqual([128, 0, 128])
+    expect(sampleGradientColorAtPoint(linearSpec, 260, 180)).toEqual([0, 0, 255])
+
+    // Radial mapping: centre -> colour 1, half radius -> blend, on and outside ring -> colour 2
+    const radialSpec = {
+      ...linearSpec,
+      kind: 'radial' as const,
+    }
+    expect(sampleGradientColorAtPoint(radialSpec, 100, 100)).toEqual([255, 0, 0])
+    expect(sampleGradientColorAtPoint(radialSpec, 100, 150)).toEqual([128, 0, 128])
+    expect(sampleGradientColorAtPoint(radialSpec, 200, 100)).toEqual([0, 0, 255])
+    expect(sampleGradientColorAtPoint(radialSpec, 260, 100)).toEqual([0, 0, 255])
+
+    // Angular mapping: dragged ray -> colour 1, perpendicular rays -> blend, opposite ray -> colour 2
+    const angularSpec = {
+      ...linearSpec,
+      kind: 'angular' as const,
+    }
+    expect(sampleGradientColorAtPoint(angularSpec, 180, 100)).toEqual([255, 0, 0])
+    expect(sampleGradientColorAtPoint(angularSpec, 100, 180)).toEqual([128, 0, 128])
+    expect(sampleGradientColorAtPoint(angularSpec, 100, 20)).toEqual([128, 0, 128])
+    expect(sampleGradientColorAtPoint(angularSpec, 20, 100)).toEqual([0, 0, 255])
+
+    // Canvas paint helper configures gradient stops and respects opacity
+    const stops: Array<[number, string]> = []
+    const mockGrad = {
+      addColorStop: vi.fn((offset: number, color: string) => stops.push([offset, color])),
+    } as unknown as CanvasGradient
+    const fillRect = vi.fn()
+    const mockGradCtx = {
+      canvas: { width: 300, height: 200 },
+      globalAlpha: 1,
+      globalCompositeOperation: 'source-over',
+      fillStyle: '#000000',
+      createLinearGradient: vi.fn(() => mockGrad),
+      createRadialGradient: vi.fn(() => mockGrad),
+      createConicGradient: vi.fn(() => mockGrad),
+      fillRect,
+    } as unknown as CanvasRenderingContext2D
+
+    paintGradientFillOnContext(mockGradCtx, {
+      ...linearSpec,
+      opacity: 0.6,
+    })
+    expect(stops).toEqual([
+      [0, '#ff0000'],
+      [1, '#0000ff'],
+    ])
+    expect(fillRect).toHaveBeenCalledWith(0, 0, 300, 200)
+
+    const clipOrder: string[] = []
+    const clippedCtx = {
+      canvas: { width: 300, height: 200 },
+      globalAlpha: 1,
+      globalCompositeOperation: 'source-over',
+      fillStyle: '#000000',
+      save: () => clipOrder.push('save'),
+      restore: () => clipOrder.push('restore'),
+      createLinearGradient: vi.fn(() => mockGrad),
+      fillRect: () => clipOrder.push('fill'),
+    } as unknown as CanvasRenderingContext2D
+    paintGradientFillOnContext(
+      clippedCtx,
+      { ...linearSpec, opacity: 1 },
+      { clipToSelection: () => clipOrder.push('clip') }
+    )
+    expect(clipOrder).toEqual(['save', 'clip', 'fill', 'restore'])
+
+    // Guide axis is clipped to the layer mask; endpoint dots stay so they can be dragged
+    const guideOps: string[] = []
+    let guideGco = 'source-over'
+    const guideCtx = {
+      clearRect: () => guideOps.push('clear'),
+      save: () => {},
+      restore: () => {},
+      beginPath: () => {},
+      moveTo: () => {},
+      lineTo: () => {},
+      stroke: () => {},
+      arc: () => guideOps.push('dot'),
+      fill: () => {},
+      setLineDash: () => {},
+      drawImage: () => guideOps.push(`draw:${guideGco}`),
+      get globalCompositeOperation() {
+        return guideGco
+      },
+      set globalCompositeOperation(value: string) {
+        guideGco = value
+      },
+      globalAlpha: 1,
+      lineCap: 'butt',
+      lineJoin: 'miter',
+      lineWidth: 1,
+      strokeStyle: '#000',
+      fillStyle: '#000',
+    }
+    const guideCanvas = {
+      width: 300,
+      height: 200,
+      classList: { add() {}, remove() {} },
+      getContext: () => guideCtx,
+    } as unknown as HTMLCanvasElement
+    const clipMask = { width: 300, height: 200 } as HTMLCanvasElement
+    renderGradientGuideOverlay(guideCanvas, { ...linearSpec, opacity: 1 }, 1, clipMask)
+    const maskAt = guideOps.indexOf('draw:destination-in')
+    const firstDot = guideOps.indexOf('dot')
+    expect(maskAt).toBeGreaterThan(-1)
+    expect(firstDot).toBeGreaterThan(maskAt)
+
+    guideOps.length = 0
+    renderGradientGuideOverlay(guideCanvas, { ...linearSpec, opacity: 1 }, 1, null)
+    expect(guideOps.some((op) => op.startsWith('draw:'))).toBe(false)
   })
 })

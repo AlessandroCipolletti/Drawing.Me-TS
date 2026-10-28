@@ -22,6 +22,12 @@ import {
   tryApplyFloatingBarManualPosition,
 } from './floatingFeatureBarLayout'
 import {
+  clearGradientGuideOverlay,
+  resolveDefaultGradientColors,
+  syncGradientKindButtons,
+  syncGradientSwatchDom,
+} from './gradientFill'
+import {
   CurrentToolProps,
   EditorCanvasState,
   EditorState,
@@ -119,6 +125,11 @@ export const applyToolSelection = (
     ...tool,
     globalCompositeOperation: tool.globalCompositeOperation || state.currentLayerGCO,
   }
+  if (state.currentToolProps.name === 'gradient') {
+    showGradientBar(state, refs)
+  } else {
+    hideGradientBar(state, refs)
+  }
   syncToolImageShapes(state, refs)
   Toolbar.setTool(state.currentToolProps)
 }
@@ -150,6 +161,9 @@ export const updateEditorLayer = (
 ) => {
   if (!refs.canvasForLine) return
   refs.canvasForLine.style.zIndex = String(layerZIndex + 1)
+  if (refs.gradientOverlay) {
+    refs.gradientOverlay.style.zIndex = String(layerZIndex + 1)
+  }
   refs.canvasForLine.style.opacity = String(opacity)
   refs.canvasForLine.style.mixBlendMode = 'normal'
   state.currentLayerGCO = globalCompositeOperation
@@ -525,6 +539,50 @@ export const hideQuickShapeBar = (state: EditorState, refs: EditorRefs) => {
   refs.quickShapeBar?.classList.add('displayNone')
   refs.quickShapeBar?.classList.remove('editor-quickshape__bar--pulse')
   clearFloatingBarManualPosition('quickShape')
+}
+
+export const syncGradientBarUi = (state: EditorState, refs: EditorRefs) => {
+  if (!state.gradientMode) return
+  syncGradientKindButtons(refs.gradientTypeButtons, state.gradientMode.kind)
+  syncGradientSwatchDom(refs.gradientSwatch1, state.gradientMode.color1)
+  syncGradientSwatchDom(refs.gradientSwatch2, state.gradientMode.color2)
+  if (refs.gradientColorInput1) refs.gradientColorInput1.value = state.gradientMode.color1
+  if (refs.gradientColorInput2) refs.gradientColorInput2.value = state.gradientMode.color2
+}
+
+export const updateGradientBarPosition = (state: EditorState, refs: EditorRefs) => {
+  if (!refs.gradientBar || !state.gradientMode?.active) return
+  if (tryApplyFloatingBarManualPosition('gradient', refs.gradientBar)) return
+  refs.gradientBar.style.left = '50%'
+  refs.gradientBar.style.top = '50%'
+  refs.gradientBar.style.bottom = 'auto'
+  refs.gradientBar.style.transform = 'translate3d(-50%, -50%, 0)'
+}
+
+const showGradientBar = (state: EditorState, refs: EditorRefs) => {
+  if (!state.gradientMode) return
+  if (!state.gradientMode.initializedColors) {
+    const defaults = resolveDefaultGradientColors(state.currentToolProps.color)
+    state.gradientMode.color1 = defaults.color1
+    state.gradientMode.color2 = defaults.color2
+    state.gradientMode.initializedColors = true
+  }
+  state.gradientMode.active = true
+  syncGradientBarUi(state, refs)
+  refs.gradientBar?.classList.remove('displayNone')
+  refs.gradientBar?.classList.remove('editor-lasso__bar--drawing')
+  updateGradientBarPosition(state, refs)
+}
+
+const hideGradientBar = (state: EditorState, refs: EditorRefs) => {
+  if (state.gradientMode) {
+    state.gradientMode.active = false
+    state.gradientMode.isDragging = false
+    state.gradientMode.draggingHandle = null
+  }
+  refs.gradientBar?.classList.remove('editor-lasso__bar--drawing')
+  refs.gradientBar?.classList.add('displayNone')
+  clearGradientGuideOverlay(refs.gradientOverlay)
 }
 
 const updateDragBoxHandlersPosition = (refs: EditorRefs) => {

@@ -22,9 +22,23 @@ import {
   updateLastStepData,
 } from './editorUtils'
 import { TOUCH_TYPE_STYLUS, TOUCH_TYPE_FINGER } from 'main/constants'
-import { sendCoworkingQuickShapeSteps, sendCoworkingStep } from './editorCoworkingBridge'
+import {
+  sendCoworkingGradientFill,
+  sendCoworkingQuickShapeSteps,
+  sendCoworkingStep,
+} from './editorCoworkingBridge'
+import {
+  clearGradientGuideOverlay,
+  getGradientHandleHitRadiusPx,
+  GradientFillSpec,
+  hitTestGradientEndpoint,
+  isGradientDragValid,
+  paintGradientFillOnContext,
+  renderGradientGuideOverlay,
+} from './gradientFill'
 import {
   compositeMaskedDisplayWithLineOverlay,
+  getClipMaskCanvas,
   isLayerMasked,
   syncLayerDisplayDuringStroke,
 } from './components/Layers/layerMask'
@@ -154,6 +168,226 @@ export const createEditorStrokeSession = (deps: StrokeSessionDeps) => {
   let quickShapeDetection: QuickShapeDetection | null = null
   let quickShapeActiveVariant: QuickShapeVariant = 'line'
   let quickShapeLastDragPoint: [number, number] | undefined = undefined
+  let gradientSnapshotCanvas: HTMLCanvasElement | null = null
+
+  const currentGradientSpec = (): GradientFillSpec => ({
+    kind: state.gradientMode.kind,
+    x0: state.gradientMode.x0,
+    y0: state.gradientMode.y0,
+    x1: state.gradientMode.x1,
+    y1: state.gradientMode.y1,
+    color1: state.gradientMode.color1,
+    color2: state.gradientMode.color2,
+    opacity: 1,
+  })
+
+  const captureGradientSnapshots = (sourceCanvas: HTMLCanvasElement) => {
+    const w = sourceCanvas.width
+    const h = sourceCanvas.height
+    if (!gradientSnapshotCanvas) {
+      gradientSnapshotCanvas = document.createElement('canvas')
+    }
+    if (gradientSnapshotCanvas.width !== w || gradientSnapshotCanvas.height !== h) {
+      gradientSnapshotCanvas.width = w
+      gradientSnapshotCanvas.height = h
+    }
+    const snapCtx = gradientSnapshotCanvas.getContext('2d')
+    snapCtx?.clearRect(0, 0, w, h)
+    snapCtx?.drawImage(sourceCanvas, 0, 0)
+  }
+
+  const clipGradientToActiveSelection = (ctx: CanvasRenderingContext2D) => {
+    if (!Layers.hasActiveLassoSelection()) return
+    const lassoSel = Layers.getActiveLassoSelection()
+    if (!lassoSel || lassoSel.points.length < 3) return
+    applyLassoClipPath(ctx, lassoSel.points, lassoSel.inverted, lassoSel.rings)
+  }
+
+  const renderActiveGradientGuide = (spec: GradientFillSpec) => {
+    renderGradientGuideOverlay(
+      refs.gradientOverlay,
+      spec,
+      state.canvas.scale,
+      getClipMaskCanvas(state.gradientMode.layerId)
+    )
+  }
+
+  const repaintActiveGradientPreview = () => {
+    if (
+      (!state.gradientMode.hasActiveEdit && !state.gradientMode.isDragging) ||
+      !state.gradientMode.layerId
+    ) {
+      return
+    }
+    const targetCtx = Layers.getLayerContext(state.gradientMode.layerId) || refs.layerContext
+    if (!targetCtx) return
+    const spec = currentGradientSpec()
+    paintGradientFillOnContext(targetCtx, spec, {
+      snapshotCanvas: gradientSnapshotCanvas,
+      clipToSelection: Layers.hasActiveLassoSelection() ? clipGradientToActiveSelection : undefined,
+    })
+    syncLayerDisplayDuringStroke(state.gradientMode.layerId)
+    renderActiveGradientGuide(spec)
+  }
+
+  const redrawGradientGuideIfActive = () => {
+    if (!state.gradientMode.hasActiveEdit && !state.gradientMode.isDragging) return
+    renderActiveGradientGuide(currentGradientSpec())
+  }
+
+  const restoreGradientSnapshotAndClear = () => {
+    const layerId = state.gradientMode.layerId
+    const targetCtx = (layerId ? Layers.getLayerContext(layerId) : null) || refs.layerContext
+    if (targetCtx?.canvas && gradientSnapshotCanvas) {
+      const prevGco = targetCtx.globalCompositeOperation
+      const prevAlpha = targetCtx.globalAlpha
+      targetCtx.globalCompositeOperation = 'source-over'
+      targetCtx.globalAlpha = 1
+      targetCtx.clearRect(0, 0, targetCtx.canvas.width, targetCtx.canvas.height)
+      targetCtx.drawImage(gradientSnapshotCanvas, 0, 0)
+      targetCtx.globalCompositeOperation = prevGco
+      targetCtx.globalAlpha = prevAlpha
+      if (layerId) {
+        syncLayerDisplayDuringStroke(layerId)
+      }
+    }
+    state.gradientMode.isDragging = false
+    state.gradientMode.draggingHandle = null
+    state.gradientMode.hasActiveEdit = false
+    state.gradientMode.layerId = ''
+    refs.gradientBar?.classList.remove('editor-lasso__bar--drawing')
+    clearGradientGuideOverlay(refs.gradientOverlay)
+  }
+
+  const finishGradientEdit = () => {
+    if (state.gradientMode.isDragging) {
+      restoreGradientSnapshotAndClear()
+      return
+    }
+    if (!state.gradientMode.hasActiveEdit || !state.gradientMode.layerId) {
+      clearGradientGuideOverlay(refs.gradientOverlay)
+      return
+    }
+    const layerId = state.gradientMode.layerId
+    const spec = currentGradientSpec()
+    state.gradientMode.hasActiveEdit = false
+    state.gradientMode.isDragging = false
+    state.gradientMode.draggingHandle = null
+    state.gradientMode.layerId = ''
+    refs.gradientBar?.classList.remove('editor-lasso__bar--drawing')
+    clearGradientGuideOverlay(refs.gradientOverlay)
+
+    flushPendingHistorySave()
+    void Layers.addLayerHistoryContentChangedStep(layerId).then(() => {
+      if (Layers.hasActiveLassoSelection()) {
+        void Layers.refreshActiveLassoSelection()
+      }
+    })
+    if (Coworking.isOpen()) {
+      sendCoworkingGradientFill(state, layerId, spec)
+    }
+  }
+
+  const cancelGradientIfDragging = () => {
+    if (state.gradientMode.isDragging) {
+      restoreGradientSnapshotAndClear()
+    }
+  }
+
+  const onGradientTouchStart = (touchEvent: PointerTouchEvent) => {
+    Ruler.hide()
+    updateCurrentTouchType(state, touchEvent)
+    updateCurrentTouchData(state, touchEvent, Params.eventStart)
+    const x = state.currentTouch.x
+    const y = state.currentTouch.y
+    const activeLayerId = Layers.getCurrentSelectedLayerId()
+    if (!activeLayerId) return
+
+    if (state.gradientMode.hasActiveEdit && state.gradientMode.layerId === activeLayerId) {
+      const hit = hitTestGradientEndpoint(
+        x,
+        y,
+        state.gradientMode.x0,
+        state.gradientMode.y0,
+        state.gradientMode.x1,
+        state.gradientMode.y1,
+        getGradientHandleHitRadiusPx(state.canvas.scale)
+      )
+      if (hit) {
+        state.gradientMode.isDragging = true
+        state.gradientMode.draggingHandle = hit
+        if (hit === 'start') {
+          state.gradientMode.x0 = x
+          state.gradientMode.y0 = y
+        } else {
+          state.gradientMode.x1 = x
+          state.gradientMode.y1 = y
+        }
+        refs.gradientBar?.classList.add('editor-lasso__bar--drawing')
+        repaintActiveGradientPreview()
+        return
+      }
+    }
+
+    if (state.gradientMode.hasActiveEdit) {
+      finishGradientEdit()
+    }
+
+    const targetCtx = Layers.getLayerContext(activeLayerId) || refs.layerContext
+    if (!targetCtx?.canvas) return
+    captureGradientSnapshots(targetCtx.canvas)
+    state.gradientMode.layerId = activeLayerId
+    state.gradientMode.x0 = x
+    state.gradientMode.y0 = y
+    state.gradientMode.x1 = x
+    state.gradientMode.y1 = y
+    state.gradientMode.isDragging = true
+    state.gradientMode.draggingHandle = null
+    state.gradientMode.hasActiveEdit = false
+    refs.gradientBar?.classList.add('editor-lasso__bar--drawing')
+  }
+
+  const onGradientTouchMove = (touchEvent: PointerTouchEvent) => {
+    if (!state.gradientMode.isDragging) return
+    updateCurrentTouchType(state, touchEvent)
+    updateCurrentTouchData(state, touchEvent, Params.eventMove)
+    if (state.gradientMode.draggingHandle === 'start') {
+      state.gradientMode.x0 = state.currentTouch.x
+      state.gradientMode.y0 = state.currentTouch.y
+    } else {
+      state.gradientMode.x1 = state.currentTouch.x
+      state.gradientMode.y1 = state.currentTouch.y
+    }
+    repaintActiveGradientPreview()
+  }
+
+  const onGradientTouchEnd = (touchEvent: PointerTouchEvent) => {
+    if (!state.gradientMode.isDragging) return
+    updateCurrentTouchData(state, touchEvent, Params.eventEnd)
+    if (state.gradientMode.draggingHandle === 'start') {
+      state.gradientMode.x0 = state.currentTouch.x
+      state.gradientMode.y0 = state.currentTouch.y
+    } else {
+      state.gradientMode.x1 = state.currentTouch.x
+      state.gradientMode.y1 = state.currentTouch.y
+    }
+    refs.gradientBar?.classList.remove('editor-lasso__bar--drawing')
+    if (
+      !isGradientDragValid(
+        state.gradientMode.x0,
+        state.gradientMode.y0,
+        state.gradientMode.x1,
+        state.gradientMode.y1
+      )
+    ) {
+      restoreGradientSnapshotAndClear()
+      return
+    }
+    state.gradientMode.isDragging = false
+    state.gradientMode.draggingHandle = null
+    state.gradientMode.hasActiveEdit = true
+    repaintActiveGradientPreview()
+  }
 
   const clearQuickShapeHoldTimer = () => {
     if (quickShapeHoldTimer !== null) {
@@ -172,6 +406,7 @@ export const createEditorStrokeSession = (deps: StrokeSessionDeps) => {
     quickShapeCurrentSteps = []
     quickShapeLastDragPoint = undefined
     hideQuickShapeBar(state, refs)
+    finishGradientEdit()
   }
 
   const capturePreStrokeSnapshot = (sourceCanvas: HTMLCanvasElement | undefined) => {
@@ -1071,6 +1306,13 @@ export const createEditorStrokeSession = (deps: StrokeSessionDeps) => {
     onStepTouchStart,
     onStepTouchMove,
     onStepTouchEnd,
+    onGradientTouchStart,
+    onGradientTouchMove,
+    onGradientTouchEnd,
+    repaintActiveGradientPreview,
+    redrawGradientGuideIfActive,
+    finishGradientEdit,
+    cancelGradientIfDragging,
     makeTouchStartNearRuler,
     makeTouchMoveNearRuler,
     makeTouchEndNearRuler,

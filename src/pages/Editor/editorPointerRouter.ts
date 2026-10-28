@@ -36,7 +36,15 @@ import { isEffectBrushToolName } from './effectBrushFilters'
 const isFingerPaintTool = (toolName?: string): boolean =>
   toolName === 'smudge' || isEffectBrushToolName(toolName)
 export type TouchDispatchAction =
-  'none' | 'panCanvas' | 'dragLayer' | 'dragZoom' | 'lasso' | 'lassoMove' | 'pipette' | 'step'
+  | 'none'
+  | 'panCanvas'
+  | 'dragLayer'
+  | 'dragZoom'
+  | 'lasso'
+  | 'lassoMove'
+  | 'pipette'
+  | 'gradient'
+  | 'step'
 
 const isDesktopCanvasPan = (params: {
   desktopCanvasPanMode?: boolean
@@ -79,6 +87,7 @@ export const resolveTouchStartAction = (params: {
     if (params.lassoMoveMode) return 'lassoMove'
   }
   if (params.toolName === 'pipette') return 'pipette'
+  if (params.toolName === 'gradient' && params.currentLayerIsActive) return 'gradient'
   if (params.currentLayerIsActive) return 'step'
   return 'none'
 }
@@ -118,6 +127,7 @@ export const resolveTouchMoveAction = (params: {
     if (params.lassoMoveMode) return 'lassoMove'
   }
   if (params.toolName === 'pipette') return 'pipette'
+  if (params.toolName === 'gradient' && params.currentLayerIsActive) return 'gradient'
   if (params.currentLayerIsActive) return 'step'
   return 'none'
 }
@@ -149,6 +159,7 @@ export const resolveTouchEndAction = (params: {
     if (params.lassoMoveMode) return 'lassoMove'
   }
   if (params.toolName === 'pipette') return 'pipette'
+  if (params.toolName === 'gradient' && params.currentLayerIsActive) return 'gradient'
   if (params.currentLayerIsActive) return 'step'
   return 'none'
 }
@@ -166,6 +177,9 @@ export interface PointerRouterDeps {
     onStepTouchStart: (touchEvent: PointerTouchEvent) => void
     onStepTouchMove: (touchEvent: PointerTouchEvent) => void
     onStepTouchEnd: (e: PointerTouchEvent) => void
+    onGradientTouchStart?: (touchEvent: PointerTouchEvent) => void
+    onGradientTouchMove?: (touchEvent: PointerTouchEvent) => void
+    onGradientTouchEnd?: (e: PointerTouchEvent) => void
     dismissQuickShape?: () => void
   }
   onStylusStrokeNearCanvas?: () => void
@@ -522,6 +536,8 @@ export const createEditorPointerHandlers = (deps: PointerRouterDeps) => {
     } else if (action === 'pipette') {
       session.dismissQuickShape?.()
       onPipetteTouchStart(touchEvent)
+    } else if (action === 'gradient') {
+      session.onGradientTouchStart?.(touchEvent)
     } else if (action === 'step') {
       if (touchEvent?.touchType === TOUCH_TYPE_STYLUS) {
         onStylusStrokeNearCanvas?.()
@@ -603,7 +619,9 @@ export const createEditorPointerHandlers = (deps: PointerRouterDeps) => {
     // Effect brushes interpolate their own dabs along a segment, so under
     // load only the latest queued move matters — earlier ones are merged
     // into that segment instead of being painted one by one.
-    const collapseToLast = isEffectBrushToolName(state.currentToolProps.name)
+    const collapseToLast =
+      isEffectBrushToolName(state.currentToolProps.name) ||
+      state.currentToolProps.name === 'gradient'
     const lastStepIndex = collapseToLast ? batch.length - 1 : -1
     for (let batchIndex = 0; batchIndex < batch.length; batchIndex++) {
       const touchEvent = batch[batchIndex]
@@ -630,6 +648,7 @@ export const createEditorPointerHandlers = (deps: PointerRouterDeps) => {
       else if (action === 'lasso') onLassoTouchMove(touchEvent)
       else if (action === 'lassoMove') onLassoMoveTouchMove(touchEvent)
       else if (action === 'pipette') onPipetteTouchMove(touchEvent)
+      else if (action === 'gradient') session.onGradientTouchMove?.(touchEvent)
       else if (action === 'step') session.onStepTouchMove(touchEvent)
     }
     if (batch.length) Debug.logFps()
@@ -706,6 +725,7 @@ export const createEditorPointerHandlers = (deps: PointerRouterDeps) => {
     else if (action === 'lasso') onLassoTouchEnd(e)
     else if (action === 'lassoMove') onLassoMoveTouchEnd(e)
     else if (action === 'pipette') onPipetteTouchEnd()
+    else if (action === 'gradient') session.onGradientTouchEnd?.(e)
     else if (action === 'step') {
       session.onStepTouchEnd(e)
       onStylusStrokeEnd?.()
