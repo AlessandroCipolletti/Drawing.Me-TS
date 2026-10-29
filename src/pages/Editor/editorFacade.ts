@@ -41,6 +41,7 @@ export interface EditorFacade {
     active: boolean
   ) => void
   setLayerContext: (context: ExtendedCanvasContext) => void
+  beginTextEditForLayer: (layerId: string) => void
 }
 
 let currentFacade: EditorFacade | null = null
@@ -75,4 +76,5 @@ export const editorFacade: EditorFacade = {
   updateEditorLayer: (layerZIndex, opacity, globalCompositeOperation, active) =>
     currentFacade?.updateEditorLayer(layerZIndex, opacity, globalCompositeOperation, active),
   setLayerContext: (ctx) => currentFacade?.setLayerContext(ctx),
+  beginTextEditForLayer: (layerId) => currentFacade?.beginTextEditForLayer(layerId),
 }

@@ -905,6 +905,64 @@ export const cutLassoSelectionToNewLayer = async () => {
   layersBridge.startResizeMode()
 }
 
+export const selectLayerById = (layerId: string) => selectLayer(layerId)
+
+export const saveLayerNameDirect = (layerId: string, name: string) => {
+  layersBridge.saveLayerName(layerId, name)
+}
+
+export const updateLayerBoundsAndPreview = async (layerId: string) => {
+  await layersBridge.updateLayerRealCoords(layerId)
+  layersBridge.updateLayerPreview(layerId)
+  if (state.currentSelectedLayerId === layerId) {
+    layersBridge.updateParamsByLayer(layerId)
+  }
+}
+
+export const createNewTextLayer = async (): Promise<string | null> => {
+  if (Object.keys(state.layers).length >= config.maxLayersNumber) return null
+  if (state.resizeMode) {
+    await layersBridge.saveResizeModeIfNeeded()
+  }
+  if (state.lassoMode) {
+    layersBridge.endLassoMode()
+  }
+
+  const newLayerData = createNewLayerData()
+  newLayerData.name = 'Text'
+  newLayerData.canvas = createNewLayerCanvas()
+  state.layers[newLayerData.id] = newLayerData
+  layersBridge.addLayerHistoryNewStep(newLayerData.id)
+  await layersBridge.createNewLayerDom(newLayerData.id, true)
+  layersBridge.reorderLayersList()
+  await selectLayer(newLayerData.id)
+  if (refs.layersList) refs.layersList.scrollTop = 0
+  if (Coworking.isOpen()) {
+    Coworking.sendNewLayer(newLayerData)
+  }
+  return newLayerData.id
+}
+
+export const deleteEmptyTransientLayer = async (layerId: string) => {
+  const layer = state.layers[layerId]
+  if (!layer) return
+  const yoursLayers = filterYoursLayers()
+  if (yoursLayers.length <= 1) {
+    layersBridge.clearLayer(layerId)
+    layer.textSpec = undefined
+    await layersBridge.addLayerHistoryContentChangedStep(layerId)
+    return
+  }
+  const others = yoursLayers.filter((entry) => entry.id !== layerId)
+  const nextSelectedId = others.sort((a, b) => b.order - a.order)[0]?.id
+  if (!nextSelectedId) return
+  if (Coworking.isOpen()) {
+    Coworking.sendDeleteLayer(layerId, nextSelectedId)
+  }
+  layersBridge.addLayerHistoryDeleteStep(layerId, nextSelectedId)
+  await _deleteLayer(layerId, nextSelectedId, false)
+}
+
 registerLayersBridge({
   selectLayer,
   _deleteLayer,

@@ -58,6 +58,11 @@ import {
   QuickShapeVariant,
 } from './editorQuickShape'
 import { EditorRefs } from './EditorView'
+import {
+  endTextBoxHandleDrag,
+  moveTextBoxHandleDrag,
+  startOrManipulateTextAtPoint,
+} from './text/textSession'
 import { CurrentToolProps, EditorState, EditorTouchState, PointerTouchEvent } from './editorTypes'
 import {
   createSmudgeStrokeSession,
@@ -1302,6 +1307,27 @@ export const createEditorStrokeSession = (deps: StrokeSessionDeps) => {
     endLassoCanvasClip()
   }
 
+  const onTextTouchStart = (touchEvent: PointerTouchEvent) => {
+    Ruler.hide()
+    updateCurrentTouchType(state, touchEvent)
+    updateCurrentTouchData(state, touchEvent, Params.eventStart)
+    void startOrManipulateTextAtPoint(state, refs, state.currentTouch.x, state.currentTouch.y)
+  }
+
+  const onTextTouchMove = (touchEvent: PointerTouchEvent) => {
+    if (!state.textMode.isDraggingBox) return
+    updateCurrentTouchType(state, touchEvent)
+    updateCurrentTouchData(state, touchEvent, Params.eventMove)
+    moveTextBoxHandleDrag(state, refs, state.currentTouch.x, state.currentTouch.y)
+  }
+
+  const onTextTouchEnd = (touchEvent: PointerTouchEvent) => {
+    if (!state.textMode.isDraggingBox) return
+    updateCurrentTouchData(state, touchEvent, Params.eventEnd)
+    moveTextBoxHandleDrag(state, refs, state.currentTouch.x, state.currentTouch.y)
+    endTextBoxHandleDrag(state, refs)
+  }
+
   return {
     onStepTouchStart,
     onStepTouchMove,
@@ -1309,6 +1335,9 @@ export const createEditorStrokeSession = (deps: StrokeSessionDeps) => {
     onGradientTouchStart,
     onGradientTouchMove,
     onGradientTouchEnd,
+    onTextTouchStart,
+    onTextTouchMove,
+    onTextTouchEnd,
     repaintActiveGradientPreview,
     redrawGradientGuideIfActive,
     finishGradientEdit,

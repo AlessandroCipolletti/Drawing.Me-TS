@@ -3,6 +3,7 @@ import * as Coworking from 'modules/Coworking'
 import { editorFacade } from 'pages/Editor/editorFacade'
 import { findImageContentCoords } from 'utils/imageUtils'
 import { fillCanvasWithImage } from 'utils/canvasUtils'
+import { cloneTextSpec, resolveRestoredTextSpec } from 'pages/Editor/text/textSpec'
 import type { LayerBlendMode } from './layerBlendMode'
 import {
   HISTORY_STEP_LAYER_CONTENT,
@@ -159,6 +160,7 @@ const restoreLayerContentStep = async (layerId: string, step?: LayerHistoryStep)
   } else {
     layer.canvas.context.clearRect(0, 0, layer.canvas.width, layer.canvas.height)
   }
+  layer.textSpec = resolveRestoredTextSpec(step)
   if (layer.maskBelowLayerId) {
     compositeSourceToDisplay(layerId)
   } else {
@@ -222,6 +224,7 @@ export const addLayerHistoryContentChangedStep = async (
       minY: layer.minY,
       maxX: layer.maxX,
       maxY: layer.maxY,
+      textSpec: layer.textSpec ? cloneTextSpec(layer.textSpec) || null : null,
     }
     addGlobalLayersHistoryAction(
       {
@@ -292,6 +295,7 @@ export const replaceLatestLayerHistoryContentStep = async (
       minY: layer.minY,
       maxX: layer.maxX,
       maxY: layer.maxY,
+      textSpec: layer.textSpec ? cloneTextSpec(layer.textSpec) || null : null,
     }
     layer.history.replaceCurrent(step)
     updateUndoRedoButtons()
@@ -367,6 +371,7 @@ const commitLayerCanvasStepOnly = async (layerId: string) => {
       minY: layer.minY,
       maxX: layer.maxX,
       maxY: layer.maxY,
+      textSpec: layer.textSpec ? cloneTextSpec(layer.textSpec) || null : null,
     })
     if (layer.maskBelowLayerId) {
       compositeSourceToDisplay(layerId)

@@ -66,6 +66,17 @@ declare global {
       img: BaseDomAttributes<HTMLImageElement>
       button: BaseDomAttributes<HTMLButtonElement>
       input: BaseDomAttributes<HTMLInputElement>
+      select: BaseDomAttributes<HTMLSelectElement>
+      option: BaseDomAttributes<HTMLOptionElement> & {
+        value?: string
+        selected?: boolean
+      }
+      textarea: BaseDomAttributes<HTMLTextAreaElement> & {
+        rows?: number
+        autocomplete?: string
+        autocapitalize?: string
+        spellcheck?: boolean | 'true' | 'false'
+      }
       label: BaseDomAttributes<HTMLLabelElement>
       canvas: BaseDomAttributes<HTMLCanvasElement>
       h1: BaseDomAttributes<HTMLHeadingElement>

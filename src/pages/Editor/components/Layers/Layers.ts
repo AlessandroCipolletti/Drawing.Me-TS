@@ -50,6 +50,11 @@ import {
   toggleMaskDownSelectedLayer,
   renameLayer,
   toggleEnableLayer,
+  createNewTextLayer,
+  deleteEmptyTransientLayer,
+  saveLayerNameDirect,
+  selectLayerById,
+  updateLayerBoundsAndPreview,
 } from './layersActions'
 import {
   beginMagicWandSelection,
@@ -67,6 +72,7 @@ import {
   discardPendingLassoSelection,
   flipHorizontally,
   flipVertically,
+  editTextButtonTouchStart,
   blendModeChipTouchStart,
   gcoModeTouchStart,
   getActiveLassoSelection,
@@ -123,6 +129,7 @@ import {
   receiveAdjustmentLayerCreateFromCoworker,
   receiveAdjustmentLayerUpdateFromCoworker,
   receiveAdjustmentLayerBakeFromCoworker,
+  receiveTextLayerUpdateFromCoworker,
   receiveResizeLayerFromCoworker,
   renameLayerFromCoworker,
   selectCoworkerLayer,
@@ -173,6 +180,11 @@ export {
   startTransformLassoSelectionInPlace,
   copyLassoSelectionToNewLayer,
   cutLassoSelectionToNewLayer,
+  createNewTextLayer,
+  deleteEmptyTransientLayer,
+  saveLayerNameDirect,
+  selectLayerById,
+  updateLayerBoundsAndPreview,
 }
 
 const initDom = async (moduleContainer: HTMLElement, sidebarExpanded = false) => {
@@ -230,6 +242,7 @@ const initDom = async (moduleContainer: HTMLElement, sidebarExpanded = false) =>
   refs.addNewLayerButton?.addEventListener(Params.eventStart, addNewLayer)
   refs.flipVerticalButton?.addEventListener(Params.eventStart, flipVertically)
   refs.flipHorizontalButton?.addEventListener(Params.eventStart, flipHorizontally)
+  refs.editTextButton?.addEventListener(Params.eventStart, editTextButtonTouchStart)
   refs.visibilityLayerButton?.addEventListener(Params.eventStart, toggleEnableLayer)
   refs.editLayerNameButton?.addEventListener(Params.eventStart, renameLayer)
   refs.duplicateLayerButton?.addEventListener(Params.eventStart, duplicateSelectedLayer)
@@ -357,4 +370,5 @@ registerEditorCoworkingPort({
   receiveAdjustmentLayerCreateFromCoworker,
   receiveAdjustmentLayerUpdateFromCoworker,
   receiveAdjustmentLayerBakeFromCoworker,
+  receiveTextLayerUpdateFromCoworker,
 })

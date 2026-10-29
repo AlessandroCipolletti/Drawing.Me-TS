@@ -71,7 +71,8 @@
 .editor__canvas-for-line,
 .editor__lasso-canvas,
 .editor-guides__overlay,
-.editor-gradient__overlay {
+.editor-gradient__overlay,
+.editor-text__overlay {
   position: absolute;
   top: 0rem;
   left: 0rem;
@@ -91,9 +92,24 @@
   pointer-events: none;
   transition: opacity 0.2s ease;
 }
-.editor-gradient__overlay {
+.editor-gradient__overlay,
+.editor-text__overlay {
   z-index: 999;
   pointer-events: none;
+}
+.editor-text__input {
+  position: fixed;
+  left: -9999px;
+  top: 0;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+  border: none;
+  outline: none;
+  padding: 0;
+  margin: 0;
+  resize: none;
 }
 .editor-guides__overlay--faded {
   opacity: 0.15;
@@ -707,4 +723,88 @@ div.editor__magnetised-line-r {
 }
 .drawith__PHONE .editor-quickshape__action-label {
   font-size: 0.98rem;
+}
+
+.params-container.editor-text__bar {
+  z-index: 1002;
+  box-sizing: border-box;
+  flex-direction: column;
+  align-items: stretch;
+  width: max-content;
+  max-width: calc(100vw - 1.6rem);
+  overflow: visible;
+  gap: 0.85rem;
+  padding: 0.85rem 1rem;
+}
+.drawith__EDITOR-FULLSCREEN .params-container.editor-text__bar {
+  opacity: 1;
+  pointer-events: auto;
+}
+.editor-text__bar,
+.editor-text__bar .editor-lasso__action-label,
+.editor-text__bar .editor-adjust__slider-label,
+.editor-text__font-select {
+  font-size: 1.35rem;
+}
+.editor-text__row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  gap: 0.75rem 0.9rem;
+  min-width: 0;
+}
+.editor-text__cluster {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+}
+.editor-text__font-select {
+  appearance: none;
+  -webkit-appearance: none;
+  height: 3.5rem;
+  width: 14rem;
+  max-width: 42vw;
+  min-width: 0;
+  flex: 0 1 14rem;
+  padding: 0 2.8rem 0 1rem;
+  border-radius: 0.85rem;
+  border: 0.5px solid rgba(15, 23, 42, 0.16);
+  background-color: #ffffff;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%230f172a' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.95rem center;
+  background-size: 1rem 1rem;
+  color: var(--text-primary);
+  font-family: 'Poppins-Medium', sans-serif;
+  cursor: pointer;
+}
+.editor-text__row--sliders {
+  width: 100%;
+  gap: 1.6rem;
+}
+.editor-text__slider-cell {
+  flex: 0 0 auto;
+  min-width: 0;
+  gap: 0.7rem;
+  margin: 0;
+}
+.editor-text__slider-cell .editor-adjust__slider.horizontal-slider {
+  width: 8.4rem;
+  flex: 0 0 8.4rem;
+  min-width: 0;
+  margin-right: 0;
+}
+.drawith__PHONE .editor-text__font-select {
+  height: 3.35rem;
+  width: 12rem;
+  padding-right: 2.6rem;
+  background-position: right 0.8rem center;
+}
+.drawith__PHONE .editor-text__slider-cell .editor-adjust__slider.horizontal-slider {
+  width: 7.2rem;
+  flex-basis: 7.2rem;
 }

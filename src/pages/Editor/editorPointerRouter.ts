@@ -44,6 +44,7 @@ export type TouchDispatchAction =
   | 'lassoMove'
   | 'pipette'
   | 'gradient'
+  | 'text'
   | 'step'
 
 const isDesktopCanvasPan = (params: {
@@ -88,6 +89,7 @@ export const resolveTouchStartAction = (params: {
   }
   if (params.toolName === 'pipette') return 'pipette'
   if (params.toolName === 'gradient' && params.currentLayerIsActive) return 'gradient'
+  if (params.toolName === 'text') return params.currentLayerIsActive ? 'text' : 'none'
   if (params.currentLayerIsActive) return 'step'
   return 'none'
 }
@@ -128,6 +130,7 @@ export const resolveTouchMoveAction = (params: {
   }
   if (params.toolName === 'pipette') return 'pipette'
   if (params.toolName === 'gradient' && params.currentLayerIsActive) return 'gradient'
+  if (params.toolName === 'text') return params.currentLayerIsActive ? 'text' : 'none'
   if (params.currentLayerIsActive) return 'step'
   return 'none'
 }
@@ -160,6 +163,7 @@ export const resolveTouchEndAction = (params: {
   }
   if (params.toolName === 'pipette') return 'pipette'
   if (params.toolName === 'gradient' && params.currentLayerIsActive) return 'gradient'
+  if (params.toolName === 'text') return params.currentLayerIsActive ? 'text' : 'none'
   if (params.currentLayerIsActive) return 'step'
   return 'none'
 }
@@ -180,6 +184,9 @@ export interface PointerRouterDeps {
     onGradientTouchStart?: (touchEvent: PointerTouchEvent) => void
     onGradientTouchMove?: (touchEvent: PointerTouchEvent) => void
     onGradientTouchEnd?: (e: PointerTouchEvent) => void
+    onTextTouchStart?: (touchEvent: PointerTouchEvent) => void
+    onTextTouchMove?: (touchEvent: PointerTouchEvent) => void
+    onTextTouchEnd?: (e: PointerTouchEvent) => void
     dismissQuickShape?: () => void
   }
   onStylusStrokeNearCanvas?: () => void
@@ -538,6 +545,8 @@ export const createEditorPointerHandlers = (deps: PointerRouterDeps) => {
       onPipetteTouchStart(touchEvent)
     } else if (action === 'gradient') {
       session.onGradientTouchStart?.(touchEvent)
+    } else if (action === 'text') {
+      session.onTextTouchStart?.(touchEvent)
     } else if (action === 'step') {
       if (touchEvent?.touchType === TOUCH_TYPE_STYLUS) {
         onStylusStrokeNearCanvas?.()
@@ -621,7 +630,8 @@ export const createEditorPointerHandlers = (deps: PointerRouterDeps) => {
     // into that segment instead of being painted one by one.
     const collapseToLast =
       isEffectBrushToolName(state.currentToolProps.name) ||
-      state.currentToolProps.name === 'gradient'
+      state.currentToolProps.name === 'gradient' ||
+      state.currentToolProps.name === 'text'
     const lastStepIndex = collapseToLast ? batch.length - 1 : -1
     for (let batchIndex = 0; batchIndex < batch.length; batchIndex++) {
       const touchEvent = batch[batchIndex]
@@ -649,6 +659,7 @@ export const createEditorPointerHandlers = (deps: PointerRouterDeps) => {
       else if (action === 'lassoMove') onLassoMoveTouchMove(touchEvent)
       else if (action === 'pipette') onPipetteTouchMove(touchEvent)
       else if (action === 'gradient') session.onGradientTouchMove?.(touchEvent)
+      else if (action === 'text') session.onTextTouchMove?.(touchEvent)
       else if (action === 'step') session.onStepTouchMove(touchEvent)
     }
     if (batch.length) Debug.logFps()
@@ -726,6 +737,7 @@ export const createEditorPointerHandlers = (deps: PointerRouterDeps) => {
     else if (action === 'lassoMove') onLassoMoveTouchEnd(e)
     else if (action === 'pipette') onPipetteTouchEnd()
     else if (action === 'gradient') session.onGradientTouchEnd?.(e)
+    else if (action === 'text') session.onTextTouchEnd?.(e)
     else if (action === 'step') {
       session.onStepTouchEnd(e)
       onStylusStrokeEnd?.()

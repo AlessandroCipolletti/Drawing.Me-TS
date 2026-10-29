@@ -96,6 +96,12 @@ import {
   syncGradientBarUi,
 } from './editorCompositor'
 import { GRADIENT_KINDS, normalizeGradientHex, selectExclusiveGradientKind } from './gradientFill'
+import {
+  bindTextBarEvents,
+  cancelActiveTextSession,
+  openTextEditSessionForLayer,
+  updateTextBarPosition,
+} from './text/textSession'
 import { addQuadCornerHandlers, addWarpMeshHandlers } from './resizeTransformHandlers'
 import { TRANSFORM_KINDS } from './resizeTransformSession'
 import { QuickShapeVariant } from './editorQuickShape'
@@ -122,7 +128,7 @@ import {
 } from './editorStrokeSession'
 import { createEditorPointerHandlers } from './editorPointerRouter'
 import { createColorDropController } from './colorDropController'
-import { registerEditorCalls } from './editorCalls'
+import { editorCalls, registerEditorCalls } from './editorCalls'
 import { findValueWithMagnetism } from './editorUtils'
 import { currentCanvasHasZoom, registerCanvasZoomCheck } from './editorCanvasZoom'
 import { registerEditorCoworkingPort } from 'app/editorCoworkingPort'
@@ -242,6 +248,9 @@ const updateFloatingOptionBars = () => {
   if (state.gradientMode?.active) {
     updateGradientBarPosition(state, refs)
   }
+  if (state.textMode?.active) {
+    updateTextBarPosition(state, refs)
+  }
   syncAdjustBarPosition()
 }
 const onGestureStart = (x: number, y: number) => {
@@ -279,7 +288,14 @@ const onRotate = () =>
     scheduleGuidesOverlayRedraw(state, refs)
   })
 const onKeyDown = (e: KeyboardEvent) =>
-  handleEditorKeyDown(state, e, () => activeStrokeSession?.dismissQuickShape())
+  handleEditorKeyDown(
+    state,
+    e,
+    () => activeStrokeSession?.dismissQuickShape(),
+    () => {
+      void cancelActiveTextSession(state, refs)
+    }
+  )
 
 const bindEditorInput = () => {
   const strokeSession = createEditorStrokeSession({
@@ -566,6 +582,7 @@ const bindEditorInput = () => {
     strokeSession.finishGradientEdit()
     Tools.selectLastUsedTool(false)
   })
+  bindTextBarEvents(state, refs)
   return strokeSession
 }
 
@@ -762,6 +779,10 @@ registerEditorFacade({
     activeStrokeSession?.dismissQuickShape()
     hideQuickShapeBar(state, refs)
     compositorSetLayerContext(state, refs, ctx)
+  },
+  beginTextEditForLayer: (layerId: string) => {
+    editorCalls.clickButton('text')
+    void openTextEditSessionForLayer(state, refs, layerId, false)
   },
 })
 

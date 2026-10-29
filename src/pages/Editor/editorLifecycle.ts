@@ -46,7 +46,8 @@ export const toggleFullscreen = (state: EditorState, e?: Event) => {
 export const handleEditorKeyDown = (
   state: EditorState,
   e: KeyboardEvent,
-  onDismissQuickShape?: () => void
+  onDismissQuickShape?: () => void,
+  onCancelText?: () => void
 ) => {
   const activeTag = (document.activeElement as HTMLElement | null)?.tagName?.toLowerCase()
   if (activeTag === 'input' || activeTag === 'textarea') {
@@ -72,6 +73,8 @@ export const handleEditorKeyDown = (
       exitFullscreen(state)
     } else if (state.quickShapeMode?.active) {
       onDismissQuickShape?.()
+    } else if (state.textMode?.hasActiveSession) {
+      onCancelText?.()
     } else if (state.resizeMode?.active) {
       Layers.closeResizeModeIfNeeded()
     } else if (state.lassoMode?.active) {

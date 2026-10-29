@@ -99,6 +99,7 @@ export const isQuickShapeSupportedTool = (tool?: {
     tool.name === 'sharpen' ||
     tool.name === 'bucket' ||
     tool.name === 'gradient' ||
+    tool.name === 'text' ||
     tool.name === 'pipette' ||
     tool.name === 'magicWand'
   ) {

@@ -18,6 +18,7 @@ import {
 } from './layersUtils'
 import type { LayerBlendMode } from './layerBlendMode'
 import type { AdjustmentFilterKind, AdjustmentSpec } from './layerAdjustmentTypes'
+import type { TextSpec } from 'pages/Editor/text/textSpec'
 
 type LayerKind = 'pixel' | 'adjustment'
 
@@ -57,6 +58,7 @@ export interface LayerHistoryStep {
   minY: number
   maxX: number
   maxY: number
+  textSpec?: TextSpec | null
 }
 
 export interface LayerRecord {
@@ -84,6 +86,7 @@ export interface LayerRecord {
   displayCanvas: LayerCanvasElement | null
   layerKind?: LayerKind
   adjustmentSpec?: AdjustmentSpec
+  textSpec?: TextSpec
 }
 
 export interface LayersMagnetismCoords {
@@ -220,6 +223,7 @@ export const refs: LayersRefs = {
   deleteLayerButton: null,
   flipVerticalButton: null,
   flipHorizontalButton: null,
+  editTextButton: null,
   sendLayerButton: null,
   canvasPanButton: null,
   layersToggleButton: null,

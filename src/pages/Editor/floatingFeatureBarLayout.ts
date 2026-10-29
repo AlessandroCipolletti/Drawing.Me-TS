@@ -1,7 +1,8 @@
 import Params from 'main/Params'
 import { getNumberInBetween, round } from 'utils/mathUtils'
 
-export type FloatingFeatureBarId = 'lasso' | 'adjust' | 'quickShape' | 'resize' | 'gradient'
+export type FloatingFeatureBarId =
+  'lasso' | 'adjust' | 'quickShape' | 'resize' | 'gradient' | 'text'
 
 const manualPositions: Partial<Record<FloatingFeatureBarId, { left: number; top: number }>> = {}
 

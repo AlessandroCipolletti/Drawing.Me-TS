@@ -16,6 +16,13 @@ import {
 } from 'utils/imageWarp'
 import type { ResizeFramePayload } from 'pages/Editor/editorTypes'
 import { cloneCanvasSource, getTransformBounds } from 'pages/Editor/resizeTransformSession'
+import {
+  applyAffineResizeToTextSpec,
+  cloneTextSpec,
+  type TextSpec,
+} from 'pages/Editor/text/textSpec'
+import { ensureTextFontLoaded } from 'pages/Editor/text/textFonts'
+import { paintTextSpecOnContext } from 'pages/Editor/text/textRaster'
 import { handleElementsListDragAndDrop } from 'utils/uiUtils'
 import { delay } from 'utils/jsUtils'
 import { timing } from 'main/Theme'
@@ -388,6 +395,11 @@ const updateParamsByLayer = (layerId: string | false = state.currentSelectedLaye
     refs.maskDownLayerButton?.classList.toggle('selected', maskActive)
     refs.flipVerticalButton?.classList.toggle('disabled', empty)
     refs.flipHorizontalButton?.classList.toggle('disabled', empty)
+    refs.editTextButton?.classList.toggle('displayNone', !layer.textSpec)
+    refs.editTextButton?.classList.toggle(
+      'disabled',
+      !layer.textSpec || state.resizeMode || state.lassoMode || isLayerOccupiedByCoworker(layerId)
+    )
     refs.sendLayerButton?.classList.toggle('disabled', !canTransferLayer)
     const blendMode = normalizeBlendMode(layer.blendMode)
     if (refs.blendModeChip) {
@@ -421,6 +433,14 @@ const updateParamsByLayer = (layerId: string | false = state.currentSelectedLaye
     visibilityIcon?.classList.toggle('svg-icon-hidden', !layer.active)
   }
 }
+
+let textAffineBaseline: {
+  spec: TextSpec
+  x: number
+  y: number
+  w: number
+  h: number
+} | null = null
 
 const paintTransformFrame = (ctx: CanvasRenderingContext2D) => {
   if (!refs.imageForResize) return
@@ -1075,13 +1095,18 @@ const startResizeMode = () => {
   refs.resizeBaseSnapshot = cloneCanvasSource(image)
   refs.resizeWarpSourcePixels = readSourceImageData(refs.resizeBaseSnapshot)
   updateMagnetismCoords(state.currentSelectedLayerId)
-  editorFacade.showDragBox(
-    round(minX + width / 2, 1),
-    round(minY + height / 2, 1),
-    width,
-    height,
-    true
-  )
+  const startX = round(minX + width / 2, 1)
+  const startY = round(minY + height / 2, 1)
+  textAffineBaseline = layer.textSpec
+    ? {
+        spec: cloneTextSpec(layer.textSpec) || layer.textSpec,
+        x: startX,
+        y: startY,
+        w: width,
+        h: height,
+      }
+    : null
+  editorFacade.showDragBox(startX, startY, width, height, true)
 }
 
 const saveResizeModeIfNeeded = async () => {
@@ -1090,11 +1115,31 @@ const saveResizeModeIfNeeded = async () => {
   const transformOptions = state.lassoTransformOptions
   const shouldBakeResize =
     Boolean(refs.imageForResize) && (state.resizeModeMadeChanges || state.lassoFloatDirty)
+  const affineBaseline = textAffineBaseline
+  textAffineBaseline = null
   if (shouldBakeResize && state.currentSelectedLayerId) {
     const layer = state.layers[state.currentSelectedLayerId]
+    const affineText =
+      Boolean(layer?.textSpec && affineBaseline) &&
+      state.lastResizeCoords.transformKind === 'resize' &&
+      !transformPoints
     if (layer) {
       state.lastResizeCoords = { ...state.lastResizeCoords, previewCoarse: false }
-      paintTransformFrame(layer.canvas.context)
+      if (affineText && affineBaseline) {
+        const next = applyAffineResizeToTextSpec(affineBaseline.spec, affineBaseline, {
+          x: state.lastResizeCoords.x,
+          y: state.lastResizeCoords.y,
+          w: state.lastResizeCoords.w,
+          h: state.lastResizeCoords.h,
+          r: state.lastResizeCoords.r,
+        })
+        await ensureTextFontLoaded(next.fontFamily)
+        layer.textSpec = next
+        paintTextSpecOnContext(layer.canvas.context, next, { clearTarget: true })
+      } else {
+        paintTransformFrame(layer.canvas.context)
+        if (affineBaseline) layer.textSpec = undefined
+      }
       state.lassoFloatDirty = false
       syncLayerDisplay(state.currentSelectedLayerId)
       refreshMaskDependents(state.currentSelectedLayerId)
@@ -1102,7 +1147,9 @@ const saveResizeModeIfNeeded = async () => {
     await layersBridge.addLayerHistoryContentChangedStep()
     layersBridge.updateUndoRedoButtons()
     if (Coworking.isOpen() && state.currentSelectedLayerId) {
-      if (transformPoints) {
+      if (affineText && layer?.textSpec) {
+        Coworking.sendTextLayerUpdate(state.currentSelectedLayerId, layer.textSpec, layer.name)
+      } else if (transformPoints) {
         Coworking.sendLassoTransformLayer(
           state.currentSelectedLayerId,
           transformPoints,
@@ -1115,6 +1162,9 @@ const saveResizeModeIfNeeded = async () => {
           transformOptions?.rings
         )
       } else {
+        if (affineBaseline) {
+          Coworking.sendTextLayerUpdate(state.currentSelectedLayerId, null, layer?.name)
+        }
         Coworking.sendResizeLayer(
           state.currentSelectedLayerId,
           state.lastResizeCoords.x,
@@ -1200,6 +1250,21 @@ const flipLayer = async (e: Event, layerId: string | false, horizontally: boolea
   openParams()
   const layer = state.layers[layerId]
   if (layer && Number.isFinite(layer.maxX)) {
+    if (layer.textSpec && !(state.resizeMode && refs.imageForResize)) {
+      const next = cloneTextSpec(layer.textSpec)
+      if (next) {
+        if (horizontally) next.flipX = !next.flipX
+        else next.flipY = !next.flipY
+        await ensureTextFontLoaded(next.fontFamily)
+        layer.textSpec = next
+        paintTextSpecOnContext(layer.canvas.context, next, { clearTarget: true })
+        await layersBridge.addLayerHistoryContentChangedStep()
+        if (Coworking.isOpen()) {
+          Coworking.sendTextLayerUpdate(layerId, next, layer.name)
+        }
+      }
+      return
+    }
     if (state.resizeMode && refs.imageForResize) {
       editorFacade.flushPendingResizeFrame()
       refs.imageForResize = flipImage(refs.imageForResize, horizontally)
@@ -1220,6 +1285,14 @@ const flipLayer = async (e: Event, layerId: string | false, horizontally: boolea
       }
     }
   }
+}
+
+export const editTextButtonTouchStart = (e: Event) => {
+  preventDefault(e)
+  const layerId = state.currentSelectedLayerId
+  if (!layerId || !state.layers[layerId]?.textSpec) return
+  if (refs.editTextButton?.classList.contains('disabled')) return
+  editorFacade.beginTextEditForLayer(layerId)
 }
 
 export const flipVertically = (e: Event, layerId: string | false = state.currentSelectedLayerId) =>

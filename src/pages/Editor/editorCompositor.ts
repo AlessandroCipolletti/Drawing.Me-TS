@@ -27,6 +27,7 @@ import {
   syncGradientKindButtons,
   syncGradientSwatchDom,
 } from './gradientFill'
+import { cancelActiveTextSession, hideTextBar, showTextBar } from './text/textSession'
 import {
   CurrentToolProps,
   EditorCanvasState,
@@ -106,6 +107,7 @@ export const applyToolSelection = (
   coordsAreInsideLayer: (x: number, y: number) => boolean,
   tool: Partial<CurrentToolProps>
 ) => {
+  const previousToolName = state.currentToolProps.name
   if (state.lassoMode?.isMoveMode) {
     state.lassoMode.isMoveMode = false
     state.lassoMode.isDraggingMove = false
@@ -129,6 +131,14 @@ export const applyToolSelection = (
     showGradientBar(state, refs)
   } else {
     hideGradientBar(state, refs)
+  }
+  if (previousToolName === 'text' && tool.name !== 'text') {
+    void cancelActiveTextSession(state, refs)
+  }
+  if (state.currentToolProps.name === 'text') {
+    showTextBar(state, refs)
+  } else {
+    hideTextBar(state, refs)
   }
   syncToolImageShapes(state, refs)
   Toolbar.setTool(state.currentToolProps)
@@ -163,6 +173,9 @@ export const updateEditorLayer = (
   refs.canvasForLine.style.zIndex = String(layerZIndex + 1)
   if (refs.gradientOverlay) {
     refs.gradientOverlay.style.zIndex = String(layerZIndex + 1)
+  }
+  if (refs.textOverlay) {
+    refs.textOverlay.style.zIndex = String(layerZIndex + 1)
   }
   refs.canvasForLine.style.opacity = String(opacity)
   refs.canvasForLine.style.mixBlendMode = 'normal'

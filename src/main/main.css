@@ -1,6 +1,15 @@
 @font-face {
   font-family: 'Poppins';
   src: url('../static/font/Poppins-Light.ttf');
+  font-weight: 400;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Poppins';
+  src: url('../static/font/Poppins-Regular.ttf');
+  font-weight: 700;
+  font-style: normal;
 }
 
 @font-face {
@@ -559,6 +568,14 @@ iframe {
 .svg-icon-warning {
   mask-image: url('../static/icons/svg/warning.svg');
   -webkit-mask-image: url('../static/icons/svg/warning.svg');
+}
+.svg-icon-check {
+  mask-image: url('../static/icons/svg/check.svg');
+  -webkit-mask-image: url('../static/icons/svg/check.svg');
+}
+.svg-icon-edit-text {
+  mask-image: url('../static/icons/svg/tool-text.svg');
+  -webkit-mask-image: url('../static/icons/svg/tool-text.svg');
 }
 .svg-icon-plus {
   mask-image: url('../static/icons/svg/plus.svg');

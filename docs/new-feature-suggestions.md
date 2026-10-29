@@ -10,14 +10,6 @@ Text lives on its own layer type so it stays re-editable instead of being flatte
 Double-tapping the layer reopens editing, while the transform box moves, scales, and rotates it.
 On export the text is rasterised into the flattened image, and coworkers see it update live.
 
-## 2. Gradient Tool
-
-Add a gradient tool that fills a layer or an active lasso selection with a smooth colour transition.
-The user drags on canvas to set direction and length, with live preview before releasing.
-Support linear, radial, and angular types, plus multi-stop colours picked from the palette.
-Opacity per stop and blend mode integration would make it ideal for skies, shading, and backgrounds.
-A Worker-based fill keeps large gradients off the 120 Hz stroke hot path, like the bucket tool.
-
 ## 3. Reference Image Import and Overlay
 
 Let users import a photo from the device and place it on its own locked reference layer.

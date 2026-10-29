@@ -399,8 +399,10 @@ describe('Editor pointer dispatch & coalesced 120Hz stroke safety net', () => {
     ).toBe(false)
     expect(isQuickShapeSupportedTool({ name: 'bucket' })).toBe(false)
     expect(isQuickShapeSupportedTool({ name: 'gradient' })).toBe(false)
+    expect(isQuickShapeSupportedTool({ name: 'text' })).toBe(false)
     expect(isQuickShapeSupportedTool({ name: 'magicWand' })).toBe(false)
     expect(toolSupportsSymmetry('gradient')).toBe(false)
+    expect(toolSupportsSymmetry('text')).toBe(false)
 
     // 1. Straight line with minor hand tremor: connects start to end directly, only offers line & freehand
     const linePts: Array<[number, number]> = []
@@ -825,6 +827,38 @@ describe('Editor pointer dispatch & coalesced 120Hz stroke safety net', () => {
         touchType: TOUCH_TYPE_FINGER,
         hasZoom: false,
         toolName: 'gradient',
+        currentLayerIsActive: false,
+      })
+    ).toBe('none')
+    expect(
+      resolveTouchStartAction({
+        isResizing: false,
+        resizeModeActive: false,
+        currentDeviceHasStylus: false,
+        touchType: TOUCH_TYPE_FINGER,
+        hasZoom: false,
+        toolName: 'text',
+        currentLayerIsActive: true,
+      })
+    ).toBe('text')
+    expect(
+      resolveTouchMoveAction({
+        isResizing: false,
+        resizeModeActive: false,
+        isZooming: false,
+        currentDeviceHasStylus: false,
+        touchType: TOUCH_TYPE_FINGER,
+        toolName: 'text',
+        currentLayerIsActive: true,
+      })
+    ).toBe('text')
+    expect(
+      resolveTouchEndAction({
+        isResizing: false,
+        resizeModeActive: false,
+        currentDeviceHasStylus: false,
+        isZooming: false,
+        toolName: 'text',
         currentLayerIsActive: false,
       })
     ).toBe('none')

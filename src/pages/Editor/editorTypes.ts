@@ -2,6 +2,17 @@ import { ToolConfigProps } from './config'
 import { ExtendedCanvasContext } from 'utils/canvasUtils'
 import type { QuadCorners, WarpMesh } from 'utils/imageWarp'
 import type { GradientHandleTarget, GradientKind } from './gradientFill'
+import type { TextBoxHandleTarget } from './text/textRaster'
+import type { TextSpec } from './text/textSpec'
+
+export type TextBarSliderKey =
+  'fontSize' | 'lineHeight' | 'letterSpacing' | 'strokeWidth' | 'shadowBlur'
+
+export interface TextSliderRefs {
+  cell: HTMLElement | null
+  track: HTMLElement | null
+  cursor: HTMLElement | null
+}
 
 export type TransformKind = 'resize' | 'distort' | 'perspective' | 'warp'
 
@@ -106,6 +117,26 @@ export interface EditorRefs {
   gradientColorInput1: HTMLInputElement | null
   gradientColorInput2: HTMLInputElement | null
   gradientCloseButton: HTMLElement | null
+  textOverlay: HTMLCanvasElement | null
+  textInput: HTMLTextAreaElement | null
+  textBar: HTMLElement | null
+  textFontSelect: HTMLSelectElement | null
+  textWeightButton: HTMLElement | null
+  textItalicButton: HTMLElement | null
+  textUnderlineButton: HTMLElement | null
+  textStrikeButton: HTMLElement | null
+  textAlignButton: HTMLElement | null
+  textFillSwatch: HTMLElement | null
+  textFillColorInput: HTMLInputElement | null
+  textOutlineButton: HTMLElement | null
+  textStrokeSwatch: HTMLElement | null
+  textStrokeColorInput: HTMLInputElement | null
+  textShadowButton: HTMLElement | null
+  textShadowSwatch: HTMLElement | null
+  textShadowColorInput: HTMLInputElement | null
+  textSliders: Partial<Record<TextBarSliderKey, TextSliderRefs>>
+  textDoneButton: HTMLElement | null
+  textCancelButton: HTMLElement | null
 }
 
 export const createInitialEditorRefs = (): EditorRefs => ({
@@ -196,6 +227,26 @@ export const createInitialEditorRefs = (): EditorRefs => ({
   gradientColorInput1: null,
   gradientColorInput2: null,
   gradientCloseButton: null,
+  textOverlay: null,
+  textInput: null,
+  textBar: null,
+  textFontSelect: null,
+  textWeightButton: null,
+  textItalicButton: null,
+  textUnderlineButton: null,
+  textStrikeButton: null,
+  textAlignButton: null,
+  textFillSwatch: null,
+  textFillColorInput: null,
+  textOutlineButton: null,
+  textStrokeSwatch: null,
+  textStrokeColorInput: null,
+  textShadowButton: null,
+  textShadowSwatch: null,
+  textShadowColorInput: null,
+  textSliders: {},
+  textDoneButton: null,
+  textCancelButton: null,
 })
 
 export interface EditorTouchState {
@@ -325,6 +376,22 @@ interface GradientModeState {
   y1: number
 }
 
+interface TextModeState {
+  active: boolean
+  hasActiveSession: boolean
+  outlineOpen: boolean
+  shadowOpen: boolean
+  createdNewLayer: boolean
+  layerId: string
+  draftSpec: TextSpec | null
+  committedSpec: TextSpec | null
+  isDraggingBox: boolean
+  draggingHandle: TextBoxHandleTarget | null
+  dragStartX: number
+  dragStartY: number
+  dragInitialSpec: TextSpec | null
+}
+
 interface PipetteState {
   bg: string
   isVisible: boolean
@@ -377,6 +444,7 @@ export interface EditorState {
   lassoMode: LassoModeState
   quickShapeMode: QuickShapeModeState
   gradientMode: GradientModeState
+  textMode: TextModeState
   pipette: PipetteState
   colorDrop: ColorDropState
   currentLayerGCO: GlobalCompositeOperation
@@ -616,6 +684,21 @@ export const createInitialEditorState = (
     y0: 0,
     x1: 0,
     y1: 0,
+  },
+  textMode: {
+    active: false,
+    hasActiveSession: false,
+    outlineOpen: false,
+    shadowOpen: false,
+    createdNewLayer: false,
+    layerId: '',
+    draftSpec: null,
+    committedSpec: null,
+    isDraggingBox: false,
+    draggingHandle: null,
+    dragStartX: 0,
+    dragStartY: 0,
+    dragInitialSpec: null,
   },
   pipette: {
     bg: 'none',

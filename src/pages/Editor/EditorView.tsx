@@ -1,9 +1,52 @@
 import { h } from 'ui/jsx-runtime'
-import { EditorRefs, TransformKind } from './editorTypes'
+import { EditorRefs, TextBarSliderKey, TextSliderRefs, TransformKind } from './editorTypes'
 import { GRADIENT_KINDS, GradientKind } from './gradientFill'
 import { TRANSFORM_KIND_LABELS, TRANSFORM_KINDS } from './resizeTransformSession'
+import { TEXT_FONT_CATALOG } from './text/textFonts'
 
 export type { EditorRefs }
+
+const registerTextSliderPart = (
+  refs: EditorRefs,
+  key: TextBarSliderKey,
+  part: keyof TextSliderRefs,
+  el: HTMLElement | null
+) => {
+  if (!refs.textSliders) refs.textSliders = {}
+  const current = refs.textSliders[key] || { cell: null, track: null, cursor: null }
+  current[part] = el
+  refs.textSliders[key] = current
+}
+
+const TextSliderCell = ({
+  refs,
+  sliderKey,
+  label,
+  hidden,
+}: {
+  refs: EditorRefs
+  sliderKey: TextBarSliderKey
+  label: string
+  hidden?: boolean
+}) => (
+  <div
+    class={`editor-adjust__slider-cell editor-text__slider-cell${hidden ? ' displayNone' : ''}`}
+    ref={(el) => registerTextSliderPart(refs, sliderKey, 'cell', el)}
+  >
+    <span class="editor-adjust__slider-label">{label}</span>
+    <div
+      class="horizontal-slider editor-adjust__slider"
+      ref={(el) => registerTextSliderPart(refs, sliderKey, 'track', el)}
+    >
+      <div
+        class="editor-adjust__slider-handle"
+        ref={(el) => registerTextSliderPart(refs, sliderKey, 'cursor', el)}
+      >
+        <span />
+      </div>
+    </div>
+  </div>
+)
 
 const QUICK_SHAPE_VARIANT_ITEMS: ReadonlyArray<{ id: string; label: string }> = [
   { id: 'line', label: 'Line' },
@@ -167,6 +210,23 @@ export const EditorView = ({ refs }: { refs: EditorRefs }) => (
         class="editor-gradient__overlay displayNone"
         ref={(el) => {
           refs.gradientOverlay = el
+        }}
+      />
+      <canvas
+        class="editor-text__overlay displayNone"
+        ref={(el) => {
+          refs.textOverlay = el
+        }}
+      />
+      <textarea
+        class="editor-text__input displayNone"
+        rows={1}
+        autocomplete="off"
+        autocapitalize="sentences"
+        spellcheck="false"
+        aria-label="Canvas text input"
+        ref={(el) => {
+          refs.textInput = el as HTMLTextAreaElement | null
         }}
       />
       <div
@@ -649,6 +709,188 @@ export const EditorView = ({ refs }: { refs: EditorRefs }) => (
         }}
       >
         <div class="editor-lasso__action-icon svg-icon-close svg-icon-dark" />
+      </div>
+    </div>
+    <div
+      class="editor-text__bar params-container editor-lasso__bar displayNone"
+      ref={(el) => {
+        refs.textBar = el
+      }}
+    >
+      <div class="editor-text__row">
+        <div class="editor-text__cluster">
+          <FloatingBarDragHandle barId="text" />
+          <select
+            class="editor-text__font-select"
+            aria-label="Font"
+            ref={(el) => {
+              refs.textFontSelect = el as HTMLSelectElement | null
+            }}
+          >
+            {TEXT_FONT_CATALOG.map((font) => (
+              <option
+                value={font.family}
+                style={{ fontFamily: `"${font.family}", Poppins, sans-serif` }}
+              >
+                {font.label}
+              </option>
+            ))}
+          </select>
+          <div
+            class="editor-lasso__action"
+            data-text-action="weight"
+            aria-label="Font weight"
+            ref={(el) => {
+              refs.textWeightButton = el
+            }}
+          >
+            <span class="editor-lasso__action-label">B</span>
+          </div>
+          <div
+            class="editor-lasso__action"
+            data-text-action="italic"
+            aria-label="Italic"
+            ref={(el) => {
+              refs.textItalicButton = el
+            }}
+          >
+            <span class="editor-lasso__action-label">I</span>
+          </div>
+          <div
+            class="editor-lasso__action"
+            data-text-action="underline"
+            aria-label="Underline"
+            ref={(el) => {
+              refs.textUnderlineButton = el
+            }}
+          >
+            <span class="editor-lasso__action-label">U</span>
+          </div>
+          <div
+            class="editor-lasso__action"
+            data-text-action="strike"
+            aria-label="Strikethrough"
+            ref={(el) => {
+              refs.textStrikeButton = el
+            }}
+          >
+            <span class="editor-lasso__action-label">S</span>
+          </div>
+        </div>
+        <div class="editor-text__cluster">
+          <div
+            class="editor-lasso__action"
+            data-text-action="align"
+            aria-label="Horizontal align"
+            ref={(el) => {
+              refs.textAlignButton = el
+            }}
+          >
+            <span class="editor-lasso__action-label">Left</span>
+          </div>
+          <div
+            class="editor-colorpicker__color editor-gradient__swatch"
+            aria-label="Text colour"
+            ref={(el) => {
+              refs.textFillSwatch = el
+            }}
+          >
+            <input
+              type="color"
+              class="editor-gradient__color-input"
+              value="#000000"
+              ref={(el) => {
+                refs.textFillColorInput = el
+              }}
+            />
+          </div>
+        </div>
+        <div class="editor-text__cluster">
+          <div class="editor-lasso__divider" />
+          <div
+            class="editor-lasso__action editor-lasso__action--icon-only"
+            data-text-action="done"
+            aria-label="Confirm text"
+            ref={(el) => {
+              refs.textDoneButton = el
+            }}
+          >
+            <div class="editor-lasso__action-icon svg-icon-check svg-icon-dark" />
+          </div>
+          <div
+            class="editor-lasso__action editor-lasso__action--icon-only"
+            data-text-action="cancel"
+            aria-label="Cancel text"
+            ref={(el) => {
+              refs.textCancelButton = el
+            }}
+          >
+            <div class="editor-lasso__action-icon svg-icon-close svg-icon-dark" />
+          </div>
+        </div>
+      </div>
+      <div class="editor-text__row editor-text__row--sliders">
+        <TextSliderCell refs={refs} sliderKey="fontSize" label="Size" />
+        <TextSliderCell refs={refs} sliderKey="lineHeight" label="Line" />
+      </div>
+      <div class="editor-text__row editor-text__row--sliders">
+        <TextSliderCell refs={refs} sliderKey="letterSpacing" label="Space" />
+        <div
+          class="editor-lasso__action"
+          data-text-action="outline"
+          aria-label="Second colour"
+          ref={(el) => {
+            refs.textOutlineButton = el
+          }}
+        >
+          <span class="editor-lasso__action-label">Outline</span>
+        </div>
+        <div
+          class="editor-colorpicker__color editor-gradient__swatch displayNone"
+          aria-label="Outline colour"
+          ref={(el) => {
+            refs.textStrokeSwatch = el
+          }}
+        >
+          <input
+            type="color"
+            class="editor-gradient__color-input"
+            value="#ffffff"
+            ref={(el) => {
+              refs.textStrokeColorInput = el
+            }}
+          />
+        </div>
+        <TextSliderCell refs={refs} sliderKey="strokeWidth" label="Width" hidden />
+      </div>
+      <div class="editor-text__row editor-text__row--sliders">
+        <div
+          class="editor-lasso__action"
+          data-text-action="shadow"
+          aria-label="Shadow"
+          ref={(el) => {
+            refs.textShadowButton = el
+          }}
+        >
+          <span class="editor-lasso__action-label">Shadow</span>
+        </div>
+        <div
+          class="editor-colorpicker__color editor-gradient__swatch displayNone"
+          aria-label="Shadow colour"
+          ref={(el) => {
+            refs.textShadowSwatch = el
+          }}
+        >
+          <input
+            type="color"
+            class="editor-gradient__color-input"
+            value="#000000"
+            ref={(el) => {
+              refs.textShadowColorInput = el
+            }}
+          />
+        </div>
+        <TextSliderCell refs={refs} sliderKey="shadowBlur" label="Blur" hidden />
       </div>
     </div>
     <div

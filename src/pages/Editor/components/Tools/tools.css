@@ -180,6 +180,10 @@
   mask-image: url('../../../../static/icons/svg/tool-gradient.svg');
   -webkit-mask-image: url('../../../../static/icons/svg/tool-gradient.svg');
 }
+.editor-tools__tool-text::after {
+  mask-image: url('../../../../static/icons/svg/tool-text.svg');
+  -webkit-mask-image: url('../../../../static/icons/svg/tool-text.svg');
+}
 .editor-tools__tool-magicWand::after {
   mask-image: url('../../../../static/icons/svg/magic-wand.svg');
   -webkit-mask-image: url('../../../../static/icons/svg/magic-wand.svg');

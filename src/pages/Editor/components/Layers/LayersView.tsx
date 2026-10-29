@@ -13,6 +13,7 @@ export interface LayersRefs {
   maskDownLayerButton: HTMLElement | null
   flipVerticalButton: HTMLElement | null
   flipHorizontalButton: HTMLElement | null
+  editTextButton: HTMLElement | null
   sendLayerButton: HTMLElement | null
   deleteLayerButton: HTMLElement | null
   adjustParamsButton: HTMLElement | null
@@ -122,6 +123,16 @@ export const LayersView = ({ maxLength, refs }: { maxLength: number; refs: Layer
         }}
       >
         <div class="editor-layers__params-icon svg-icon-flip-vertical svg-icon-dark" />
+      </div>
+      <div
+        class="editor-layers__params-edit-text displayNone"
+        ref={(el) => {
+          refs.editTextButton = el
+        }}
+        aria-label="Edit text"
+        role="button"
+      >
+        <div class="editor-layers__params-icon svg-icon-edit-text svg-icon-dark" />
       </div>
       <div
         class="editor-layers__params-duplicate"

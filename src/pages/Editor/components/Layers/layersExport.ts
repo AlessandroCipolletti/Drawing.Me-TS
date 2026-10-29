@@ -41,6 +41,7 @@ import {
   compositeLayerOntoContext,
   normalizeBlendMode,
 } from './layerBlendMode'
+import { cloneTextSpec } from 'pages/Editor/text/textSpec'
 
 export interface ExportableLayerCopy {
   id: string
@@ -66,6 +67,7 @@ export interface ExportableLayerCopy {
   maskBelowLayerId?: string | null
   layerKind?: string
   adjustmentSpec?: unknown
+  textSpec?: unknown
 }
 
 const layerDeepCopy = (
@@ -97,6 +99,7 @@ const layerDeepCopy = (
     adjustmentSpec: layer.adjustmentSpec
       ? JSON.parse(JSON.stringify(layer.adjustmentSpec))
       : undefined,
+    textSpec: cloneTextSpec(layer.textSpec),
   }
   if (deepCopyCanvas) {
     const source = layer.layerKind === 'adjustment' ? getLayerDomCanvas(layer) : layer.canvas
@@ -249,6 +252,7 @@ const prepareLayerFromDb = async (rawLayer: LayerRecord & { base64: string }) =>
   layer.blendMode = normalizeBlendMode(rawLayer.blendMode)
   layer.layerKind = rawLayer.layerKind ?? 'pixel'
   layer.adjustmentSpec = rawLayer.adjustmentSpec as LayerRecord['adjustmentSpec']
+  layer.textSpec = cloneTextSpec(rawLayer.textSpec as LayerRecord['textSpec'])
   layer.displayCanvas = null
   ensureLayerDisplayCanvas(layer)
   syncLayerDisplay(layer.id)
@@ -346,6 +350,7 @@ const createNewLayerDom = async (layerId: string, withAnimation = false) => {
       minY: layer.minY,
       maxX: layer.maxX,
       maxY: layer.maxY,
+      textSpec: layer.textSpec ? cloneTextSpec(layer.textSpec) || null : null,
     })
   }
 }

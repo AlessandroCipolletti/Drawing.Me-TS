@@ -33,6 +33,9 @@ import type { AdjustmentSpec } from './layerAdjustmentTypes'
 
 import { renderAndCompositeAdjustment } from './layerAdjustmentRender'
 import { bakeAdjustmentIntoTarget } from './layersActions'
+import { cloneTextSpec, type TextSpec } from 'pages/Editor/text/textSpec'
+import { ensureTextFontLoaded } from 'pages/Editor/text/textFonts'
+import { paintTextSpecOnContext } from 'pages/Editor/text/textRaster'
 
 const releaseCurrentLayerIfBlocked = () => {
   const current = state.currentSelectedLayerId
@@ -474,6 +477,25 @@ export const receiveAdjustmentLayerUpdateFromCoworker = async (
   layer.adjustmentSpec = adjustmentSpec
   await renderAndCompositeAdjustment(layerId, 'full')
   layersBridge.updateLayerPreview(layerId)
+}
+
+export const receiveTextLayerUpdateFromCoworker = async (
+  layerId: string,
+  textSpec: TextSpec | null,
+  name?: string
+) => {
+  const layer = state.layers[layerId]
+  if (!layer?.canvas?.context) return
+  const cloned = cloneTextSpec(textSpec)
+  layer.textSpec = cloned
+  if (cloned) {
+    await ensureTextFontLoaded(cloned.fontFamily)
+    paintTextSpecOnContext(layer.canvas.context, cloned, { clearTarget: true })
+  }
+  if (name) {
+    layersBridge.saveLayerName(layerId, name)
+  }
+  await layersBridge.addLayerHistoryContentChangedStep(layerId)
 }
 
 export const receiveAdjustmentLayerBakeFromCoworker = async (

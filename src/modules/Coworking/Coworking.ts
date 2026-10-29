@@ -235,6 +235,10 @@ const peerMessageHandlers: Record<string, (data: any) => void> = {
         data.targetLayerId
       )
     ),
+  [editorEvents.textLayerUpdate]: (data) =>
+    withEditor(() =>
+      editorCoworkingPort.receiveTextLayerUpdateFromCoworker(data.layerId, data.textSpec, data.name)
+    ),
   [editorEvents.clearLayer]: (data) =>
     withEditor(() => editorCoworkingPort.clearLayerFromCoworker(data.layerId)),
   [editorEvents.transferLayer]: (data) =>
@@ -290,6 +294,13 @@ export const sendAdjustmentLayerUpdate = (layerId: string, adjustmentSpec: unkno
   peerClient?.sendMessage({
     event: editorEvents.adjustmentLayerUpdate,
     data: { layerId, adjustmentSpec },
+  })
+}
+
+export const sendTextLayerUpdate = (layerId: string, textSpec: unknown, name?: string) => {
+  peerClient?.sendMessage({
+    event: editorEvents.textLayerUpdate,
+    data: { layerId, textSpec: textSpec ?? null, name },
   })
 }
 

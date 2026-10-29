@@ -516,7 +516,8 @@
 .editor-layers__params-resize,
 .editor-layers__params-send,
 .editor-layers__params-flip-horizontal,
-.editor-layers__params-flip-vertical {
+.editor-layers__params-flip-vertical,
+.editor-layers__params-edit-text {
   width: var(--editor-dock-tile);
   height: var(--editor-dock-tile);
   margin: 0;
@@ -556,7 +557,8 @@
 .editor-layers__params-resize:hover:not(.disabled),
 .editor-layers__params-send:hover:not(.disabled),
 .editor-layers__params-flip-horizontal:hover:not(.disabled),
-.editor-layers__params-flip-vertical:hover:not(.disabled) {
+.editor-layers__params-flip-vertical:hover:not(.disabled),
+.editor-layers__params-edit-text:hover:not(.disabled) {
   background-color: var(--editor-well-bg);
 }
 .editor-layers__params-visibility:hover:not(.disabled) .editor-layers__params-icon,
@@ -568,7 +570,8 @@
 .editor-layers__params-resize:hover:not(.disabled) .editor-layers__params-icon,
 .editor-layers__params-send:hover:not(.disabled) .editor-layers__params-icon,
 .editor-layers__params-flip-horizontal:hover:not(.disabled) .editor-layers__params-icon,
-.editor-layers__params-flip-vertical:hover:not(.disabled) .editor-layers__params-icon {
+.editor-layers__params-flip-vertical:hover:not(.disabled) .editor-layers__params-icon,
+.editor-layers__params-edit-text:hover:not(.disabled) .editor-layers__params-icon {
   background-color: var(--accent-ink-strong);
 }
 .editor-layers__params-delete:hover:not(.disabled) {
@@ -601,7 +604,8 @@
 .editor-layers__params-resize:active:not(.disabled),
 .editor-layers__params-send:active:not(.disabled),
 .editor-layers__params-flip-horizontal:active:not(.disabled),
-.editor-layers__params-flip-vertical:active:not(.disabled) {
+.editor-layers__params-flip-vertical:active:not(.disabled),
+.editor-layers__params-edit-text:active:not(.disabled) {
   transform: scale(0.96);
 }
 .editor-layers__params-container .disabled {

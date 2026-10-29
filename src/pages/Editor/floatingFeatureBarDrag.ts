@@ -1,5 +1,6 @@
 import Params from 'main/Params'
 import { getEventCoordX, getEventCoordY, preventDefault } from 'utils/domUtils'
+import { getNumberInBetween } from 'utils/mathUtils'
 import type { PointerTouchEvent } from './editorTypes'
 import {
   applyFloatingBarScreenPosition,
@@ -49,9 +50,16 @@ const onDragMove = (e: Event) => {
   const y = getEventCoordY(touchEvent, 0)
   const nextLeft = dragStartLeft + (x - dragOriginX)
   const nextTop = dragStartTop + (y - dragOriginY)
+  if (dragBarId === 'text') {
+    dragBarEl.style.maxWidth = `${Math.max(240, Params.width - 16)}px`
+  }
   const clamped = clampFloatingBarCenter(dragBarEl, nextLeft, nextTop, getCanvasOffset())
-  applyFloatingBarScreenPosition(dragBarEl, clamped.left, clamped.top)
-  setFloatingBarManualPosition(dragBarId, clamped.left, clamped.top)
+  const barW = dragBarEl.getBoundingClientRect().width || 320
+  const minCenter = barW / 2 + 8
+  const maxCenter = Math.max(minCenter, Params.width - barW / 2 - 8)
+  const left = getNumberInBetween(minCenter, maxCenter, clamped.left, 0)
+  applyFloatingBarScreenPosition(dragBarEl, left, clamped.top)
+  setFloatingBarManualPosition(dragBarId, left, clamped.top)
 }
 
 const onDragEnd = () => {

@@ -1095,6 +1095,14 @@ const toolsConfigInit = (): Record<string, ToolConfigProps> => ({
     },
     []
   ),
+  text: getCustomTool(
+    {
+      name: 'text',
+      hasSizeAndAlpha: false,
+      maxSizeThatNeedsToAdaptLine: 0,
+    },
+    []
+  ),
   magicWand: getCustomTool(
     {
       name: 'magicWand',
